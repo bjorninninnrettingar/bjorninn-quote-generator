@@ -728,18 +728,30 @@
       // once CNC has actually been exported to USB, instead of staying a manual box — this is the
       // one real signal that export happened, so self-report it here rather than relying on
       // someone remembering to tick it by hand.
-      if (made.length) {
-        fetch(PROXY + "?path=" + encodeURIComponent(PROJECTS + "/" + project.id), {
+      // 2026-10-28 (G1/G20): only tick when NOTHING is left to program by hand — a single file
+      // with ⛔ items still open must not turn the Klárt gate green. The PATCH carries the office
+      // key and a failure is shown, not swallowed.
+      if (made.length && !missing.length) {
+        fetch(PROXY + "?path=" + encodeURIComponent(PROJECTS + "/" + project.id) + "&k=" + encodeURIComponent(KEY), {
           method: "PATCH", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ fields: { "6. CNC yfirfarið": true } })
-        }).catch(function () {});
+        }).then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        }).then(function (j) {
+          if (j && j.error) throw new Error(typeof j.error === "string" ? j.error : (j.error.message || "villa"));
+        }).catch(function (e) { log("⛔ Tókst ekki að haka „6. CNC yfirfarið“ á verkið (" + e.message + ") — hakaðu í höndunum í /ferli."); });
+      } else if (made.length) {
+        log("ℹ️ CNC að hluta — „6. CNC yfirfarið“ hakast ekki fyrr en " + missing.length + " ⛔ atriði eru leyst (forrita í höndunum eða laga gögn).");
+      }
+      if (made.length) {
         // 🔔 Tilkynningar (2026-10-27): tell the fræsari the files are on the stick (bell +
         // ALMENNT chat). Fire-and-forget, after every file is written — never touches the export.
         try {
           fetch("/api/virkni", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ k: KEY, tegund: "cnc", til: "Verkstæði", chat: true, t: project.id, tengill: "/fraesing?recordId=" + project.id,
-              texti: "CNC-skrár komnar á USB — " + made.length + " skrár" + (warn.length ? ", " + warn.length + " ⚠" : "") + (missing.length ? ", " + missing.length + " ⛔ þarf að forrita í höndunum" : "") }),
+              texti: "CNC-skrár komnar á USB — " + made.length + " skrár" + (warn.length ? ", " + warn.length + " ⚠" : "") + (missing.length ? ", " + missing.length + " ⛔ þarf að forrita í höndunum — CNC að hluta, ekki hakað yfirfarið" : "") }),
           }).catch(function () {});
         } catch (e) {}
       }

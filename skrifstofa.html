@@ -839,8 +839,12 @@
         cb.addEventListener("change", function () {
           var id = cb.dataset.id;
           cb.disabled = true;
+          var ticked = cb.checked, rowName = (rows.filter(function (r) { return r.projectId === id; })[0] || {}).name || "";
           apiPatchProject(id, { "5. Efni lent í húsi": cb.checked })
-            .then(function () { cb.disabled = false; })
+            .then(function () {
+              cb.disabled = false;
+              if (ticked && window.OfficeShell) OfficeShell.notifyEfni(getK(), id, "Efni komið í hús", { name: rowName });
+            })
             .catch(function () { cb.checked = !cb.checked; cb.disabled = false; });
         });
       });

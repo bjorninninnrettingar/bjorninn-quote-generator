@@ -33,6 +33,9 @@
   .field .fval { font-size:1.05rem; font-weight:600; color:var(--text); }
   .field.main .fval { font-size:1.9rem; font-weight:800; letter-spacing:-.01em; }
 
+  .fnote { margin-top:12px; padding:10px 12px; border-radius:10px; border:1px solid #ffb74d; background:rgba(255,183,77,.12); }
+  .fnote-k { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#ffb74d; }
+  .fnote-v { white-space:pre-wrap; font-size:.95rem; margin-top:4px; }
   .proj-name { color:var(--text); font-size:1.1rem; font-weight:700; margin-top:20px; }
 
   .choices { display:flex; flex-direction:column; gap:14px; margin-top:26px; }
@@ -97,6 +100,7 @@
     <div class="field hidden" id="roomField"><span class="flabel">Rými</span><br><span class="fval" id="roomVal"></span></div>
     <div class="field hidden" id="tegundField"><span class="flabel">Tegund einingu</span><br><span class="fval" id="tegundVal"></span></div>
     <div class="proj-name" id="projName"></div>
+    <div id="floorNotes"></div>
 
     <div class="mill hidden" id="millCard">
       <span class="flabel">Skannaður hlutur · þarf að fræsa</span>
@@ -276,8 +280,18 @@
       show($("content"));
 
       if (!p) return;
-      fetchJson(PROJECT_TABLE + "/" + p, null)
+      fetchJson(PROJECT_TABLE + "/" + p, k)
         .then(function(prec){
+          // 2026-10-28 (G15): the same floor notes /verk shows, only the ones that have text.
+          var pf = prec.fields || {}, nb = $("floorNotes");
+          [["Hafa í huga 🧠", pf["🧠📌Það sem þarf að hafa í huga"]],
+           ["Fræsari 🔬", pf["🔬📌 Það sem Fræsari þarf að hafa í huga"]],
+           ["Uppsetning / samsetning 🪛", pf["🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗"]]].forEach(function(n){
+            var v = txt(n[1]); if (!v) return;
+            var d = document.createElement("div"); d.className = "fnote";
+            d.innerHTML = '<div class="fnote-k">' + esc(n[0]) + '</div><div class="fnote-v">' + esc(v) + '</div>';
+            nb.appendChild(d);
+          });
           var pname = txt((prec.fields||{})["Heiti tækifæris / verkefnis"]).replace(/[\s,–—-]+$/,"").trim();
           if (pname) $("projName").textContent = pname;
         })

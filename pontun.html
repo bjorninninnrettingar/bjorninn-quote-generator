@@ -284,14 +284,10 @@
       var b = this; b.disabled = true;
       Promise.all(open.map(function (o) {
         return apiPatch(PANTADIR + "/" + o.id, { "Staða": ARRIVED }).then(function () { setOrderStatus(o.id, ARRIVED); });
-      })).then(syncEfni).then(function () {
-        // 🔔 the floor + planner hear that the material is in (bell + ALMENNT chat).
-        if (!k) return;
-        fetch("/api/virkni", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ k: k, tegund: "efni", til: "Allir", chat: true, t: recordId, tengill: "/verk?t=" + recordId,
-            hver: (shellInfo.record && shellInfo.record.name) || "", texti: "Allt efni komið í hús" }),
-        }).catch(function () {});
+      })).then(syncEfni).then(function (flipped) {
+        // syncEfni already announced "Allt efni komið í hús" if it just ticked the box; if the box
+        // was ticked by hand earlier the button still tells the floor.
+        if (!flipped) window.OfficeShell.notifyEfni(k, recordId, "Allt efni komið í hús", { name: (shellInfo.record && shellInfo.record.name) || "" });
       }).catch(function () { b.disabled = false; alert("Tókst ekki að vista allt — endurhlaða og reyna aftur."); });
     });
 
@@ -353,12 +349,16 @@
   }
   function syncEfni() {
     var all = currentOrders.length && currentOrders.every(function (o) { return (o.fields || {})["Staða"] === ARRIVED; });
-    var p = Promise.resolve();
+    var p = Promise.resolve(false);
     if (all && !efniLanded) {
       var ff = {}; ff[EFNI_FIELD] = true;
-      p = apiPatch(TAEKIFAERI + "/" + recordId, ff).then(function () { efniLanded = true; });
+      p = apiPatch(TAEKIFAERI + "/" + recordId, ff).then(function () {
+        efniLanded = true;
+        // 2026-10-28 (G5): first time the box flips -> tell the floor, whichever way it got there.
+        return window.OfficeShell.notifyEfni(k, recordId, "Allt efni komið í hús", { name: (shellInfo.record && shellInfo.record.name) || "" }).then(function () { return true; });
+      });
     }
-    return p.then(paintEfniBar);
+    return p.then(function (flipped) { paintEfniBar(); return flipped; });
   }
 
   function statusChip(staða) {
@@ -439,7 +439,15 @@
       ev.stopPropagation();
       var st = ev.target.value;
       var fields = {}; fields["Staða"] = st;
-      apiPatch(PANTADIR + "/" + o.id, fields).then(function () { setOrderStatus(o.id, st); return syncEfni(); });
+      apiPatch(PANTADIR + "/" + o.id, fields).then(function () {
+        setOrderStatus(o.id, st); return syncEfni();
+      }).then(function (flipped) {
+        // 2026-10-28 (G5): one order arrived (not the last) -> quiet bell line, no chat ping.
+        if (st === ARRIVED && !flipped) {
+          var n = currentOrders.filter(function (x) { return (x.fields || {})["Staða"] === ARRIVED; }).length;
+          window.OfficeShell.notifyEfni(k, recordId, "Pöntun komin í hús (" + n + " / " + currentOrders.length + ")", { chat: false, name: (shellInfo.record && shellInfo.record.name) || "" });
+        }
+      });
     });
     var offBtn = el.querySelector("[data-offline]");
     if (offBtn) {

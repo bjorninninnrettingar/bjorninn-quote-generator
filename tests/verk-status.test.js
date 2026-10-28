@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import handler, { STAGES, transitionAllowed } from "../api/verk-status.js";
+import handler, { STAGES, transitionAllowed, productionRecorded } from "../api/verk-status.js";
 
 function call(body, env = { VERK_KEY: "lykill", AIRTABLE_TOKEN: "x" }, fetchImpl) {
   Object.assign(process.env, env);
@@ -61,4 +61,39 @@ test("a status move also writes one office Virkni line (no chat)", async () => {
   assert.equal(f["Til"], "Skrifstofa");
   assert.deepEqual(f["Tækifæri"], [T]);
   assert.equal(r.calls.some((c) => String(c.url).includes("chat.googleapis.com")), false);
+});
+
+const WON = "🏆 Tækifæri unnið";
+const proj = (extra) => async (url, opts) => ok(opts.method ? { id: "recVVVVVVVVVVVVVV" } : Object.assign({ "Staða í söluferli": WON, "Staða í framleiðslu": STAGES.ready }, extra));
+
+test("productionRecorded: saw 95 % and mill 60 % needed", () => {
+  assert.equal(productionRecorded({ "Framvinda sögunar": 1, "Fjöldi hluta til að fræsa 🔬": 0 }).ok, true);
+  assert.equal(productionRecorded({}).ok, false);
+  const r = productionRecorded({ "Framvinda sögunar": 0.97, "Fjöldi hluta til að fræsa 🔬": 10, "Fjöldi hluta fræstir 🔬": 2 });
+  assert.equal(r.ok, false);
+  assert.equal(r.problems.length, 1);
+});
+
+test("Tilbúið → Má afhenda without recorded sawing/milling is refused (409) and nothing is written", async () => {
+  const r = await call({ k: "lykill", t: T, action: "status", from: STAGES.ready, to: STAGES.deliver }, undefined, proj({}));
+  assert.equal(r.status, 409);
+  assert.equal(r.json.code, "framleidsla_vantar");
+  assert.equal(r.calls.some((c) => c.opts.method === "PATCH" || c.opts.method === "POST"), false);
+});
+
+test("override needs OWNER_KEY and a reason, then logs it in Virkni", async () => {
+  const base = { k: "lykill", t: T, action: "status", from: STAGES.ready, to: STAGES.deliver, override: true };
+  const noKey = await call({ ...base, reason: "x", ownerKey: "rangt" }, { VERK_KEY: "lykill", AIRTABLE_TOKEN: "x", OWNER_KEY: "eig" }, proj({}));
+  assert.equal(noKey.status, 409);
+  const noReason = await call({ ...base, ownerKey: "eig" }, { VERK_KEY: "lykill", AIRTABLE_TOKEN: "x", OWNER_KEY: "eig" }, proj({}));
+  assert.equal(noReason.status, 409);
+  const ok1 = await call({ ...base, ownerKey: "eig", reason: "afhent beint af birgi" }, { VERK_KEY: "lykill", AIRTABLE_TOKEN: "x", OWNER_KEY: "eig" }, proj({}));
+  assert.equal(ok1.status, 200);
+  const line = ok1.calls.find((c) => c.url.includes("tblPPMTlFhW0snk24"));
+  assert.match(JSON.parse(line.opts.body).fields["Texti"], /eigandi fór framhjá/);
+});
+
+test("Samsetning → Má afhenda is not gated", async () => {
+  const r = await call({ k: "lykill", t: T, action: "status", from: STAGES.assembly, to: STAGES.deliver }, undefined, proj({ "Staða í framleiðslu": STAGES.assembly }));
+  assert.equal(r.status, 200);
 });

@@ -366,5 +366,16 @@
     return { k: k, record: session.record };
   }
 
-  root.OfficeShell = { boot: boot, getK: getK, getSession: getSession, NAV: NAV, renderChrome: renderChrome, applyDensity: applyDensity, getDensity: getDensity, applyTheme: applyTheme, getTheme: getTheme };
+  // 2026-10-28 (G5/G6): one place that tells the floor + planner "efni komið" (bell, optional chat)
+  // through /api/virkni, used wherever "5. Efni lent í húsi" gets ticked (/skrifstofa, /ferli, /pontun).
+  function notifyEfni(k, t, texti, opts) {
+    opts = opts || {};
+    if (!k || !t) return Promise.resolve(false);
+    return fetch("/api/virkni", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ k: k, tegund: "efni", til: "Allir", chat: opts.chat !== false, t: t, tengill: "/verk?t=" + t, hver: opts.name || "", texti: texti }),
+    }).then(function (r) { return r.ok; }).catch(function () { return false; });
+  }
+
+  root.OfficeShell = { notifyEfni: notifyEfni, boot: boot, getK: getK, getSession: getSession, NAV: NAV, renderChrome: renderChrome, applyDensity: applyDensity, getDensity: getDensity, applyTheme: applyTheme, getTheme: getTheme };
 })(window);
