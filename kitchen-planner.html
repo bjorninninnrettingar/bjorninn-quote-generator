@@ -15740,6 +15740,7 @@
     { t:"bad", label:"Baðherbergi", name:"Baðherbergi" }, { t:"thvottahus", label:"Þvottahús", name:"Þvottahús" },
     { t:"hurdir", label:"Innihurðir", name:"Innihurðir" }, { t:"rymi", label:"Aðeins rými", name:"Stofa", desc:"Án innréttingar" }
   ];
+  var hlAutoAsk = false; // set by Byrja: the first empty Rýmin þín opens the room picker popup
   var hlAdd = null; // the open "+ Rými" form: { t, name, edited }
   function homeListMode(){ return !state.home || state.home.view !== "plan"; }
   // a stored default name ("Eldhús", "Baðherbergi 2") shows in the visitor's language; one they typed stays as typed
@@ -15891,15 +15892,9 @@
     document.getElementById("homeSub").textContent = __("Hvert rými er hannað fyrir sig. Eitt tilboð fyrir allt.");
     var nb = document.getElementById("homeNextBtn"); nb.textContent = __("Áfram →"); nb.hidden = false; // QA A1: the real send is on the last page
     var rows = hlRows();
-    if (!rows.length){ // nothing in the project yet: Rýmin þín is the room picker (owner, 2026-10-27)
-      document.getElementById("homeTitle").textContent = __("Hvaða rými viltu hanna?");
-      document.getElementById("homeSub").textContent = __("Smelltu á rými til að bæta því við. Þú getur bætt fleirum við hvenær sem er.");
-      hlGate = null; hlLaidOut = null;
-      var tH = Math.max(150, Math.min(250, Math.floor(((host.clientHeight || innerHeight - 312) - 40 - 14) / 2))); // two rows of three, filling the box
-      host.innerHTML = '<div class="home-list"><div class="hl-kinds" style="grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:' + tH + 'px">' + STUDIO_ROOMS.map(function(r){
-        return '<button type="button" class="hl-type" data-hltypeadd="' + r.key + '"><span class="ht-ic">' + icon(r.key, 44) + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small><span class="ht-add">' + __("+ Bæta við") + '</span></button>'; }).join("") + '</div></div>';
-      host.onclick = function(e){ var b = e.target.closest("[data-hltypeadd]"); if (b) addRooms([b.dataset.hltypeadd]); };
-      return;
+    if (!rows.length){ // nothing in the project yet: Rýmin þín is home, empty; Byrja opens the room picker over it once (owner, 2026-10-28)
+      nb.hidden = true;
+      if (hlAutoAsk){ hlAutoAsk = false; setTimeout(function(){ if (state.step === "heimili" && !document.querySelector(".hl-pick")) openAddPicker(); }, 0); }
     }
     var orderable = rows.some(function(r){ return r.order; }), empty = rows.filter(function(r){ return !r.done; });
     if (hlGate === true && orderable) hlGate = null; // resolved — the message goes with it
@@ -16039,6 +16034,7 @@
     if (PRO) return;
     delete state.resumeStep;
     state.home = state.home || { rooms:{} };
+    hlAutoAsk = !hasProject();
     openHome();
   });
   // a language switch reopens the very step the visitor was on (morning scan #8)
