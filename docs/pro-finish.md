@@ -699,3 +699,8 @@ Not done — needs the owner (schema): Line Items, Eyðublað and Sögunarlisti 
 the Tækifæri. Proposal: Eyðublað link fields "Skrokkaefni (eining) 🔲" / "Borðplata (eining)" (→ Efnislisti) that
 Keyra skipulag (wflPGRyv0VYi4AZpd) fills from `smida.mat`, and the Sögunarlisti / Pöntunarlisti scripts + Line Item
 material-cost formulas use the unit's own when set, else the Tækifæri's. Scope with the owner before building.
+
+## Closing pass (2026-10-28)
+Status of the 2026-10-27 night scan's list (`scratch/morgun-pro.md`): G1–G4, G6–G13, G15 shipped (see git log "PRO G…"), G5 done in /crm (api/sala.js), G11 shipped.
+Small QA leftovers fixed today: Teikningar overlay above the PRO header and opaque (D2), Ný eining backdrop covers the unit side panel (B6), "Hæð undir ofni" no longer clamps silently — out of range says so and sets the nearest allowed value, non-numbers are ignored (C3). C5 was already solved by the Yfirfarinn button living in the top strip.
+Still open and needs the owner: (1) per-unit carcass / worktop materials in Airtable (Eyðublað link fields + Keyra skipulag / Sögunarlisti / Pöntunarlisti scripts — see "Materials per room" above); (2) G14 — the `🧾 Búa til G1 drög` checkbox + trigger in Airtable; (3) optional smáatriði A9, A11, A12, B2–B4, D1, D4, E2.

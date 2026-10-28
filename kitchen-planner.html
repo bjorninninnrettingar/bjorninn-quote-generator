@@ -1276,7 +1276,7 @@
   .uw-group:empty{ margin:4px 0 0; }
   .uw-gap{ grid-column:1/-1; height:8px; }
   .uw-card.soon, .shape-card.soon{ opacity:.45; cursor:not-allowed; }
-  .uw-modal{ position:fixed; inset:0; z-index:200; background:rgba(25,25,25,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .uw-modal{ position:fixed; inset:0; z-index:260; background:rgba(25,25,25,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
   .uw-modal[hidden]{ display:none; }
   .uw-box{ background:#fff; border-radius:16px; width:min(1180px, 100%); height:min(730px, 100%); display:grid; grid-template-columns:1.25fr 1fr; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.25); }
   .uw-preview{ position:relative; background:#fff; min-height:0; }
@@ -1863,7 +1863,7 @@
   .dw-pro .hd-chips{ display:flex; gap:6px; flex-wrap:wrap; }
   .dw-pro h4{ margin:12px 0 2px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); }
   /* ── 2D vinnuteikningar (PRO, 2026-10-23) ── */
-  #wdOverlay { position:fixed; inset:0; z-index:80; background:rgba(12,15,20,.86); display:flex; flex-direction:column; }
+  #wdOverlay { position:fixed; inset:0; z-index:330; background:rgba(12,15,20,.95); display:flex; flex-direction:column; }
   #wdOverlay .wd-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; color:#fff; font:600 14px/1.2 inherit; }
   #wdOverlay .wd-bar span { flex:1; opacity:.85; }
   #wdOverlay .wd-bar button { font:inherit; border:1px solid #5b8cff; border-radius:999px; padding:7px 16px; cursor:pointer; background:#5b8cff; color:#fff; }
@@ -18105,7 +18105,8 @@
     function ovenDone(){ save(); refreshAfterEdit(); renderBoxEditor(); }
     function setUnder(v){
       var lo = KP3D.ovenUnderMinMm(b, drawerSys()), hi = KP3D.ovenUnderMaxMm(b, body);
-      if (!(v >= lo && v <= hi)) toast("Hæð undir ofni er utan " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð — lagaðu áður en skápurinn er merktur yfirfarinn.");
+      if (isNaN(v)){ renderBoxEditor(); return; } // not a number: leave it as it was
+      if (!(v >= lo && v <= hi)){ var cl = Math.max(lo, Math.min(hi, v)); toast("Hæð undir ofni má vera " + lo + "–" + hi + " mm fyrir þessar skúffur og þessa ofnhæð — stillt á " + cl + " mm."); v = cl; } // said out loud, not silently clamped (PRO QA C3)
       b.ovenUnderMm = Math.max(5, v); delete b.ovenFrontsMm; ovenDone();
     }
     function shelvesNow(){ return shelfList(); }
