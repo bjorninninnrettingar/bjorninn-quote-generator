@@ -18601,7 +18601,7 @@
   // Keyra skipulag, and only once every line is green. Two lines can't be decided by the drawing alone, so Rakel
   // confirms them by hand and that is kept on the drawing (state.proAck): a unit no standard product fits (its
   // Útfærsla is picked on the Line Item in Airtable) and the fit warnings (some are deliberate).
-  var pc = { open:false, timer:null, badge:"", savePromise:null };
+  var pc = { open:false, timer:null, badge:"", savePromise:null, orph:undefined, orphErr:false };
   function proCheckFacts(){
     var f = { rooms:[], unlinked:[], issues:[], unready:[], cabinets:0, warnings:[], worktops:[] };
     withEachCategory(function(cat){
@@ -18670,9 +18670,64 @@
         detail:f.issues.length ? f.issues[0].key + ": " + f.issues[0].text + (f.issues.length > 1 ? " (og " + (f.issues.length - 1) + " " + plural(f.issues.length - 1, "skápur", "skápar") + " í viðbót)" : "") : f.cabinets ? "Lamir, skúffur og hillur ganga upp." : "Engar einingar enn." },
       { key:"smida", ok:f.cabinets > 0 && !f.unready.length, title:"Hver skápur yfirfarinn í Smíða", target:f.unready[0], smida:true,
         detail:f.unready.length ? f.unready.length + " af " + f.cabinets + " eftir: " + keyList(f.unready) + ". Opnaðu Smíða og ýttu á „Yfirfarinn →“ — það fer beint á næsta skáp." : f.cabinets ? "Allir merktir yfirfarnir." : "Engar einingar enn." },
+      orphCheckItem(),
+      salaCheckItem(ack),
       { key:"abend", ok:wOk, title:"Ábendingar yfirfarnar", acks:f.warnings.length ? [{ id:"warn", label:"Ég hef farið yfir " + (f.warnings.length === 1 ? "ábendinguna" : "ábendingarnar"), on:wOk, sig:wSig }] : null,
         detail:f.warnings.length ? f.warnings.length + " " + plural(f.warnings.length, "ábending", "ábendingar") + ", t.d. „" + f.warnings[0] + "“" : "Engar ábendingar." }
     ]);
+  }
+  // P-02 (2026-10-28): cabinets deleted from the drawing keep their Line Item in Airtable — still in the quote, and Keyra skipulag
+  // would build an Eyðublað for them. kp-pro "orphans" (read-only) lists them; "Laga →" offers to delete them (never one that
+  // already made an Eyðublað — that one is deleted in Airtable first).
+  function proOrphCall(action, extra){
+    return fetch("/api/kp-pro", { method:"POST", headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify(Object.assign({ k:PRO.k, recordId:PRO.id, action:action, smida:proSmidaAll() }, extra || {})) })
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if (!r.ok) throw new Error(d.error || ("HTTP " + r.status)); return d; }); });
+  }
+  function proOrphLoad(){
+    if (!PRO || !PRO.ready || pc.orphBusy) return;
+    pc.orphBusy = true;
+    proOrphCall("orphans").then(function(d){ pc.orph = d.orphans || []; pc.orphErr = false; })
+      .catch(function(){ pc.orphErr = true; if (!pc.orph) pc.orph = []; })
+      .then(function(){ pc.orphBusy = false; if (pc.open) proCheckRender(); });
+  }
+  function orphCheckItem(){
+    var list = pc.orph;
+    if (list === undefined) return { key:"orphans", ok:false, pending:true, title:"Línur í Airtable sem eru ekki í teikningunni", detail:"Athuga…" };
+    return { key:"orphans", ok:!list.length, title:"Línur í Airtable sem eru ekki í teikningunni",
+      detail:list.length ? list.length + " " + proPl(list.length, "skápur er", "skápar eru") + " í Airtable en ekki í teikningunni (" + list.map(function(o){ return o.key; }).join(", ") + ") — þeir eru enn í tilboðinu og fá Eyðublað." :
+        pc.orphErr ? "Gat ekki athugað (ekkert samband) — reyndu að opna Yfirferð aftur." : "Allar línur í Airtable eru í teikningunni." };
+  }
+  async function proOrphFix(){
+    var list = pc.orph || [], sel = {};
+    list.forEach(function(o){ if (!o.eydublad) sel[o.key] = true; });
+    function onch(e){ var t = e.target; if (t && t.dataset && t.dataset.orph){ if (t.checked) sel[t.dataset.orph] = true; else delete sel[t.dataset.orph]; } }
+    document.addEventListener("change", onch);
+    var go;
+    try{
+      go = await proDialog({ title:"Skápar sem eru í Airtable en ekki í teikningunni",
+        html:'<p>Teikningin hefur ekki þessa skápa lengur. Veldu hverja á að <b>eyða úr Airtable (og tilboðinu)</b>. Ef skápur á að vera áfram: hættu við og teiknaðu hann aftur inn.</p>' +
+          list.map(function(o){ return '<label style="display:block;margin:4px 0">' + (o.eydublad ? '<input type="checkbox" disabled> ' : '<input type="checkbox" data-orph="' + escapeHtmlPro(o.key) + '" checked> ') +
+            '<b>' + escapeHtmlPro(o.key) + '</b>' + (o.eydublad ? ' — hefur Eyðublað, eyddu því í Airtable fyrst' : ' — eyða línunni') + '</label>'; }).join(""),
+        ok:"Eyða völdum línum", cancel:"Hætta við" });
+    } finally { document.removeEventListener("change", onch); }
+    var keys = Object.keys(sel);
+    if (go !== true || !keys.length) return;
+    try{
+      var d = await proOrphCall("retire", { keys:keys });
+      pc.orph = d.orphans || [];
+      toast((d.deleted.length ? d.deleted.join(", ") + " eytt úr Airtable." : "Engu eytt.") + (d.blocked.length ? " " + d.blocked.join(", ") + " hefur Eyðublað — eyddu því í Airtable." : ""));
+      tp.last = null; proTilbodRefresh(true);
+    }catch(e){ toast("Tókst ekki að eyða: " + e.message); }
+    proCheckRender();
+  }
+  // P-09: the quote nobody accepted must not silently turn into production Eyðublöð. Soft gate (confirm allowed).
+  function salaCheckItem(ack){
+    var st = String(((PRO && PRO.rec && PRO.rec.fields) || {})["Staða í söluferli"] || "");
+    if (!PRO || !PRO.rec || /unnið/i.test(st)) return { key:"sala", ok:true, title:"Tilboð samþykkt (Unnið)", detail:/unnið/i.test(st) ? "Staða í söluferli: Unnið." : "Staða óþekkt." };
+    var okAck = !!ack.sala;
+    return { key:"sala", ok:okAck, title:"Tilboð samþykkt (Unnið)", acks:[{ id:"sala", label:"Ég veit að tilboðið er ekki merkt Unnið og vil samt fara í framleiðslu", on:okAck }],
+      detail:"Staða í söluferli er „" + (st.replace(/[^\p{L}\p{N} \-]/gu, "").trim() || "óskráð") + "“, ekki Unnið. Framleiðsla ætti að byrja eftir staðfest tilboð." };
   }
   // Per-room carcass / worktop / handle colour (2026-10-27): the Tækifæri holds ONE of each (the first room's) — Sögunarlisti
   // saws every carcass from it, the quote prices every worktop share from it and handles are ordered in its colour. Rooms
@@ -18771,7 +18826,8 @@
       '<div class="pc-note">Vista geymir drögin hvenær sem er. „Klár til framleiðslu“ vistar og keyrir skipulag (Eyðublöð → Sögunarlisti, Pöntunarlisti, CNC) — eftir það læsist teikningin.' + (proDirty() ? ' <b>● Óvistaðar breytingar.</b>' : '') + '</div>' +
       // the run's status + the next step (2026-10-26) — always here, same place, so nothing moves when the run ends
       '<div class="pc-run ' + (pr.phase || "idle") + '"><span class="pc-run-t">' + esc(pr.phase ? pr.text : "Skipulag ekki keyrt héðan í þessari lotu.") + '</span>' +
-        (pr.phase === "timeout" || pr.phase === "error" ? ' <button type="button" class="pc-recheck" data-pc="recheck">Athuga aftur</button>' : '') + '</div>' +
+        (pr.phase === "timeout" || pr.phase === "error" ? ' <button type="button" class="pc-recheck" data-pc="recheck">Athuga aftur</button>' : '') +
+          (pr.phase === "pending" && pr.queue ? ' <button type="button" class="pc-recheck" data-pc="resume">Halda áfram með ' + pr.queue.ids.length + ' ' + proPl(pr.queue.ids.length, "einingu", "einingar") + '</button>' : '') + '</div>' +
       '<a class="pc-cnc" href="' + esc(proCncUrl()) + '" target="_blank" rel="noopener">Opna CNC-útflutning →</a>';
     el.onclick = function(e){
       if (e.target.closest("input, label")) return;
@@ -18780,6 +18836,7 @@
         if (a === "close") proCheckOpen(false);
         else if (a === "save"){ proSave().then(function(ok){ if (ok) proCheckOpen(false); }); } // stays open until it worked (2026-10-26)
         else if (a === "ready") proCheckReady();
+        else if (a === "resume") proYfirfaraResume();
         else if (a === "recheck") proWatchSkipulag(pr.t0 || Math.floor(Date.now() / 1000) - 3600, null);
         return; }
       var row = e.target.closest(".pc-item.todo"); if (row) proCheckFix(items[+row.dataset.pci]);
@@ -18793,12 +18850,14 @@
       save(); proCheckRender();
     };
   }
-  function proCheckOpen(on){ if (on) proSoloPanel("check"); pc.open = !!on; proCheckRender(); }
+  function proCheckOpen(on){ if (on) proSoloPanel("check"); var was = pc.open; pc.open = !!on; if (on && !was) proOrphLoad(); proCheckRender(); }
   // go to where a line gets fixed: its room, then the cabinet (and its Smíða), the materials page, the Mæling panel
   function proCheckFix(x){
     var t = x.target;
     if (x.key === "maeling"){ proCheckOpen(false); openMeasurePanel(); return; }
     if (x.key === "yfirfarid"){ proCheckOpen(false); var rv = document.getElementById("proReviewed"); if (rv){ rv.classList.add("pb-flash"); setTimeout(function(){ rv.classList.remove("pb-flash"); }, 1600); } return; }
+    if (x.key === "orphans"){ if (!x.pending) proOrphFix(); return; }
+    if (x.key === "sala") return; // answered with its checkbox in the list
     if (x.key === "abend"){ var wc = document.getElementById("warnChip"); if (wc && !wc.hidden) wc.click(); return; }
     proCheckOpen(false);
     if (x.wt){ // Borðplata → its room, then Efni (no top picked) / Tilboð (stone price) / the worktop editor at the joint or cutout
@@ -19015,8 +19074,29 @@
   // its automation (Sögunarlisti → Pöntunarlisti lean → Vörur á einingu) runs per unit, and runs side by side on one
   // project's Pöntunarlisti are what made duplicate lines before. Next unit when this one's Sögunarlisti count has
   // settled (≥ 30 s, two equal reads) or after 90 s. Nothing else is written. Stops if a new Keyra skipulag starts.
+  // P-07 (2026-10-28): the loop below lives in the open tab. The queue is kept in localStorage (units not yet handed to
+  // Yfirfara 3.0); the next time this project is opened, Yfirferð offers "Halda áfram með N einingar".
+  function proQueueKey(){ return "bjorninn:kp:yfirfara:" + PRO.id; }
+  function proQueueSave(ids, ey, head){ try{ if (ids.length) localStorage.setItem(proQueueKey(), JSON.stringify({ ids:ids, ey:ey, head:head, at:Date.now() })); else localStorage.removeItem(proQueueKey()); }catch(e){} }
+  function proQueueGet(){
+    try{ var q = JSON.parse(localStorage.getItem(proQueueKey()) || "null");
+      if (!q || !Array.isArray(q.ids) || !q.ids.length || Date.now() - (q.at || 0) > 86400000){ localStorage.removeItem(proQueueKey()); return null; }
+      return q; }catch(e){ return null; }
+  }
+  function proYfirfaraResumeCheck(){
+    var q = proQueueGet(); if (!q || !PRO.locked) return;
+    pr.queue = q; pr.phase = "pending";
+    pr.text = q.ids.length + " " + proPl(q.ids.length, "eining bíður", "einingar bíða") + " eftir Yfirfara 3.0 (Sögunarlisti) — lotan var rofin þegar flipinn lokaðist.";
+    proCheckOpen(true);
+  }
+  function proYfirfaraResume(){
+    var q = pr.queue || proQueueGet(); if (!q) return;
+    pr.queue = null;
+    proRunYfirfara(q.ids, q.ey || {}, q.head || "Skipulag keyrt ✓", ++pr.seq, 0);
+  }
   async function proRunYfirfara(ids, ey, head, seq, nBlocked){
     var pre = proPrefix(), done = 0, failed = [];
+    proQueueSave(ids, ey, head);
     function countFor(id, rows){ return rows.filter(function(r){ var u = ((r.fields || {})["Eyðublað ✏️"] || [])[0]; return u && (u.id || u) === id; }).length; }
     for (var i = 0; i < ids.length; i++){
       if (seq !== pr.seq) return;
@@ -19028,7 +19108,7 @@
           var r = await fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:{ "🔄 Keyra Yfirferð 3.0": !!on } }) });
           if (!r.ok) throw new Error("HTTP " + r.status);
         }
-      }catch(e){ failed.push(ey[id]); continue; }
+      }catch(e){ failed.push(ey[id]); proQueueSave(ids.slice(i + 1), ey, head); continue; }
       var start = Date.now(), prev = -1;
       while (seq === pr.seq && Date.now() - start < 90000){
         await new Promise(function(res){ setTimeout(res, 5000); });
@@ -19037,6 +19117,7 @@
         prev = n;
       }
       done++;
+      proQueueSave(ids.slice(i + 1), ey, head);
     }
     if (seq !== pr.seq) return;
     proRunSet(failed.length || nBlocked ? "error" : "done", head + " · Yfirfara 3.0 sent á " + done + " " + proPl(done, "einingu", "einingar") +
@@ -19373,17 +19454,38 @@
   function escapeHtmlPro(s){ return String(s).replace(/[&<>"]/g, function(ch){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[ch]; }); }
   // V1/V2/V3 that differ between the drawing and Airtable, where the server can't tell who is right (both changed, or
   // a line from before the drawing remembered what it sent): Rakel decides per Sk number, then Vista runs again.
-  function proAskConflicts(conflicts){
-    var bySk = {}, resolve = {};
+  // P-08 (2026-10-28): ONE in-page dialog for all of them (was a native confirm() per Sk where Cancel silently meant
+  // "Airtable wins"). Every Sk needs an explicit pick; closing the dialog resolves to null = nothing decided, nothing written.
+  async function proAskConflicts(conflicts){
+    var bySk = {}, pick = {}, esc = escapeHtmlPro;
     conflicts.forEach(function(c){ (bySk[c.key] = bySk[c.key] || []).push(c); });
-    Object.keys(bySk).forEach(function(sk){
-      var lines = bySk[sk].map(function(c){
-        return c.field + ":\n   Teikning: " + (c.drawingNames.join(", ") || "(tómt)") + "\n   Airtable: " + (c.airtableNames.join(", ") || "(tómt)");
-      }).join("\n");
-      resolve[sk] = confirm(sk + " — teikningin og Airtable eru ósammála:\n\n" + lines +
-        "\n\nOK = teikningin gildir (Airtable uppfært)\nHætta við = Airtable gildir (teikningin skrifar ekki yfir)") ? "drawing" : "airtable";
-    });
-    return resolve;
+    var keys = Object.keys(bySk);
+    function sync(){
+      var ok = document.querySelector("#proDlg .pd-ok"); if (ok) ok.disabled = keys.some(function(k){ return !pick[k]; });
+    }
+    function onch(e){ var t = e.target; if (t && t.dataset && t.dataset.cfl){ pick[t.dataset.cfl] = t.value; sync(); } }
+    function onclick(e){
+      var b = e.target.closest && e.target.closest("[data-cflall]"); if (!b) return;
+      e.stopImmediatePropagation(); e.preventDefault();
+      keys.forEach(function(k){ pick[k] = b.dataset.cflall; var r = document.querySelector('#proDlg input[data-cfl="' + k + '"][value="' + b.dataset.cflall + '"]'); if (r) r.checked = true; });
+      sync();
+    }
+    document.addEventListener("change", onch); document.addEventListener("click", onclick, true);
+    setTimeout(sync, 0);
+    var go;
+    try{
+      go = await proDialog({ title:"Teikningin og Airtable eru ósammála (" + keys.length + " " + proPl(keys.length, "skápur", "skápar") + ")",
+        html:'<p>Veldu fyrir hvern skáp hvort gildir. Ekkert er skrifað í Airtable fyrr en þú hefur valið alla.</p>' +
+          '<div style="margin:6px 0"><button type="button" data-cflall="drawing">Nota teikninguna alls staðar</button> <button type="button" data-cflall="airtable">Nota Airtable alls staðar</button></div>' +
+          '<div style="max-height:46vh;overflow:auto">' + keys.map(function(sk){
+            return '<div style="margin:8px 0;padding:6px 0;border-top:1px solid rgba(255,255,255,.15)"><b>' + esc(sk) + '</b>' + bySk[sk].map(function(c){
+              return '<div style="font-size:12px;opacity:.85">' + esc(c.field) + ' · Teikning: ' + esc((c.drawingNames || []).join(", ") || "(tómt)") + ' · Airtable: ' + esc((c.airtableNames || []).join(", ") || "(tómt)") + '</div>'; }).join("") +
+              '<label style="margin-right:14px"><input type="radio" name="cfl-' + esc(sk) + '" data-cfl="' + esc(sk) + '" value="drawing"> Nota teikninguna</label>' +
+              '<label><input type="radio" name="cfl-' + esc(sk) + '" data-cfl="' + esc(sk) + '" value="airtable"> Nota Airtable</label></div>'; }).join("") + '</div>',
+        ok:"Vista með þessu vali", cancel:"Hætta við (ekkert valið)" });
+    } finally { document.removeEventListener("change", onch); document.removeEventListener("click", onclick, true); }
+    if (go !== true || keys.some(function(k){ return !pick[k]; })) return null;
+    return pick;
   }
   // a failed save, in Icelandic, for the red box in Yfirferð (2026-10-26: was a raw English server line in the header)
   function proSaveErrText(status, msg){
@@ -19447,7 +19549,13 @@
     if (d.trimmed && d.trimmed.length) toast("Teikningin var of stór — þessu var sleppt við vistun: " + d.trimmed.join(", ") + ".");
     if (d.proSavedAt) state.proSavedAt = d.proSavedAt; // the next Vista is based on this one
     save(); // keeps the frozen Sk numbers
-    if (d.conflicts && d.conflicts.length && !resolve) return proSaveRun(proAskConflicts(d.conflicts));
+    if (d.conflicts && d.conflicts.length && !resolve){
+      var picked = await proAskConflicts(d.conflicts);
+      if (picked) return proSaveRun(picked);
+      pc.saveErr = d.conflicts.length + " " + proPl(d.conflicts.length, "skápur", "skápar") + " með ósamræmi milli teikningar og Airtable — ekkert valið. Ýttu á Vista og veldu fyrir hvern skáp.";
+      proCheckOpen(true); proBar("Ósamræmi óleyst");
+      return false;
+    }
     try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){}
     proBar();
     if (pc.open) proCheckRender();
@@ -19534,6 +19642,7 @@
     PRO.ready = true;
     render();
     proBar();
+    proYfirfaraResumeCheck();
     proLegacyCheck(); // an (empty) drawing on a project planned in Airtable: the bar still offers Smíða úr Eyðublöðum
     if (PRO.needsReview && state.submissionId) setTimeout(function(){ proStudioRender(true); }, 400); // a fresh Studio submission: the customer's inputs first
     if (/[?&]maeling=1\b/.test(location.search)) setTimeout(openMeasurePanel, 300); // the measurer's link (A7)

@@ -7,8 +7,8 @@
 // Only Line Items whose Smíðagögn actually changed are written, so "⚠️ Breytt eftir stofnun" (which watches that
 // field's last-modified time) only lights up for real changes; Keyra skipulag then copies it to the Eyðublað and
 // /cnc drills it. Cabinets with no Line Item yet (a drawing Rakel started, or cabinets she added) get one, built by
-// the designer exactly like a customer submission (lineItems, same fields). Nothing is ever deleted: Line Items
-// whose Sk number is no longer in the drawing are reported as `removed` for her to delete by hand.
+// the designer exactly like a customer submission (lineItems, same fields). Save never deletes: Line Items whose
+// Sk number is no longer in the drawing are reported as `removed`; only the separate "retire" action (P-02) deletes them.
 //
 // V1/V2/V3 on existing lines (2026-10-09): the drawing should update the quote, but Rakel may also change a line in
 // Airtable. The planner JSON keeps what the drawing last sent per line (`liSent`, see kp-submit.js). Per field:
@@ -238,6 +238,32 @@ export async function save(at, body) {
     conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent, projectUpdated, proSavedAt, trimmed: dropped };
 }
 
+// P-02 (2026-10-28): Line Items whose Sk number is no longer in the drawing. "orphans" only reads; "retire" deletes the
+// chosen ones — never a key the drawing still has (body.smida), never a line that already made an Eyðublað.
+const EYDUBLAD_LINK = "Eyðublað búið til ✏️";
+export function validateOrphanAction(b) {
+  if (!REC_RE.test(String(b.recordId || ""))) return "Ógilt recordId";
+  if (typeof b.smida !== "object" || !b.smida) return "Smíðagögn vantar";
+  for (const k of Object.keys(b.smida)) if (!KEY_RE.test(k)) return "Ógilt 🔑: " + k;
+  if (b.action === "retire") {
+    if (!Array.isArray(b.keys) || !b.keys.length || b.keys.length > 100 || !b.keys.every((k) => KEY_RE.test(String(k)))) return "Ógild 🔑 til að eyða";
+  }
+  return null;
+}
+export async function orphans(at, body) {
+  const rows = await linesOfProject(at, body.recordId, ["🔑", EYDUBLAD_LINK, "Magn"]);
+  return rows.filter((r) => { const k = String(r.fields["🔑"] || "").trim(); return KEY_RE.test(k) && !(k in body.smida); })
+    .map((r) => ({ id: r.id, key: String(r.fields["🔑"]).trim(), eydublad: ((r.fields[EYDUBLAD_LINK]) || []).length > 0 }))
+    .sort((a, z) => a.key.localeCompare(z.key, "is", { numeric: true }));
+}
+export async function retire(at, body) {
+  const found = await orphans(at, body), want = new Set(body.keys);
+  const todo = found.filter((o) => want.has(o.key) && !o.eydublad);
+  const blocked = found.filter((o) => want.has(o.key) && o.eydublad).map((o) => o.key);
+  for (let i = 0; i < todo.length; i += 10) await at("DELETE", `${LINE_ITEMS}?` + todo.slice(i, i + 10).map((o) => "records%5B%5D=" + o.id).join("&"));
+  return { deleted: todo.map((o) => o.key), blocked, orphans: found.filter((o) => !todo.includes(o)) };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   const token = process.env.AIRTABLE_TOKEN, key = process.env.VERK_KEY;
@@ -245,6 +271,14 @@ export default async function handler(req, res) {
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = null; } }
   if (!body || body.k !== key) return res.status(403).json({ error: "Rangur lykill" });
+  if (body.action === "orphans" || body.action === "retire") {
+    const badA = validateOrphanAction(body);
+    if (badA) return res.status(400).json({ error: badA });
+    try {
+      const at = makeAirtable(token);
+      return res.status(200).json(Object.assign({ ok: true }, body.action === "retire" ? await retire(at, body) : { orphans: await orphans(at, body) }));
+    } catch (e) { return res.status(e.status && e.status < 500 && e.status !== 429 ? 400 : 502).json({ error: e.message }); }
+  }
   const bad = validate(body);
   if (bad) return res.status(400).json({ error: bad });
   try {
