@@ -4,9 +4,9 @@
 
 // What a customer pays for the 2D work drawings. The owner will give the number — until then the text below is printed.
 // Change this ONE constant, e.g. "145.000 kr. með vsk".
-export const PRICE_2D = "verð eftir samkomulagi";
+export const PRICE_2D = "3.000 kr. á rými"; // owner 2026-10-28; VSK basis not stated — confirm whether it is with or without VSK
 export const NOTE_2D_TITLE = "Vinnuteikningar í 2D";
-export const NOTE_2D = (price = PRICE_2D) => `Vinnuteikningar í 2D (2D work drawings) eru í boði gegn greiðslu: ${price}`;
+export const NOTE_2D = (price = PRICE_2D) => `2D vinnuteikningar eru í boði gegn greiðslu: ${price}.`;
 
 // "Ferlið frá tilboði til uppsetningar" — one page. The durations are PLACEHOLDERS (marked "til staðfestingar" on the page)
 // until the owner gives the real typical times. Edit title / text / duration freely; add or remove steps as needed.

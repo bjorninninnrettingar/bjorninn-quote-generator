@@ -73,8 +73,8 @@ test("full PDF: cover, contents, moodboard, 3D + 2D note, report + process, quot
   assert.match(cover, /28\. október 2026/);
   assert.ok(doc.getPages()[0].node.Resources().lookup(PDFName.of("XObject")), "logo drawn on the cover");
   // 2D note with the price constant, in the drawings section
-  assert.match(pageText(doc, sec.drawings), /Vinnuteikningar í 2D \(2D work drawings\) eru í boði gegn greiðslu: verð eftir samkomulagi/);
-  assert.equal(PRICE_2D, "verð eftir samkomulagi");
+  assert.match(pageText(doc, sec.drawings), /2D vinnuteikningar eru í boði gegn greiðslu: 3\.000 kr\. á rými\./);
+  assert.equal(PRICE_2D, "3.000 kr. á rými");
   // the process page lists every step with its duration
   const proc = pageText(doc, sec.process);
   assert.match(proc, new RegExp(PROCESS_TITLE));
