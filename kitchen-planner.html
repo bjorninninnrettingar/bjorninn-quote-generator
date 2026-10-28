@@ -1263,7 +1263,9 @@
   #catalogPanel{ position:relative; }
   #catalogPanel .cat-sec{ position:static; }
   #catalogPanel .cat-sec[data-sec="efni"] > .sec-body{ width:min(640px, 62vw); max-height:82vh; }
-  #catalogPanel .cat-sec[data-sec="rymi"] > .sec-body{ width:380px; max-height:82vh; }
+  #catalogPanel .cat-sec[data-sec="rymi"] > .sec-body{ width:min(640px, 62vw); max-height:82vh; }
+  #catalogPanel .ed-fronts{ grid-template-columns:repeat(4,1fr); }
+  #catalogPanel .fl-grid{ grid-template-columns:repeat(6,1fr); }
   #catalogPanel .ed-fronts{ max-height:44vh; overflow-y:auto; }
   .ed-fsearch{ width:100%; box-sizing:border-box; margin:2px 0 8px; font:inherit; font-size:13.5px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
   .sub-sec{ border-top:1px solid var(--line); margin-top:10px; }
@@ -2111,6 +2113,15 @@
     .cat-sec > summary, .cat-sec > .sec-body, .warn-pop, select, textarea){
     background:var(--card); color:var(--ink); border-color:var(--line);
   }
+  /* every white popup / modal / card goes dark with the rest of PRO — they kept a white box with the light PRO text colour
+     (invisible titles and buttons, owner 2026-10-28). One list so a new popup only has to be added here. */
+  body.pro :is(.cl-fill-offer, .rp-card, .help-ref-card, .tour-bub, .hl-pick-box, .home-name, .hd-card, .hd-row, .hd-rcard, .hl-card, .cl-card, .studio-card, .opw-obst.pop[open] > .opw-obst-btns, .ed-fsearch, .rp-kinds button){
+    background:var(--card); color:var(--ink); border-color:var(--line);
+  }
+  body.pro .rp-kinds button.on{ background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  body.pro :is(.rp-card, .help-ref-card, .hl-pick-box, .home-name) :is(input, textarea, select){ background:var(--panel); color:var(--ink); border-color:var(--line); }
+  body.pro :is(.rp-card, .help-ref-card, .hl-pick-box, .home-name, .tour-bub) :is(h1, h2, h3, h4, b, strong, label){ color:var(--ink); }
+  body.pro ::placeholder{ color:var(--ink-soft); opacity:1; }
   body.pro .stepper .st{ background:var(--card); }
   body.pro .stepper .st.done{ background:var(--gold-soft); border-color:#4a4630; }
   /* pro never reaches these (saved via "Vista í Airtable", not submitted) — drop them, there's no room for
@@ -2517,6 +2528,7 @@
             <button type="button" class="vm-row" id="measureBtn"><b data-i18n>Málband</b><small data-i18n>Smelltu á tvo punkta til að mæla á milli þeirra</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="inspectBtn"><b>X-Ray</b><small data-i18n>Framhliðar af — smelltu á skúffu eða hurð til að opna hana</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="skTagsBtn" hidden><b>Sk-númer</b><small>Sk-númer skápanna á framhliðunum í 3D</small><i class="vm-sw" aria-hidden="true"></i></button>
+            <button type="button" class="vm-row" id="fsBtn" hidden><b data-i18n>Fullskjár</b><small data-i18n>Fela vafrastikuna — meira pláss fyrir teikninguna</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="dimsBtn" hidden><b data-i18n>Málsetning</b><small data-i18n>Sýna málin á skápunum</small><i class="vm-sw" aria-hidden="true"></i></button>
           </div></details></div>
           <div class="view-toggle" id="plinthToggle" title="Sökkulhæð á veggjum og eyjum" hidden data-i18n="attrs">
@@ -11240,13 +11252,23 @@
     var on = ["measureBtn", "inspectBtn", "skTagsBtn"].some(function(id){ var b = document.getElementById(id); return b && b.classList.contains("active"); });
     var vm = document.getElementById("viewMenu"); if (vm) vm.classList.toggle("has-on", on);
   }
+  // Fullskjár (owner 2026-10-28): the browser's own fullscreen, one tap — no browser settings. Only shown where the browser has it.
+  (function(){
+    var b = document.getElementById("fsBtn"), root = document.documentElement;
+    var req = root.requestFullscreen || root.webkitRequestFullscreen, ex = document.exitFullscreen || document.webkitExitFullscreen;
+    if (!b || !req) return;
+    var isFs = function(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); };
+    b.hidden = false;
+    b.addEventListener("click", function(){ try{ var r = isFs() ? ex.call(document) : req.call(root); if (r && r.catch) r.catch(function(){}); }catch(e){} });
+    var sync = function(){ b.classList.toggle("active", isFs()); syncViewMenuDot(); };
+    document.addEventListener("fullscreenchange", sync); document.addEventListener("webkitfullscreenchange", sync);
+  })();
   document.getElementById("dimsBtn").addEventListener("click", function(){ KP3D.setShowDims(!KP3D.showDimsOn()); syncDimsUI(); });
   document.getElementById("inspectBtn").addEventListener("click", function(){
     inspect.on = !inspect.on;
     if (!inspect.on) KP3D.setAllParts(false);
     else toast(__("X-Ray: smelltu á skúffu eða hurð til að opna hana. Skápar hreyfast ekki á meðan."));
-    if (viewMode !== "3d"){ viewMode = "3d"; document.querySelectorAll("#viewToggle [data-view]").forEach(function(x){ x.classList.toggle("active", x.dataset.view === "3d"); }); }
-    syncInspectUI();
+    syncInspectUI(); // (owner 2026-10-28: X-Ray only takes the fronts off — it never changes 3D / 2D)
     renderView();
   });
 
@@ -16741,26 +16763,29 @@
   // cabinet gets the next number after the highest one in any room, and if two rooms already share a number (older
   // drafts), the room later in the queue gives its one up. SK_CAT = the room whose data is on state right now.
   var SK_CAT = null, SK_SAVED_ACTIVE = null;
+  // Sk = cabinets, UH = úthliðar (end panels) — each its own run: Sk1…, UH1… (owner 2026-10-28)
+  function skPrefix(b){ return /^uthlid/.test(b.type) ? "UH" : "Sk"; }
   function skOfOtherRooms(){
-    var cur = SK_CAT || state.activeCategory, queue = state.categoryQueue || [], before = {}, max = 0, seenCur = false;
+    var cur = SK_CAT || state.activeCategory, queue = state.categoryQueue || [], before = {}, max = { Sk:0, UH:0 }, seenCur = false;
     queue.forEach(function(cat){
       if (cat === cur){ seenCur = true; return; }
       var blob = cat === state.activeCategory ? SK_SAVED_ACTIVE : state.categoryData && state.categoryData[cat];
       if (!blob) return;
-      (JSON.stringify(blob).match(/"sk":"Sk(\d+)"/g) || []).forEach(function(m){
-        var n = +m.replace(/\D/g, ""); max = Math.max(max, n); if (!seenCur) before["Sk" + n] = true;
+      (JSON.stringify(blob).match(/"sk":"(?:Sk|UH)\d+"/g) || []).forEach(function(m){
+        var pf = m.slice(6, 8), n = +m.replace(/\D/g, ""); max[pf] = Math.max(max[pf], n); if (!seenCur) before[pf + n] = true;
       });
     });
     return { before:before, max:max };
   }
   function skKeys(startAt){
-    var others = skOfOtherRooms(), map = {}, used = {}, all = [], n = Math.max(startAt || 0, others.max);
+    var others = skOfOtherRooms(), map = {}, used = {}, all = [], n = { Sk:Math.max(startAt || 0, others.max.Sk), UH:others.max.UH };
     surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ if (!CATALOG[b.type].notOrdered) all.push(b); }); }); // free-standing appliances aren't units
     all.forEach(function(b){
-      if (!/^Sk\d+$/.test(b.sk || "") || used[b.sk] || others.before[b.sk]) return; // taken here, or by a room before this one
-      used[b.sk] = true; map[b.id] = b.sk; n = Math.max(n, +b.sk.slice(2));
+      var pf = skPrefix(b);
+      if (!new RegExp("^" + pf + "\\d+$").test(b.sk || "") || used[b.sk] || others.before[b.sk]) return; // taken here, or by a room before this one
+      used[b.sk] = true; map[b.id] = b.sk; n[pf] = Math.max(n[pf], +b.sk.slice(2));
     });
-    all.forEach(function(b){ if (!map[b.id]) map[b.id] = "Sk" + (++n); });
+    all.forEach(function(b){ if (!map[b.id]){ var pf = skPrefix(b); map[b.id] = pf + (++n[pf]); } });
     return map;
   }
   function freezeSk(startAt){

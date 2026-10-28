@@ -2731,9 +2731,15 @@
       seen[u.blockId] = 1;
       if (!e.geometry.boundingBox) e.geometry.computeBoundingBox();
       var bb = e.geometry.boundingBox; e.updateMatrixWorld();
-      skCorner.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, bb.max.z).applyMatrix4(e.matrixWorld);
-      var p = P(skCorner); if (p.behind) return;
-      var tw = String(text).length * 7.6 + 16;
+      // top-right corner of the front face as seen on screen (owner 2026-10-28: out of the way, always the same place)
+      var best = null, behind = false;
+      [[0, 0], [1, 0], [1, 1], [0, 1]].forEach(function(q){
+        skCorner.set(q[0] ? bb.max.x : bb.min.x, q[1] ? bb.max.y : bb.min.y, bb.max.z).applyMatrix4(e.matrixWorld);
+        var c = P(skCorner); if (c.behind){ behind = true; return; }
+        if (!best || (c.x - c.y) > (best.x - best.y)) best = c;
+      });
+      if (behind || !best) return;
+      var tw = String(text).length * 7.6 + 16, p = { x:best.x - tw / 2 - 4, y:best.y + 15 };
       out += '<rect x="' + (p.x - tw / 2) + '" y="' + (p.y - 11) + '" width="' + tw + '" height="22" rx="11" fill="#fff" stroke="' + OV_DARK + '" stroke-width="1"/>' +
         '<text x="' + p.x + '" y="' + (p.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" font-family="Kumbh Sans, Arial, sans-serif" fill="' + OV_DARK + '">' + text + '</text>';
     });

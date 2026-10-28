@@ -588,6 +588,8 @@
     "Eins og á myndinni": "As in the picture",
     "Skúffukerfi": "Drawer system",
     "Sjá myndir af efnunum": "See pictures of the materials",
+    "Fullskjár": "Full screen",
+    "Fela vafrastikuna — meira pláss fyrir teikninguna": "Hide the browser bars — more room for the drawing",
     "Ekkert fannst — prófaðu annað orð eða kóða.": "Nothing found — try another word or code.",
     "Leita: nafn eða kóði (t.d. W1000)": "Search: name or code (e.g. W1000)",
     "Efni": "Materials",
