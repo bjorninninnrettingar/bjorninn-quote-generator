@@ -763,6 +763,14 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 - **Room renders** in `images/studio/` (`<room>.jpg` 1600×1000 + `-t.jpg` 480 px), captured from real Studio scenes with
   `KP3D.renderShot` (bath: beige tiles; laundry: U702 suggestion; wardrobe: U665 Fylla vegginn; door: dark walnut from the
   door wizard canvas). Re-capture the same way if the 3D look changes; eldhus-t is a thumbnail of `welcome-kitchen.jpg`.
+  **Redrawn 2026-10-28** (owner: "mjög mid"): hand-built `KP3D.buildScene` states (closed 4-wall rooms, `activeCategory` set) shot with
+  `renderShot` at 1600×1000 (jpg q85, thumbs 480×300): *Fataskápur* — 4 × harskapur Stone-green-ish `eg_U638`, `hexxa`, oak
+  floor, bed + náttborð, standspegill, stóll, planta, motta, hengiljós, window; *Bað* — hung vaskaskápur `eg_H3133` + white top,
+  beige wall tiles, `bathMirror` cabinet, glass sturta obstacle, planta, motta; *Þvottahús* — `eg_U740` Dark Taupe, vélarstæða
+  (tall unit at the left end so the counter + sink read), efri skápar, þvottakarfa, planta, motta; *Innihurðir* — the door wizard's
+  scene (`KPDOORS.preview` → `_p().scene`, spónlagt `sp03` Hnota dökk) with `KP3D` decor models (planta, standspegill, motta)
+  moved in, plus a primitive oak bench, two frames and a vase, own renderer (`localClippingEnabled`, exposure 1.3), ceiling swapped
+  for a light basic material. Note: a door look with `img` (melamine swatch) maps wrong — use `{key, color, wood:true}`.
 - **Smoothness round (owner same day: "laggar og aðeins of hægt")**: only transform + opacity animate, each moving part a GPU
   layer. Blur-in = a pre-blurred copy (`.bb`, static `filter`) crossfading into the sharp text (`.bs`) — no animated filter;
   extrusion = 18 `.layer`s placed once in z inside `#introExt`, whose `scaleZ(.01→1)` grows the depth — no per-frame
