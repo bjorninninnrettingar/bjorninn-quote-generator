@@ -842,3 +842,8 @@ Rýmin (click a room, pick its name; auto-advances to the next unnamed) → Hur�
 
 ### ⚠️ Villa / hugmynd (2026-10-27)
 Testers report from inside the designer: a **⚠️ Villa / hugmynd** pill at the top (next to Hjálp; also in the Hjálp menu) opens a small dialog — "Eitthvað virkar ekki" / "Mig vantar / hugmynd", free text, optional name/email (remembered in `localStorage` `kp:reporter`). It goes through `sendIssueReport` into **Skipulag villur 🐞** with the whole draft state, step, browser and URL attached. `Tegund` = `Notandi tilkynnti` (bug) or `Hugmynd` (idea; created by the proxy's `typecast`), title prefixed 💬 / 💡 (auto errors stay 🔧). `sendIssueReport` now returns true/false so the dialog only says "Takk" when the row really landed. The ⚠️ is a deliberate exception to the no-emoji Studio rule (owner: people know where to look).
+
+## Studio visual list — round 2026-10-28
+- Úthliðar vanish when the cabinet is **picked up** (3D drag start: `opts.onCabinetDragStart` → `on3DDragStart` deletes bound panels, hides them in the live scene), not at the drop.
+- Selecting a wall no longer lays a see-through blue pane over the wall for customers (`outlineSel`): it tinted every open unit lilac; the blue frame stays. PRO keeps the pane.
+- Room doors in 3D / walk mode rebuilt (`addOpeningMarker`, `isDoor`): 40 mm slab with a hairline gap, reveal boards, 70 mm architrave, two raised panels, three hinges, lever + rose. The old plane is now the invisible pick surface; selection tints the slab.

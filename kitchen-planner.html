@@ -6325,6 +6325,14 @@
     surfaces().forEach(function(w){ ["floor", "wall"].forEach(function(z){ w[z].forEach(function(p){ if (p.lockTo && p.lockTo.id === hostId && CATALOG[p.type].panel) out.push({ w:w, z:z, p:p }); }); }); });
     return out;
   }
+  function on3DDragStart(blockId){ // the cabinet is lifted: its bound úthliðar are deleted now, not at the drop
+    var bound = boundPanelsOf(blockId); if (!bound.length) return [];
+    var ids = bound.map(function(x){ return x.p.id; });
+    bound.forEach(function(x){ detachBlock(x.w, x.z, x.p.id); });
+    save();
+    toast(bound.length > 1 ? __("Úthliðarnar voru teknar af — bættu þeim við aftur þar sem skápurinn lendir.") : __("Úthliðin var tekin af — bættu henni við aftur þar sem skápurinn lendir."));
+    return ids;
+  }
   function withBoundPanels(hostId, fn){
     var bound = boundPanelsOf(hostId);
     if (boundBusy || !bound.length) return fn();
@@ -11098,7 +11106,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, pickWorktop:!!PRO && !isBath(), selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, pickWorktop:!!PRO && !isBath(), selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragStart:on3DDragStart, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on || walkParts, // inspect mode / walking: every cabinet built in parts (drawers/doors tap open, nothing drags)
         onPeek:function(){ renderView(); }, // right-click "kíkja inn" on a solid (unlocked) cabinet: rebuilt in parts, opening
         onPeekToggle:function(){ hintOnce("kikja", __("<b>Kíkt inn</b> — hægrismelltu aftur á skápinn til að loka honum.")); },

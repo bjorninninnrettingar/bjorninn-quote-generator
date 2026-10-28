@@ -1744,17 +1744,44 @@
         bar(0.016, 0.12, 0.022, lc + latch * (lw / 2 - sw / 2 - 0.002), ly, lz + sd / 2 + 0.011, handleMatW); // handle
       }
       bar(widthM + 0.06, 0.025, WALL_THICKNESS_M + 0.045, 0, baseYM - 0.0125, -WALL_THICKNESS_M / 2 + 0.0225); // sill board: through the hole + 4.5 cm into the room
+    } else if (isDoor){
+      // A real interior door (owner, 2026-10-28: the old one was a flat plane with three bars): a 40 mm slab set in the
+      // hole with a hairline gap, reveal boards through the wall, a flat architrave round it, three hinges and a lever
+      // with its rose. The plane above stays as the invisible pick surface; a selection tints the slab.
+      var Tw = WALL_THICKNESS_M, rvD = -(Tw / 2 + 0.0015);
+      var leafMat = new THREE.MeshStandardMaterial({ color:0xeeebe4, roughness:0.5 });
+      if (selected){ leafMat.emissive = new THREE.Color(SELECT_COLOR); leafMat.emissiveIntensity = 0.35; }
+      var gapMat = new THREE.MeshStandardMaterial({ color:0x3b3a37, roughness:0.9 });
+      mat.visible = false;                                                           // pick only
+      bar(widthM - 0.004, heightM - 0.004, 0.012, 0, baseYM + heightM / 2, -Tw + 0.002, gapMat).castShadow = false; // the dark gap behind the slab
+      var slab = bar(widthM - 0.012, heightM - 0.01, 0.04, 0, baseYM + 0.004 + (heightM - 0.01) / 2, -0.03, leafMat); slab.receiveShadow = true;
+      [bar(widthM, 0.012, Tw, 0, baseYM + heightM - 0.006, rvD, frameMat),
+       bar(0.012, heightM, Tw, -(widthM / 2 - 0.006), baseYM + heightM / 2, rvD, frameMat),
+       bar(0.012, heightM, Tw, widthM / 2 - 0.006, baseYM + heightM / 2, rvD, frameMat)].forEach(function(m){ m.castShadow = false; });
+      var cw = 0.07, cd = 0.014;                                                     // architrave: flat, 70 × 14 mm, with a thin bead inside it
+      bar(widthM + 2 * cw, cw, cd, 0, baseYM + heightM + cw / 2, cd / 2);
+      bar(cw, heightM + cw, cd, -(widthM / 2 + cw / 2), baseYM + (heightM + cw) / 2, cd / 2);
+      bar(cw, heightM + cw, cd, widthM / 2 + cw / 2, baseYM + (heightM + cw) / 2, cd / 2);
+      // two shallow raised panels on the slab, so the door reads as a door and not a white rectangle
+      var pnMat = new THREE.MeshStandardMaterial({ color:0xe2dccf, roughness:0.55 }), pm = 0.1, pbw = 0.022, pdp = 0.008;
+      [[0.09, 0.44], [0.58, 0.9]].forEach(function(pr){
+        var y0p = baseYM + heightM * pr[0], y1p = baseYM + heightM * pr[1], hp = y1p - y0p, wp = widthM - 2 * pm - 0.012, cyp = (y0p + y1p) / 2;
+        bar(wp, pbw, pdp, 0, y1p - pbw / 2, -0.006, pnMat); bar(wp, pbw, pdp, 0, y0p + pbw / 2, -0.006, pnMat);
+        bar(pbw, hp, pdp, -(wp / 2 - pbw / 2), cyp, -0.006, pnMat); bar(pbw, hp, pdp, wp / 2 - pbw / 2, cyp, -0.006, pnMat);
+      });
+      var latchS = meta.hingeRight ? -1 : 1, metalMat = new THREE.MeshStandardMaterial({ color:0x8d9094, metalness:0.85, roughness:0.3 });
+      [0.22, heightM / 2, heightM - 0.22].forEach(function(hy){ var hg = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.1, 12), metalMat);
+        hg.position.copy(at(-latchS * (widthM / 2 - 0.004), baseYM + hy, -0.008)); hg.castShadow = true; group.add(hg); });
+      var hx = latchS * (widthM / 2 - 0.075), hy0 = baseYM + 1.0;
+      var rose = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.012, 24), metalMat);
+      rose.quaternion.copy(q).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2));
+      rose.position.copy(at(hx, hy0, -0.004)); rose.castShadow = true; group.add(rose);
+      bar(0.018, 0.018, 0.034, hx, hy0, 0.013, metalMat);                            // the stem
+      bar(0.13, 0.018, 0.018, hx - latchS * 0.055, hy0, 0.03, metalMat);             // the lever, pointing along the door
     } else {
     bar(widthM, fw, 0.05, 0, baseYM + heightM - fw / 2, fo);                       // head
     bar(fw, heightM, 0.05, -(widthM / 2 - fw / 2), baseYM + heightM / 2, fo);      // left jamb
     bar(fw, heightM, 0.05, widthM / 2 - fw / 2, baseYM + heightM / 2, fo);         // right jamb
-    }
-    if (!isDoor){
-      // (window frame above)
-    } else {
-      var handleMat = new THREE.MeshStandardMaterial({ color:0x55575a, metalness:0.7, roughness:0.35 });
-      var hx = (meta.hingeRight ? -1 : 1) * (widthM / 2 - 0.1);                    // on the latch side, away from the hinges
-      bar(0.14, 0.02, 0.04, hx, 1.0, 0.04, handleMat);                             // lever handle
     }
     return group;
   }
@@ -3956,6 +3983,11 @@
       if (!drag.moved){
         if (Math.hypot(evt.clientX - drag.startX, evt.clientY - drag.startY) < CABINET_DRAG_PX) return;
         drag.moved = true;
+        if (opts.onCabinetDragStart && drag.meta && drag.meta.blockId && !drag.island && !drag.resize && !drag.shelfDrag && !drag.drawerDrag){
+          // picked up: its úthliðar vanish at once so they can't get in the way of the move (owner, 2026-10-27/28)
+          var gone = opts.onCabinetDragStart(drag.meta.blockId) || [];
+          if (gone.length) pickables.forEach(function(pm){ if (pm.userData && gone.indexOf(pm.userData.blockId) >= 0 && pm.parent) pm.parent.visible = false; });
+        }
       }
       if (drag.drawerDrag){
         raycaster.setFromCamera(ndc(evt), camera);
@@ -4362,7 +4394,7 @@
     pane.quaternion.copy(quat);
     pane.position.set(g.origin.x + g.axis.x * g.lenM / 2 + g.normal.x * 0.006, hM / 2, g.origin.z + g.axis.z * g.lenM / 2 + g.normal.z * 0.006);
     pane.renderOrder = 5;
-    grp.add(pane);
+    if (!outlineSel) grp.add(pane); // customers get only the blue frame — the see-through blue pane tinted every open unit lilac (owner, 2026-10-28)
     function bar(w, h, along, y){
       var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.012), new THREE.MeshBasicMaterial({ color:SELECT_COLOR, depthWrite:false }));
       m.quaternion.copy(quat);
