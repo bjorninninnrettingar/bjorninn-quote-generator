@@ -1,7 +1,7 @@
 // api/airtable.js
 import crypto from "node:crypto";
 import { applyCors } from "./_cors.js";
-import { keyLevel, isFullKey } from "./_auth.js";
+import { keyLevel, isFullKey, isPieceTokenShape, verifyPieceToken } from "./_auth.js";
 // Airtable proxy — keeps the Personal Access Token server-side only, so it
 // never sits in committed code or page source (GitHub's push protection
 // blocks any commit containing an Airtable PAT). Used by cutlist.html,
@@ -734,6 +734,27 @@ export function floorVerkFields(tableId) {
   return [];
 }
 
+// ── Piece scope (2026-10-28) ────────────────────────────────────────────────────────────────────
+// A piece token (api/_auth.js, minted by api/v.js for a scanned label) replaces the shared VERK_KEY in the
+// /v -> /velja redirect. It is read-only except for one write, and limited to exactly what /velja, /eining and
+// /verk fetch with a key: the scanned Sögunarlisti row, its Eyðublað unit, its Tækifæri project (floor-visible
+// fields, same set as a floor token), and the project's unit list (/verk). Everything else with a piece token
+// is refused outright — it never behaves like "no key".
+const SOGUNARLISTI = "tblhdgyvTcBfP8kov", UNIT_TBL = "tbl0WcyHhz63pSzZX", PROJECT_TBL = "tbl4LMXlQjp66RFKI";
+// The only fields /velja writes ("Merkja fræst" and its Afturkalla).
+export const PIECE_WRITABLE = ["Fræst", "Magn fræst", "V hlið magn fræst", "H hlið magn fræst"];
+// verk.html fetchUnits(): the project's units by exact project name (both link fields).
+const Q = '"(?:[^"\\\\]|\\\\.)*"';
+const PIECE_UNITS_FILTER = new RegExp("^OR\\(ARRAYJOIN\\(\\{Tækifæri 📣 \\(projects\\)\\}\\)=" + Q + ", ARRAYJOIN\\(\\{Tækifæri 📣\\}\\)=" + Q + "\\)$");
+export function pieceGetAllowed(scope, tableId, recordId, fml) {
+  if (recordId) {
+    return (tableId === SOGUNARLISTI && recordId === scope.pieceId) ||
+      (tableId === UNIT_TBL && recordId === scope.unitId) ||
+      (tableId === PROJECT_TBL && !!scope.projectId && recordId === scope.projectId);
+  }
+  return tableId === UNIT_TBL && PIECE_UNITS_FILTER.test(fml);
+}
+
 const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU", "tbl3e5o0Klv9RcNQ4"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -998,10 +1019,19 @@ export default async function handler(req, res) {
     if (recordId && BLOCK_RECORD_ID.has(tableId)) {
       return res.status(403).json({ error: "Query not allowed for this table" });
     }
-    const kLevel = params.k != null ? keyLevel(String(params.k)) : null; // "full" | "floor" | null
+    let pieceScope = null;
+    if (params.k != null && isPieceTokenShape(String(params.k))) {
+      const pv = verifyPieceToken(String(params.k));
+      if (!pv.ok) return res.status(403).json({ error: "Invalid key" });
+      if (!pieceGetAllowed(pv, tableId, recordId, String(params.filterByFormula || ""))) {
+        return res.status(403).json({ error: "Out of scope for this link" });
+      }
+      pieceScope = pv;
+    }
+    const kLevel = params.k != null && !pieceScope ? keyLevel(String(params.k)) : null; // "full" | "floor" | null
     const keyValid = kLevel === "full";
     const fml = String(params.filterByFormula || "");
-    if (!recordId && STRICT_FILTERS[tableId] && !STRICT_FILTERS[tableId].test(fml) &&
+    if (!recordId && STRICT_FILTERS[tableId] && !STRICT_FILTERS[tableId].test(fml) && !pieceScope &&
         !(keyValid && KEYED_STRICT_FILTERS[tableId] && KEYED_STRICT_FILTERS[tableId].test(fml))) {
       return res.status(403).json({ error: "Query not allowed for this table" });
     }
@@ -1011,7 +1041,10 @@ export default async function handler(req, res) {
     // link" rather than a confusing half-populated view); an absent key just
     // gets the normal public field set. Never forwarded to Airtable.
     let allowedFields = baseFields;
-    if (params.k != null) {
+    if (pieceScope) {
+      allowedFields = baseFields.concat(floorVerkFields(tableId));
+      delete params.k;
+    } else if (params.k != null) {
       if (!kLevel) {
         return res.status(403).json({ error: "Invalid key" });
       }
@@ -1066,6 +1099,7 @@ export default async function handler(req, res) {
       if (!isFullKey(req.query.k)) return res.status(403).json({ error: "Invalid key" });
     }
 
+    if (isPieceTokenShape(String(req.query.k || ""))) return res.status(403).json({ error: "Out of scope for this link" });
     const requestedFields = req.body?.fields || {};
     const fields = {};
     for (const [k, v] of Object.entries(requestedFields)) {
@@ -1117,6 +1151,14 @@ export default async function handler(req, res) {
     }
     if (Object.keys(fields).length === 0) {
       return res.status(400).json({ error: "No writable fields in request" });
+    }
+    if (isPieceTokenShape(String(req.query.k || ""))) {
+      // A piece token may only do /velja's write: that one piece, only the milling fields.
+      const pv = verifyPieceToken(String(req.query.k));
+      if (!pv.ok) return res.status(403).json({ error: "Invalid key" });
+      if (tableId !== SOGUNARLISTI || recordId !== pv.pieceId || Object.keys(requestedFields).some((f) => !PIECE_WRITABLE.includes(f))) {
+        return res.status(403).json({ error: "Out of scope for this link" });
+      }
     }
     if (PATCH_KEYLESS_FIELDS[tableId]) {
       const keyOk = isFullKey(req.query.k);

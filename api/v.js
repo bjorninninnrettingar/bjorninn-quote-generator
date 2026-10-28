@@ -1,5 +1,5 @@
 // Short redirect for the QR code on Zebra piece labels.
-// /v/<Sögunarlisti piece recordId>  →  302 → /velja?u=<unitId>&p=<projectId>&s=<pieceId>&k=<VERK_KEY>
+// /v/<Sögunarlisti piece recordId>  →  302 → /velja?u=<unitId>&p=<projectId>&s=<pieceId>&k=<12h piece token>
 //
 // Takes the PIECE's record id (what print-server.js already has in hand when
 // it prints that label) rather than the unit or project id directly, and
@@ -9,10 +9,10 @@
 // some units (confirmed 2026-09-11 — [0] is not always the real project), so
 // resolving from the piece avoids that landmine rather than working around it.
 //
-// VERK_KEY is injected here from the env at request time, never baked into
-// the printed label or committed to source (same reasoning as
-// api/airtable.js keeping AIRTABLE_TOKEN server-side only).
+// 2026-10-28: the redirect no longer carries the shared VERK_KEY. It carries a 12-hour piece token
+// (api/_auth.js signPieceToken) limited to this piece, its unit and its project; api/airtable.js enforces it.
 const AIRTABLE_BASE = "app91U15z9K704Okd";
+import { signPieceToken, PIECE_TTL_SEC } from "./_auth.js";
 const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov";
 
 export default async function handler(req, res) {
@@ -21,9 +21,9 @@ export default async function handler(req, res) {
     return res.status(400).send("Invalid link");
   }
 
-  const key = process.env.VERK_KEY;
+  const secret = process.env.FLOOR_TOKEN_SECRET;
   const token = process.env.AIRTABLE_TOKEN;
-  if (!key) return res.status(500).send("VERK_KEY not configured");
+  if (!secret) return res.status(500).send("FLOOR_TOKEN_SECRET not configured");
   if (!token) return res.status(500).send("AIRTABLE_TOKEN not configured");
 
   const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${SOGUNARLISTI_TABLE}`);
@@ -46,7 +46,8 @@ export default async function handler(req, res) {
   // The scanned piece itself — /velja offers "Merkja fræst" for it when it's
   // marked Yfirfr., so the fræsari can tick it off with one scan + one tap.
   dest.searchParams.set("s", id);
-  dest.searchParams.set("k", key);
+  const exp = Math.floor(Date.now() / 1000) + PIECE_TTL_SEC;
+  dest.searchParams.set("k", signPieceToken(secret, { pieceId: id, unitId, projectId, exp }));
 
   res.writeHead(302, { Location: dest.pathname + dest.search });
   res.end();
