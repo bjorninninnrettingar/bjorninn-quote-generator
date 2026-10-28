@@ -1,7 +1,7 @@
 // api/kp-pro.js — pro-mode save: designer state back to the Tækifæri, Smíðagögn onto Line Items by 🔑.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import handler, { save, validate } from "../api/kp-pro.js";
+import handler, { save, validate, orphans, retire, validateOrphanAction } from "../api/kp-pro.js";
 import { makeAirtable } from "../api/kp-submit.js";
 import { mockRes, fakeFetch as rawFetch, byLink } from "./helpers.js";
 
@@ -277,4 +277,38 @@ test("P-04: the final state write is retried; if it never lands the handler answ
   assert.equal(res.statusCode, 502);
   assert.equal(res.body.partial, true);
   assert.equal(res.body.updated, 1);
+});
+
+test("P-02: orphans lists lines not in the drawing; retire deletes only those, never a drawn key or a line with an Eyðublað", async () => {
+  const rows = (call) => {
+    if (call.method === "GET" && call.url.includes("tblFcsUoGxsuUwNEH"))
+      return { status: 200, body: { records: [
+        { id: "recL1", fields: { "🔑": "Sk1", "Tækifæri 📣 (projects)": [OPP] } },
+        { id: "recL2", fields: { "🔑": "Sk2", "Tækifæri 📣 (projects)": [OPP] } },
+        { id: "recL3", fields: { "🔑": "Sk3", "Tækifæri 📣 (projects)": [OPP], "Eyðublað búið til ✏️": ["recEY"] } },
+      ] } };
+    return routes(call);
+  };
+  const smida = { Sk1: null };
+  const f = fakeFetch(rows);
+  const list = await orphans(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, smida });
+  assert.deepEqual(list.map((o) => [o.key, o.eydublad]), [["Sk2", false], ["Sk3", true]]);
+  assert.ok(!f.calls.some((c) => c.method === "DELETE"));
+  const f2 = fakeFetch(rows);
+  const out = await retire(makeAirtable("t", { fetchImpl: f2, delays: [] }), { recordId: OPP, smida, keys: ["Sk1", "Sk2", "Sk3"] });
+  assert.deepEqual([out.deleted, out.blocked], [["Sk2"], ["Sk3"]]);
+  const del = f2.calls.filter((c) => c.method === "DELETE");
+  assert.equal(del.length, 1);
+  assert.ok(del[0].url.includes("records%5B%5D=recL2") && !del[0].url.includes("recL1") && !del[0].url.includes("recL3"));
+});
+
+test("P-02: the orphan actions need the office key and valid input", async () => {
+  process.env.AIRTABLE_TOKEN = "t"; process.env.VERK_KEY = "secret";
+  const res = mockRes();
+  await handler({ method: "POST", body: { k: "wrong", action: "retire", recordId: OPP, smida: {}, keys: ["Sk1"] } }, res);
+  assert.equal(res.statusCode, 403);
+  assert.equal(validateOrphanAction({ action: "retire", recordId: OPP, smida: {}, keys: [] }), "Ógild 🔑 til að eyða");
+  assert.equal(validateOrphanAction({ action: "retire", recordId: OPP, smida: {}, keys: ["Sk1; x"] }), "Ógild 🔑 til að eyða");
+  assert.equal(validateOrphanAction({ action: "orphans", recordId: OPP, smida: { Sk1: null } }), null);
+  assert.equal(validateOrphanAction({ action: "orphans", recordId: "bad", smida: {} }), "Ógilt recordId");
 });
