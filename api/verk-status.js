@@ -13,6 +13,7 @@
 // `from` must equal the current status (a stale page can't overwrite a newer one).
 
 import { addLine } from "./virkni.js";
+import { checkFloorOrFullKey } from "./_auth.js";
 
 const BASE = "https://api.airtable.com/v0/app91U15z9K704Okd";
 const PROJECTS = "tbl4LMXlQjp66RFKI";
@@ -76,7 +77,7 @@ async function at(path, opts = {}) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
   const b = req.body || {};
-  if (!process.env.VERK_KEY || b.k !== process.env.VERK_KEY) return res.status(403).json({ error: "Ógildur lykill" });
+  if (!checkFloorOrFullKey(b.k)) return res.status(403).json({ error: "Ógildur lykill" });
   const t = String(b.t || "");
   if (!/^rec[A-Za-z0-9]{14}$/.test(t)) return res.status(400).json({ error: "Ógilt verk" });
 

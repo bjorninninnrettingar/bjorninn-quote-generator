@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Para tæki — Björninn</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<script>
+(function () {
+  try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+})();
+</script>
+<style>
+  /* para-taeki.html (2026-10-28) — two modes in one file.
+     /para-taeki            owner (eigandi) inside the office shell: make a pairing code, see paired devices.
+     /para-taeki?c=<code>   the tablet/phone being paired: swaps the code for its own floor token. */
+  :root {
+    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
+    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root[data-theme="dark"] {
+    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
+    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
+    --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+  #shell { display:flex; min-height:100vh; }
+  .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; height:100vh; position:sticky; top:0; overflow-y:auto; }
+  .sidebar nav { display:flex; flex-direction:column; gap:1px; flex:1; }
+  .sidebar nav a { display:flex; align-items:center; gap:10px; padding:9px 18px; text-decoration:none; color:#cfd5dd; font-size:.88rem; }
+  .sidebar nav a:hover { background:#242e3b; }
+  .sidebar nav a.active { background:var(--accent); color:#fff; }
+  .main { flex:1; padding:24px 28px 40px; max-width:900px; }
+  h1 { font-size:1.35rem; font-weight:700; }
+  .sub { font-size:.82rem; color:var(--muted); margin:2px 0 18px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .card h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:10px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=text] { font:inherit; font-size:.9rem; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px 11px; color:var(--text); min-width:240px; }
+  button { font:inherit; font-size:.88rem; font-weight:600; border:none; border-radius:8px; padding:9px 14px; cursor:pointer; background:var(--accent); color:#fff; }
+  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:default; }
+  .link { font-family:"SF Mono",Consolas,monospace; font-size:.76rem; word-break:break-all; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:10px; }
+  .note { font-size:.8rem; color:var(--muted); margin-top:8px; }
+  .bad { color:var(--bad); } .good { color:var(--good); } .warn { color:var(--warn); }
+  table { width:100%; border-collapse:collapse; font-size:.84rem; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); text-transform:uppercase; font-size:.68rem; letter-spacing:.04em; }
+  tr:last-child td { border-bottom:none; }
+  code { font-family:"SF Mono",Consolas,monospace; font-size:.8rem; }
+  /* device (pairing) mode */
+  body.dev .main { margin:0 auto; padding:40px 20px; max-width:480px; }
+  body.dev #shell .sidebar { display:none; }
+  @media (max-width:760px) { .sidebar { display:none; } .main { padding:18px 16px 40px; } }
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="sidebar">
+    <div id="officeSidebarTop"></div>
+    <nav id="officeNav"></nav>
+    <div id="officeSidebarBottom"></div>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+
+<script src="/floor-key.js"></script>
+<script src="/office-shell.js"></script>
+<script>
+(function () {
+  "use strict";
+  var DEV_LIST = "bjorninn:floorDevices:v1"; // owner's browser only: devices paired from here (the server is stateless)
+  var main = document.getElementById("main");
+  var code = new URLSearchParams(location.search).get("c");
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function post(body) {
+    return fetch("/api/floor-token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; }); });
+  }
+  function fmt(exp) { return new Date(exp * 1000).toLocaleDateString("is-IS"); }
+
+  // ── Device mode ─────────────────────────────────────────────────────────
+  if (code) {
+    document.body.classList.add("dev");
+    main.innerHTML = '<div class="card"><h1>Para þetta tæki</h1><p class="sub" id="devMsg">Tengi tækið…</p></div>';
+    post({ action: "exchange", code: code }).then(function (d) {
+      var msg = document.getElementById("devMsg");
+      if (d.token) {
+        window.FloorKey.store(d.token);
+        msg.className = "sub good";
+        msg.innerHTML = 'Tækið er parað sem <b>' + esc(d.name) + '</b> (gildir til ' + fmt(d.exp) + '). <br><br><a href="/app" style="color:var(--accent);font-weight:700">Opna verkstæðisappið →</a>';
+        try { history.replaceState(null, "", "/para-taeki"); } catch (e) {}
+      } else {
+        msg.className = "sub bad";
+        msg.textContent = d._status === 503 ? "Parun er ekki sett upp á þjóninum ennþá (vantar FLOOR_TOKEN_SECRET)."
+          : "Kóðinn er útrunninn eða ógildur. Biddu eigandann um nýjan kóða (gildir í 15 mínútur).";
+      }
+    }).catch(function () { document.getElementById("devMsg").textContent = "Samband næst ekki — reyndu aftur."; });
+    return;
+  }
+
+  // ── Owner mode ──────────────────────────────────────────────────────────
+  var shellInfo = window.OfficeShell.boot("para");
+  if (!shellInfo) return;
+  var rec = shellInfo.record || {};
+  if ((rec.roles || []).indexOf("eigandi") === -1) { location.href = "/skrifstofa"; return; }
+  var session = window.OfficeShell.getSession() || {};
+  var sessToken = session.token || "";
+  function creds(extra) { return Object.assign({ id: rec.id, t: sessToken }, extra); }
+
+  function loadDevices() { try { return JSON.parse(localStorage.getItem(DEV_LIST) || "[]"); } catch (e) { return []; } }
+  function saveDevices(a) { try { localStorage.setItem(DEV_LIST, JSON.stringify(a)); } catch (e) {} }
+
+  main.innerHTML =
+    '<h1>📲 Para tæki</h1><div class="sub">Hvert verkstæðistæki fær sinn eigin lykil í stað sameiginlega lykilsins.</div>' +
+    '<div class="card"><h2>Nýtt tæki</h2><div class="row"><input id="devName" type="text" maxlength="40" placeholder="Nafn, t.d. Spjaldtölva sögun" />' +
+    '<button id="mkBtn" type="button">Búa til paranakóða</button></div>' +
+    '<div id="mkOut"></div><div class="note">Opnaðu hlekkinn á tækinu sem á að para (afritaðu hann í símann eða sendu sjálfum þér). Hann gildir í 15 mínútur og tækið heldur lyklinum í 90 daga.</div></div>' +
+    '<div class="card"><h2>Pöruð tæki (úr þessum vafra)</h2><div id="devList"></div>' +
+    '<div class="note">Þjónninn geymir engan lista (lyklarnir eru undirritaðir, ekki vistaðir) — listinn hér er það sem þú hefur parað úr þessum vafra. ' +
+    'Til að afturkalla tæki: bættu auðkenninu við <code>FLOOR_REVOKED</code> í Vercel (Environment Variables, kommu-aðskilið) og endurdeployaðu.</div></div>';
+
+  var revoked = [];
+  function paint() {
+    var list = loadDevices().sort(function (a, b) { return b.created - a.created; });
+    var el = document.getElementById("devList");
+    if (!list.length) { el.innerHTML = '<div class="note">Engin tæki pöruð héðan ennþá.</div>'; return; }
+    var now = Date.now() / 1000;
+    el.innerHTML = '<table><thead><tr><th>Nafn</th><th>Auðkenni</th><th>Staða</th><th></th></tr></thead><tbody>' + list.map(function (d) {
+      var isRev = revoked.indexOf(d.deviceId) !== -1;
+      var st = isRev ? '<span class="bad">afturkallað</span>' : (d.exp < now ? '<span class="warn">útrunnið</span>' : (d.paired ? '<span class="good">parað</span>' : '<span class="warn">kóði búinn til</span>'));
+      return '<tr><td>' + esc(d.name) + '</td><td><code>' + esc(d.deviceId) + '</code></td><td>' + st + '</td>' +
+        '<td><button class="ghost" data-id="' + esc(d.deviceId) + '" type="button">Afturkalla…</button></td></tr>';
+    }).join("") + '</tbody></table>';
+  }
+  function refreshRevoked() {
+    post(creds({ action: "list" })).then(function (d) { if (d.revoked) { revoked = d.revoked; paint(); } }).catch(function () {});
+  }
+
+  document.getElementById("mkBtn").addEventListener("click", function () {
+    var name = document.getElementById("devName").value.trim();
+    var out = document.getElementById("mkOut");
+    if (!name) { out.innerHTML = '<div class="note bad">Settu inn nafn á tækið.</div>'; return; }
+    this.disabled = true;
+    var btn = this;
+    post(creds({ action: "pair", name: name })).then(function (d) {
+      btn.disabled = false;
+      if (!d.code) {
+        out.innerHTML = '<div class="note bad">' + (d._status === 503 ? "FLOOR_TOKEN_SECRET vantar í Vercel." : d._status === 403 ? "Aðeins eigandi getur parað tæki (skráðu þig inn aftur ef lotan er útrunnin)." : "Mistókst — reyndu aftur.") + '</div>';
+        return;
+      }
+      var url = location.origin + d.path;
+      var list = loadDevices();
+      list.push({ deviceId: d.deviceId, name: d.name, exp: d.exp + 90 * 24 * 3600 - 15 * 60, created: Date.now(), paired: false });
+      saveDevices(list);
+      out.innerHTML = '<div class="link" id="pairUrl">' + esc(url) + '</div><div class="row" style="margin-top:8px"><button id="cpBtn" type="button">Afrita hlekk</button></div>';
+      document.getElementById("cpBtn").addEventListener("click", function () {
+        try { navigator.clipboard.writeText(url); this.textContent = "Afritað ✓"; } catch (e) {}
+      });
+      document.getElementById("devName").value = "";
+      paint();
+    }).catch(function () { btn.disabled = false; out.innerHTML = '<div class="note bad">Samband næst ekki.</div>'; });
+  });
+  document.getElementById("devList").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-id]");
+    if (!b) return;
+    var id = b.getAttribute("data-id");
+    window.prompt("Bættu þessu auðkenni við FLOOR_REVOKED í Vercel (kommu-aðskilið) og endurdeployaðu:", id);
+  });
+
+  paint();
+  refreshRevoked();
+})();
+</script>
+</body>
+</html>

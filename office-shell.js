@@ -44,6 +44,8 @@
     { id: "pro",     icon: "🎨", label: "PRO hönnuður",    roles: ["allt"], href: "/pro" },
     { id: "laun",    icon: "💰", label: "Laun",            roles: ["eigandi"], href: "/laun" },
     { id: "bakendi", icon: "🧰", label: "Bakendi",         roles: ["admin"], href: "/bakendi" },
+    // Para tæki (2026-10-28) — per-device floor keys; owner-only (api/floor-token.js re-checks Eigandi server-side).
+    { id: "para",    icon: "📲", label: "Para tæki",       roles: ["eigandi"], href: "/para-taeki" },
   ];
 
   var ROLE_LABELS = { allt: "Allt", eigandi: "Eigandi", admin: "Admin" };
