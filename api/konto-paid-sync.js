@@ -80,6 +80,11 @@ export default async function handler(req, res) {
     for (const i of invoices) { const g = i.guid || i.id; if (g) inv.set(String(g), i); }
 
     const report = { ok: true, dry, missingFields, projects: work.length, paid: 0, overdue: 0, ticked: 0, errors: [] };
+    if (dry) { // diagnostics for the dry run only: did Konto's invoices line up with the guids we hold? (no names, no amounts)
+      let held = 0, matched = 0; const statusCounts = {};
+      for (const w of work) for (const e of Object.values(w.ledger)) { held++; const i = e.guid ? inv.get(String(e.guid)) : null; if (i) { matched++; const st = String(i.status || "?"); statusCounts[st] = (statusCounts[st] || 0) + 1; } }
+      Object.assign(report, { invoicesFetched: invoices.length, guidsHeld: held, guidsMatched: matched, statusCounts });
+    }
     for (const w of work) {
       const plan = planSync({
         ledger: w.ledger, split: w.f[SPLIT] || "", inv, today,
