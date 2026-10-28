@@ -6431,12 +6431,12 @@
     var dimV = new THREE.Vector3();
     function dimTick(x0, y0, x1, y1, text, vertical, color){
       var t = 6;
-      var s = '<line x1="' + x0 + '" y1="' + y0 + '" x2="' + x1 + '" y2="' + y1 + '" stroke="' + color + '" stroke-width="1.4"/>';
+      var s = '<line x1="' + x0 + '" y1="' + y0 + '" x2="' + x1 + '" y2="' + y1 + '" stroke="' + color + '" stroke-width="1.6"/>';
       [[x0, y0], [x1, y1]].forEach(function(p){
         s += '<line x1="' + (p[0] - (vertical ? t : 0)) + '" y1="' + (p[1] - (vertical ? 0 : t)) + '" x2="' + (p[0] + (vertical ? t : 0)) + '" y2="' + (p[1] + (vertical ? 0 : t)) + '" stroke="' + color + '" stroke-width="1.4"/>';
       });
-      var mx = (x0 + x1) / 2, my = (y0 + y1) / 2, narrow = !vertical && Math.abs(x1 - x0) < String(text).length * 7 + 8; // an úthlið's 19: above the chain, clear of its neighbours
-      s += '<text x="' + mx + '" y="' + (my - (narrow ? 17 : 5)) + '" font-size="12" font-weight="600" fill="' + color + '" text-anchor="middle"' +
+      var mx = (x0 + x1) / 2, my = (y0 + y1) / 2, narrow = !vertical && Math.abs(x1 - x0) < String(text).length * 8.5 + 8; // an úthlið's 19: above the chain, clear of its neighbours
+      s += '<text x="' + mx + '" y="' + (my - (narrow ? 17 : 5)) + '" font-size="14.5" font-weight="700" fill="' + color + '" text-anchor="middle"' +
         (vertical ? ' transform="rotate(-90 ' + mx + ' ' + my + ')"' : '') + '>' + text + '</text>';
       return s;
     }

@@ -1274,6 +1274,20 @@
   .sub-sec > summary::after{ content:"▾"; color:var(--ink-soft); font-weight:400; }
   .sub-sec:not([open]) > summary::after{ content:"▸"; }
   button.mat-ok{ margin-left:6px; font:inherit; font-size:10.5px; font-weight:700; padding:1px 8px; border-radius:999px; border:1px solid currentColor; background:transparent; color:var(--blue); cursor:pointer; }
+  /* Málband card (bottom-left of the screen): hint + the tapes, nothing else */
+  #measureCard{ position:fixed; left:18px; bottom:18px; z-index:70; width:270px; max-height:50vh; overflow-y:auto; background:var(--card, #fff); color:var(--ink); border:1px solid var(--line); border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.2); padding:12px 14px; font-size:13px; }
+  #measureCard[hidden]{ display:none; }
+  #measureCard .mc-h{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  #measureCard .mc-h b{ font-size:14px; }
+  #measureCard button{ font:inherit; cursor:pointer; color:var(--ink); }
+  #measureCard #mcDone{ font-size:12.5px; font-weight:700; padding:4px 12px; border-radius:999px; border:1px solid var(--blue); background:var(--blue); color:#fff; }
+  #measureCard .mc-hint{ color:var(--ink-soft); font-size:12px; line-height:1.35; margin-bottom:6px; }
+  #measureCard .mc-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-top:1px solid var(--line); }
+  #measureCard .mc-row b{ display:block; font-size:16px; }
+  #measureCard .mc-row small{ display:block; color:var(--ink-soft); font-size:11.5px; }
+  #measureCard .mc-row button{ width:26px; height:26px; border-radius:50%; border:0; background:transparent; font-size:18px; line-height:1; color:var(--ink-soft); }
+  #measureCard .mc-row button:hover{ background:var(--panel); color:var(--ink); }
+  #measureCard .mc-clear{ margin-top:6px; width:100%; padding:6px; border-radius:9px; border:1px solid var(--line); background:transparent; font-size:12.5px; }
   .warn-pop:not([hidden]){ position:absolute; top:calc(100% + 6px); right:14px; z-index:60; width:360px; max-height:60vh; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.18); padding:12px 14px; }
   #tipBar{ display:none !important; }
 
@@ -11218,6 +11232,7 @@
       syncWalkBtn();
       landedBlockId = null;
       applyInspect();
+      measureRestore();
     }, 8000);
   }
 
@@ -16506,27 +16521,31 @@
   // with a running distance), snapping to room/cabinet corners, a fatter always-visible line and a clearer
   // first-point marker (the old THREE.Line was 1px regardless of its material's linewidth — a well-known WebGL
   // limitation — so both the live and finished line are now a thin stretched cylinder mesh instead).
-  var measureOn = false, measurePts = [], measureObjs = [], measureDown = null, measureSnaps = [];
+  var measureOn = false, measureList = [], measurePend = null, measureCat = null, measureObjs = [], measureDown = null, measureSnaps = []; // measureList: finished tapes {a, b} in world metres — they stay until "Hreinsa allt" (owner 2026-10-28)
   var measureLive = { ring:null, line:null, label:null }; // the live hover/preview objects, reused frame to frame (not recreated)
   function clearMeasureObjs(){
     var st = KP3D._three();
     if (st){ measureObjs.forEach(function(o){ st.scene.remove(o); }); Object.keys(measureLive).forEach(function(k){ if (measureLive[k]) st.scene.remove(measureLive[k]); }); }
     measureObjs = []; measureLive = { ring:null, line:null, label:null };
   }
+  // the reading is the point of the tool — big, on every view (the old 2 %-of-screen label was unreadable in 2D, owner 2026-10-28)
+  var MEASURE_LBL_W = 224, MEASURE_LBL_H = 72, MEASURE_LBL_SCALE = 0.05;
   function measureSpritePaint(cv, text, bg){
-    var cx = cv.getContext("2d");
-    cx.clearRect(0, 0, cv.width, cv.height);
-    cx.fillStyle = bg || "rgba(10,132,255,.94)"; cx.beginPath();
-    if (cx.roundRect) cx.roundRect(4, 4, 152, 56, 16); else cx.rect(4, 4, 152, 56); cx.fill();
-    cx.fillStyle = "#fff"; cx.font = "700 30px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
-    cx.fillText(text, 80, 32);
+    var cx = cv.getContext("2d"), w = cv.width, h = cv.height;
+    cx.clearRect(0, 0, w, h);
+    cx.fillStyle = bg || "rgba(10,132,255,.96)"; cx.beginPath();
+    if (cx.roundRect) cx.roundRect(4, 4, w - 8, h - 8, 22); else cx.rect(4, 4, w - 8, h - 8); cx.fill();
+    cx.fillStyle = "#fff"; cx.font = "700 40px 'Kumbh Sans', Arial, sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+    cx.fillText(text, w / 2, h / 2 + 2);
   }
-  function measureSprite(T, text, pos, w, h, bg){
-    var cv = document.createElement("canvas"); cv.width = 160; cv.height = 64;
+  function measureOrthoK(){ var st = KP3D._three(); return st && st.camera && st.camera.isOrthographicCamera ? MEASURE_ORTHO_K : 1; } // a screen-sized sprite reads smaller through the flat 2D camera
+  var MEASURE_ORTHO_K = 3.5;
+  function measureSprite(T, text, pos, bg){
+    var cv = document.createElement("canvas"); cv.width = MEASURE_LBL_W; cv.height = MEASURE_LBL_H;
     measureSpritePaint(cv, text, bg);
-    var tex = new T.CanvasTexture(cv);
-    var sp = new T.Sprite(new T.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false }));
-    sp.scale.set(w, h, 1); sp.position.copy(pos); sp.renderOrder = 999;
+    var tex = new T.CanvasTexture(cv); if (T.SRGBColorSpace) tex.colorSpace = T.SRGBColorSpace; // (without it the blue came out washed)
+    var sp = new T.Sprite(new T.SpriteMaterial({ map:tex, depthTest:false, transparent:true, sizeAttenuation:false, toneMapped:false }));
+    var k = measureOrthoK(); sp.scale.set(k * MEASURE_LBL_SCALE * MEASURE_LBL_W / MEASURE_LBL_H, k * MEASURE_LBL_SCALE, 1); sp.position.copy(pos); sp.renderOrder = 999;
     sp.userData.canvas = cv; sp.userData.bg = bg;
     return sp;
   }
@@ -16544,7 +16563,7 @@
     var dir = new T.Vector3().subVectors(b, a), len = dir.length();
     if (len < 1e-5) len = 1e-5; else dir.normalize();
     var geo = new T.CylinderGeometry(MEASURE_LINE_T / 2, MEASURE_LINE_T / 2, len, 8);
-    var mat = new T.MeshBasicMaterial({ color:color, depthTest:false, transparent:opacity < 1, opacity:opacity });
+    var mat = new T.MeshBasicMaterial({ color:color, depthTest:false, transparent:opacity < 1, opacity:opacity, toneMapped:false });
     var mesh = new T.Mesh(geo, mat);
     mesh.position.copy(a).lerp(b, 0.5);
     mesh.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dir);
@@ -16559,28 +16578,43 @@
     mesh.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dir);
   }
   // A clear "you placed a point here" marker: a solid dot inside a bigger pale ring, so it reads against any
-  // background (light wall, dark PRO theme, a busy texture) — not just the small flat dot it used to be.
-  function measureMarker(T, point, placed){
+  // background (light wall, dark PRO theme, a busy texture). Green while the cursor is on a corner / middle that it snapped to.
+  function measureMarker(T, point, placed, snapped){
     var g = new T.Group(); g.position.copy(point); g.renderOrder = 999;
-    var ring = new T.Mesh(new T.RingGeometry(0.02, 0.028, 24), new T.MeshBasicMaterial({ color:0xffffff, depthTest:false, transparent:true, opacity:placed ? 0.95 : 0.55, side:T.DoubleSide }));
-    var dot = new T.Mesh(new T.SphereGeometry(placed ? 0.013 : 0.009, 14, 14), new T.MeshBasicMaterial({ color:0x0a84ff, depthTest:false, transparent:!placed, opacity:placed ? 1 : 0.75 }));
+    var ring = new T.Mesh(new T.RingGeometry(0.024, 0.034, 24), new T.MeshBasicMaterial({ color:0xffffff, depthTest:false, transparent:true, opacity:placed ? 0.95 : 0.7, side:T.DoubleSide, toneMapped:false }));
+    var dot = new T.Mesh(new T.SphereGeometry(placed ? 0.016 : 0.012, 14, 14), new T.MeshBasicMaterial({ color:snapped ? 0x34c759 : 0x0a84ff, depthTest:false, toneMapped:false }));
     g.add(ring); g.add(dot);
     g.onBeforeRender = function(renderer, scene, camera){ ring.quaternion.copy(camera.quaternion); }; // the ring always faces the viewer, like a sight
     return g;
   }
-  function measureAddPoint(point, T, st){
-    if (measurePts.length >= 2){ clearMeasureObjs(); measurePts = []; }
-    measurePts.push(point.clone());
-    var dot = measureMarker(T, point, true);
-    st.scene.add(dot); measureObjs.push(dot);
-    if (measurePts.length === 2){
-      var a = measurePts[0], b = measurePts[1], mm = a.distanceTo(b) * 1000;
-      var line = measureLineMesh(T, a, b, 0x0a84ff, 1);
-      st.scene.add(line); measureObjs.push(line);
-      var mid = a.clone().lerp(b, 0.5); mid.y += 0.04;
-      var label = measureSprite(T, uLen(mm), mid, 0.05, 0.02);
-      st.scene.add(label); measureObjs.push(label);
+  function measureParts(m){ var d = m.b.clone().sub(m.a); return { h:Math.hypot(d.x, d.z) * 1000, v:Math.abs(d.y) * 1000, t:d.length() * 1000 }; }
+  // redraw everything from the data: the tapes, the pending first point, the card (also after the scene was rebuilt)
+  function measureRender(){
+    var st = KP3D._three(), T = window.__THREE__;
+    if (st && T){
+      clearMeasureObjs();
+      var add = function(o){ st.scene.add(o); measureObjs.push(o); };
+      measureList.forEach(function(m){
+        add(measureMarker(T, m.a, true)); add(measureMarker(T, m.b, true));
+        add(measureLineMesh(T, m.a, m.b, 0x0a84ff, 1));
+        var mid = m.a.clone().lerp(m.b, 0.5); mid.y += 0.05;
+        add(measureSprite(T, uLen(measureParts(m).t), mid));
+      });
+      if (measurePend) add(measureMarker(T, measurePend, true));
     }
+    measureCardSync();
+  }
+  // Axis help (owner 2026-10-28: an interior designer measures along the walls and up — not at a wobbly angle): while the
+  // second point is placed, a line within ~4° of a wall direction or of straight up/down is made exact; Shift forces the nearest.
+  function measureConstrain(a, pt, st, T, force){
+    var v = pt.clone().sub(a), len = v.length(); if (len < 1e-4) return pt;
+    var axes = [{ x:0, y:1, z:0 }, { x:1, y:0, z:0 }, { x:0, y:0, z:1 }];
+    (st.geoms || []).forEach(function(g){ var l = Math.hypot(g.axis.x, g.axis.z) || 1, x = g.axis.x / l, z = g.axis.z / l; axes.push({ x:x, y:0, z:z }, { x:-z, y:0, z:x }); });
+    var best = null, bestAng = 9;
+    axes.forEach(function(ax){ var ang = Math.acos(Math.min(1, Math.abs(v.x * ax.x + v.y * ax.y + v.z * ax.z) / len)); if (ang < bestAng){ bestAng = ang; best = ax; } });
+    if (!best || (!force && bestAng > 0.07)) return pt;
+    var t = v.x * best.x + v.y * best.y + v.z * best.z;
+    return new T.Vector3(a.x + best.x * t, a.y + best.y * t, a.z + best.z * t);
   }
   // Candidate snap points (2026-10-20): every room/island/milliveggur corner (floor AND ceiling), plus every
   // placed cabinet/window/door/obstacle's own bounding-box corners — built once when the tool turns on (not
@@ -16604,17 +16638,19 @@
     });
     Object.keys(boxes).forEach(function(bid){
       var box = boxes[bid]; if (box.isEmpty()) return;
-      [box.min.x, box.max.x].forEach(function(x){ [box.min.y, box.max.y].forEach(function(y){ [box.min.z, box.max.z].forEach(function(z){
-        measureSnaps.push(new T.Vector3(x, y, z));
+      var xs = [box.min.x, box.max.x], ys = [box.min.y, box.max.y], zs = [box.min.z, box.max.z], mx = (xs[0] + xs[1]) / 2, my = (ys[0] + ys[1]) / 2, mz = (zs[0] + zs[1]) / 2;
+      xs.forEach(function(x){ ys.forEach(function(y){ zs.forEach(function(z){
+        measureSnaps.push(new T.Vector3(x, y, z)); // corners …
       }); }); });
+      xs.forEach(function(x){ ys.forEach(function(y){ measureSnaps.push(new T.Vector3(x, y, mz)); }); zs.forEach(function(z){ measureSnaps.push(new T.Vector3(x, my, z)); }); }); // … and the middle of every edge
+      ys.forEach(function(y){ zs.forEach(function(z){ measureSnaps.push(new T.Vector3(mx, y, z)); }); });
     });
   }
   var MEASURE_SNAP_PX = 22; // screen pixels — close enough to a corner that you obviously meant it
   function measureSnap(rawPoint, clientX, clientY, st){
     // checked regardless of whether the raw raycast landed on anything — a corner near the cursor should
-    // snap even when the ray itself skims past every wall/floor mesh and the fallback plane isn't in front
-    // of the camera either (looking up at a ceiling corner, mostly): rawPoint is only the last resort
-    if (!measureSnaps.length) return rawPoint;
+    // snap even when the ray itself skims past every wall/floor mesh. Returns { p, snapped }.
+    if (!measureSnaps.length) return { p:rawPoint, snapped:false };
     var rect = st.renderer.domElement.getBoundingClientRect(), best = null, bestD = MEASURE_SNAP_PX;
     measureSnaps.forEach(function(p){
       var v = p.clone().project(st.camera); if (v.z > 1 || v.z < -1) return;
@@ -16622,7 +16658,7 @@
       var d = Math.hypot(sx - clientX, sy - clientY);
       if (d < bestD){ bestD = d; best = p; }
     });
-    return best || rawPoint;
+    return best ? { p:best, snapped:true } : { p:rawPoint, snapped:false };
   }
   // The raw 3D point under the cursor, shared by the live hover/preview and the actual click — whatever the
   // ray hits in the scene (walls, floor, worktops, cabinets), or the floor plane for an empty click outside
@@ -16643,24 +16679,31 @@
   // handling on the canvas is never interrupted.
   var MEASURE_CLICK_PX = 6;
   function measureDownHandler(e){ if (measureOn) measureDown = { x:e.clientX, y:e.clientY }; }
+  // the point under the cursor after snapping + axis help (null when the ray hits nothing)
+  function measureTarget(e, st, T){
+    var r = measureSnap(measureRayPoint(e.clientX, e.clientY, st, T), e.clientX, e.clientY, st), pt = r.p;
+    if (pt && measurePend && (e.shiftKey || !r.snapped)) pt = measureConstrain(measurePend, pt, st, T, e.shiftKey);
+    return pt ? { p:pt, snapped:r.snapped } : null;
+  }
   function measureMoveHandler(e){
     if (!measureOn) return;
     var st = KP3D._three(), T = window.__THREE__; if (!st || !T) return;
-    var raw = measureRayPoint(e.clientX, e.clientY, st, T);
-    var pt = measureSnap(raw, e.clientX, e.clientY, st);
+    var tg = measureTarget(e, st, T), pt = tg && tg.p;
     if (!pt){ if (measureLive.ring){ measureLive.ring.visible = false; } if (measureLive.line) measureLive.line.visible = false; if (measureLive.label) measureLive.label.visible = false; return; }
-    if (measurePts.length < 2){
-      if (!measureLive.ring){ measureLive.ring = measureMarker(T, pt, false); st.scene.add(measureLive.ring); }
-      measureLive.ring.position.copy(pt); measureLive.ring.visible = true;
-    } else if (measureLive.ring) measureLive.ring.visible = false; // a finished measurement waiting for a 3rd click to clear — no hover cue until then
-    if (measurePts.length === 1){ // the "Stanley tape" — a live line + running distance from point A to the cursor
-      var a = measurePts[0], mm = a.distanceTo(pt) * 1000;
+    if (!measureLive.ring){ measureLive.ring = measureMarker(T, pt, false, tg.snapped); st.scene.add(measureLive.ring); }
+    measureLive.ring.position.copy(pt); measureLive.ring.visible = true;
+    measureLive.ring.children[1].material.color.setHex(tg.snapped ? 0x34c759 : 0x0a84ff);
+    if (measurePend){ // the "Stanley tape" — a live line + running distance from point A to the cursor
+      var a = measurePend, mm = a.distanceTo(pt) * 1000;
       if (!measureLive.line){ measureLive.line = measureLineMesh(T, a, pt, 0x0a84ff, 0.75); st.scene.add(measureLive.line); }
       else { updateMeasureLineMesh(T, measureLive.line, a, pt); measureLive.line.visible = true; }
-      var mid = a.clone().lerp(pt, 0.5); mid.y += 0.04;
-      if (!measureLive.label){ measureLive.label = measureSprite(T, uLen(mm), mid, 0.05, 0.02, "rgba(10,132,255,.85)"); st.scene.add(measureLive.label); }
+      var mid = a.clone().lerp(pt, 0.5); mid.y += 0.05;
+      if (!measureLive.label){ measureLive.label = measureSprite(T, uLen(mm), mid, "rgba(10,132,255,.85)"); st.scene.add(measureLive.label); }
       else { measureLive.label.position.copy(mid); measureLive.label.visible = true; measureSpriteSetText(measureLive.label, uLen(mm)); }
-    } else if (measureLive.line) measureLive.line.visible = false;
+    } else {
+      if (measureLive.line) measureLive.line.visible = false;
+      if (measureLive.label) measureLive.label.visible = false;
+    }
   }
   function measureUpHandler(e){
     if (!measureOn || !measureDown) return;
@@ -16668,27 +16711,58 @@
     measureDown = null;
     if (dx * dx + dy * dy > MEASURE_CLICK_PX * MEASURE_CLICK_PX) return; // moved = camera orbit/pan, not a click
     var st = KP3D._three(), T = window.__THREE__; if (!st || !T) return;
-    var raw = measureRayPoint(e.clientX, e.clientY, st, T);
-    var pt = measureSnap(raw, e.clientX, e.clientY, st);
-    if (!pt) return;
-    if (measureLive.line) measureLive.line.visible = false; // the finished line/label (placed below) take over
-    if (measureLive.label) measureLive.label.visible = false;
-    measureAddPoint(pt, T, st);
+    var tg = measureTarget(e, st, T); if (!tg) return;
+    if (!measurePend) measurePend = tg.p.clone();
+    else { measureList.push({ a:measurePend, b:tg.p.clone() }); measurePend = null; measureCat = state.activeCategory || "_"; }
+    measureRender();
+  }
+  // ---- the card: hint, the list of tapes (total + along / up), delete, clear, done ----
+  function measureCardSync(){
+    var c = document.getElementById("measureCard");
+    var show = measureOn && viewMode !== "2d";
+    if (!c){
+      if (!show) return;
+      c = document.createElement("div"); c.id = "measureCard"; document.body.appendChild(c);
+      c.addEventListener("click", function(e){
+        var t = e.target.closest("button"); if (!t) return;
+        if (t.id === "mcDone") setMeasureMode(false);
+        else if (t.id === "mcClear"){ measureList = []; measurePend = null; measureRender(); }
+        else if (t.dataset.mcDel != null){ measureList.splice(+t.dataset.mcDel, 1); measureRender(); }
+      });
+    }
+    c.hidden = !show; if (!show) return;
+    c.innerHTML = '<div class="mc-h"><b>' + __("Málband") + '</b><button type="button" id="mcDone">' + __("Lokið") + '</button></div>' +
+      '<div class="mc-hint">' + (measurePend ? __("Smelltu á seinni punktinn — Shift læsir línunni, Esc hættir við") : __("Smelltu á fyrsta punkt — græni hringurinn er horn eða miðja")) + '</div>' +
+      (measureList.length ? '<div class="mc-list">' + measureList.map(function(m, i){
+        var p = measureParts(m), sub = p.h > 5 && p.v > 5 ? __("lárétt") + " " + uLen(p.h) + " · " + __("lóðrétt") + " " + uLen(p.v) : p.v > 5 ? __("lóðrétt") : __("lárétt");
+        return '<div class="mc-row"><span><b>' + uLen(p.t) + '</b><small>' + sub + '</small></span><button type="button" data-mc-del="' + i + '" aria-label="' + __("Eyða") + '" title="' + __("Eyða") + '">×</button></div>';
+      }).join("") + '</div><button type="button" id="mcClear" class="mc-clear">' + __("Hreinsa allt") + '</button>' : '');
+  }
+  function measureRestore(){ // the scene was rebuilt: the tapes are data, draw them again (room switched → they belong to the other room)
+    if (measureList.length && measureCat !== (state.activeCategory || "_")){ measureList = []; measurePend = null; }
+    if (measureOn){ buildMeasureSnaps(); var st = KP3D._three(); if (st) st.renderer.domElement.style.cursor = "crosshair"; }
+    measureRender();
   }
   function setMeasureMode(on){
+    if (on && viewMode === "2d"){ toast(__("Málbandið virkar í 3D og 2D — ekki í Ofanmynd.")); on = false; }
     measureOn = !!on; measureDown = null;
-    if (!measureOn){ clearMeasureObjs(); measurePts = []; measureSnaps = []; }
-    else buildMeasureSnaps();
+    if (!measureOn) measurePend = null;
+    if (measureOn) buildMeasureSnaps(); else measureSnaps = [];
     KP3D.setMeasuring(measureOn); // setupCabinetInteraction's own clicks/drags no-op while this is on
     var mb = document.getElementById("measureBtn"); if (mb) mb.classList.toggle("active", measureOn);
     syncViewMenuDot();
     var st = KP3D._three(); if (st) st.renderer.domElement.style.cursor = measureOn ? "crosshair" : "";
+    measureRender(); // (off: the pending point goes, the finished tapes stay)
   }
   document.getElementById("threeWrap").addEventListener("pointerdown", measureDownHandler);
   document.getElementById("threeWrap").addEventListener("pointermove", measureMoveHandler);
   document.getElementById("threeWrap").addEventListener("pointerup", measureUpHandler);
   document.getElementById("measureBtn").addEventListener("click", function(){ setMeasureMode(!measureOn); });
-  document.addEventListener("keydown", function(e){ if (e.key === "Escape" && measureOn) setMeasureMode(false); });
+  document.addEventListener("keydown", function(e){
+    if (!measureOn) return;
+    if (e.key === "Escape"){ if (measurePend){ measurePend = null; measureRender(); } else setMeasureMode(false); }
+    else if ((e.key === "Backspace" || e.key === "Delete") && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "")){ if (measurePend) measurePend = null; else measureList.pop(); measureRender(); e.preventDefault(); }
+  });
   document.getElementById("reportBtn").addEventListener("click", openReportPop);
   document.getElementById("reportTopBtn").addEventListener("click", openReportPop);
 
