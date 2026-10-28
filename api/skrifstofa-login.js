@@ -85,7 +85,8 @@ export default async function handler(req, res) {
   // string comparison a few lines above the one this file was modeled on is
   // the correct precedent).
   const title = rec.fields["Starfsheiti 💼"] || "";
-  const roles = TITLE_ROLES[title] || [];
+  // copy: the pushes below must never mutate the shared TITLE_ROLES arrays (warm instances)
+  const roles = (TITLE_ROLES[title] || []).slice();
   if (rec.fields["Tegund starfsmanns 🧑‍💻"] === OWNER_TYPE) roles.push("eigandi");
   // "admin" (2026-10-19) — deliberately narrower than "eigandi": Jóel is also
   // Tegund starfsmanns = Eigandi (see the file header comment) but the user

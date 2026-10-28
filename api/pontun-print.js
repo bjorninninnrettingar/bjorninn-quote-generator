@@ -8,10 +8,14 @@
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-  const secret = process.env.WEBHOOK_SECRET;
-  if (!secret) return res.status(500).json({ error: "Server not configured" });
+  const secret = process.env.WEBHOOK_SECRET, key = process.env.VERK_KEY;
+  if (!secret || !key) return res.status(500).json({ error: "Server not configured" });
 
-  const { recordId, kind } = req.body || {};
+  let body = req.body;
+  if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = null; } }
+  const { recordId, kind, k } = body || {};
+  // Office key, same check as tilbod-print.js (2026-10-28): before, any anonymous POST regenerated the order PDFs.
+  if (k !== key) return res.status(403).json({ error: "Rangur lykill" });
   if (!recordId) return res.status(400).json({ error: "Missing recordId" });
   const endpoint = kind === "extra" ? "generate-extra-order-pdf" : "generate-order-pdf";
 

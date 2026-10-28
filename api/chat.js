@@ -43,9 +43,32 @@ const STUDIO_LINK_MAP = new Map([...LINK_MAP].filter(([k]) => STUDIO_LINK_KEYS.i
 
 const FALLBACK_ANSWER = "Því miður gat ég ekki svarað þessu núna. Endilega hafðu samband beint.";
 
+// Per-IP limiter (2026-10-28): every request is a paid Claude call and the endpoint is anonymous. In-memory per
+// warm instance (best effort, like the other limiters here) — 20 per minute and 200 per day per IP.
+const hits = new Map(); // ip -> [timestamps within the last 24 h]
+export function chatRateLimited(ip, now = Date.now()) {
+  const day = 24 * 60 * 60 * 1000;
+  if (hits.size > 5000) for (const [k, v] of hits) if (!v.length || now - v[v.length - 1] > day) hits.delete(k);
+  const list = (hits.get(ip) || []).filter((t) => now - t < day);
+  const lastMinute = list.filter((t) => now - t < 60 * 1000).length;
+  if (lastMinute >= 20 || list.length >= 200) { hits.set(ip, list); return true; }
+  list.push(now);
+  hits.set(ip, list);
+  return false;
+}
+export function _resetChatLimiter() { hits.clear(); }
+function clientIp(req) {
+  const xf = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
+  return xf || req.headers?.["x-real-ip"] || req.socket?.remoteAddress || "unknown";
+}
+
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
+  if (chatRateLimited(clientIp(req))) {
+    res.setHeader?.("Retry-After", "60");
+    return res.status(429).json({ error: "Of margar fyrirspurnir", answer: FALLBACK_ANSWER, escalate: true, links: [] });
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
