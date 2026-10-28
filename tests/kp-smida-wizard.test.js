@@ -54,6 +54,20 @@ test("Staðsetning / Vélbúnaður: every item is acked on its own, and legacy h
   const body = fnBody("smItemAckOk");
   assert.ok(/smidaAck\[grp\]\[it\.id\] === it\.val/.test(body), "an item's ack is the value it was confirmed at");
   const refresh = fnBody("refreshAfterEdit");
-  assert.ok(/uw && uw\.smida\) return/.test(refresh), "refreshAfterEdit is a no-op while Smíða's preview is the 3D scene");
+  assert.ok(/uw && uw\.smida\)\{[^}]*renderUnitWizard\(\); return;/.test(refresh), "refreshAfterEdit redraws the wizard, never the room, while Smíða's preview is the 3D scene");
   ["smidaFor", "smidaHash", "proIssues"].forEach((n) => assert.ok(!/smidaAck/.test(fnBody(n))));
+});
+
+test("Klár / Áfram are never dead: they answer with what is missing, and Yfirlit lists it", () => {
+  const act = fnBody("smActions");
+  assert.ok(!/data-sm-next' \+ \(can \? '' : ' disabled'\)/.test(act) && !/data-sm-next[^>]*disabled/.test(act), "the next button is never disabled");
+  assert.ok(/smMissing\(x\)\.length === 0/.test(act));
+  assert.ok(/Vantar enn/.test(fnBody("smYfirSec")) && /data-sm-goto/.test(fnBody("smYfirSec")), "Yfirlit says plainly and clickably what is missing");
+});
+
+test("Smíða's preview orbits freely; hinge zones use the 30 mm HINGE_CLEAR rule; hole spacing only appears when it isn't 50", () => {
+  assert.ok(/ct\.minAzimuthAngle = -Infinity; ct\.maxAzimuthAngle = Infinity; ct\.minPolarAngle = 0; ct\.maxPolarAngle = Math\.PI/.test(html));
+  assert.ok(/r\.at - 30, hi:r\.at \+ 30/.test(fnBody("smItemSecs")));
+  const d3 = fs.readFileSync(new URL("../kitchen-planner-3d.js", import.meta.url), "utf8");
+  assert.ok(/Math\.round\(\+x\.gap\) !== 50\) o\.gap/.test(d3), "gap is absent at the default 50 so Smíðagögn stay identical");
 });

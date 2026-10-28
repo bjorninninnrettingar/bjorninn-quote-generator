@@ -251,9 +251,9 @@
         if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(r1(mm - tF / 2)); boards.push({ bot: r1(mm - tF), top: mm, fixed: true, what: "föstu hilluna í " + mm }); return; }
         boards.push({ bot: r1(mm - tL), top: mm, what: "hilluna í " + mm });
         if (radborun) { shelfRows.push(r1(mm - tL)); return; } // its holes come from the one continuous run below
-        var n = Math.max(1, Math.min(9, Math.round(num(x.pos) || 3))), mid = r1(mm - tL), first = r1(mid - Math.floor((n - 1) / 2) * 50);
-        op("LAUS_HILLA", "Laus hilla (" + n + " stillingar)", first + ", " + n + ", 37, 20+60, 50");
-        for (var k = 0; k < n; k++) { shelfRows.push(r1(first + k * 50)); pinRows.push(r1(first + k * 50)); }
+        var n = Math.max(1, Math.min(9, Math.round(num(x.pos) || 3))), gp = num(x.gap) > 0 ? Math.round(num(x.gap)) : 50, mid = r1(mm - tL), first = r1(mid - Math.floor((n - 1) / 2) * gp);
+        op("LAUS_HILLA", "Laus hilla (" + n + " stillingar)", first + ", " + n + ", 37, 20+60, " + gp);
+        for (var k = 0; k < n; k++) { shelfRows.push(r1(first + k * gp)); pinRows.push(r1(first + k * gp)); }
       });
       // Raðborun (continuous/IKEA-style drilling): one LAUS_HILLA run spanning the whole span at a fixed pitch,
       // instead of each loose shelf's own small cluster — any loose shelf above can sit anywhere in that run.

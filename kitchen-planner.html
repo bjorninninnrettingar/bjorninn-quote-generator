@@ -2038,6 +2038,12 @@
   .uw-smrow input{ width:76px; }
   .uw-smrow .uw-sm-ok{ width:auto; margin:0; min-width:56px; }
   .uw-smtyp{ display:inline-flex; gap:4px; }
+  .uw-smrow.hit input{ border-color:#d70015; }
+  .uw-smhit{ margin:-2px 0 8px; font-size:12.5px; color:#d70015; }
+  .uw-sm-missbtn{ display:block; width:100%; text-align:left; border:1px solid var(--line); background:#fff; border-radius:9px; padding:8px 10px; margin:0 0 6px; font:600 13px/1.3 inherit; font-family:inherit; cursor:pointer; color:var(--ink); }
+  .uw-actions .uw-wait{ opacity:.7; }
+  .sm-panel .edit-panel-head, .sm-panel .edit-actions, .sm-panel [data-role="pro-tabs"], .sm-panel .lock-row{ display:none; }
+  .sm-panel{ margin:0 0 8px; }
   #proEd { position:fixed; inset:0; z-index:350; background:rgba(15,18,24,.55); display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
   #proEd .pe-card { background:#fff; color:#1b1f24; border-radius:16px; width:min(1180px,96vw); max-height:calc(96vh - 52px); overflow:auto; display:grid; grid-template-columns:auto 1fr; align-items:start; gap:22px; padding:20px 22px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
   /* the drawing stays put while the controls scroll past it (user, 2026-10-16) — sticky inside .pe-card's own scroll */
@@ -8137,12 +8143,24 @@
     var hoverKey = uw.hoverDim ? uw.hoverDim.k : null, sm = !!uw.smida;
     if (sm){ picked = {}; ["w", "h", "d"].forEach(function(k){ picked[k] = smAckNow(k); }); } // Smíða: confirmed = dark with a tick, the rest a pale ghost
     var secPH = sm && (uw.sec === "pos" || uw.sec === "hw"); // Staðsetning / Vélbúnaður: the marks below, not the three dimension lines
-    var marks = secPH && uw.smMarks && uw.smMarks[uw.sec] ? uw.smMarks[uw.sec].map(function(m){
-      if (m.abs == null) return "";
-      var y = x.y0 + (x.plinthM || 0) + m.abs / 1000, a = P(x.a0, y, x.d), z = P(x.a1, y, x.d), on = uw.smItem === uw.sec + ":" + m.id, col = on ? "#0058a3" : m.ok ? "#2b2b2e" : "#8e8e93", txt = (m.ok ? "✓ " : "") + m.mm, tw = txt.length * 7.4 + 14;
-      return '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + z.x + '" y2="' + z.y + '" stroke="' + col + '" stroke-width="' + (on ? 2.6 : 1.4) + '"' + (on || m.ok ? '' : ' stroke-dasharray="5 4"') + '/>' +
-        '<rect x="' + (z.x + 6) + '" y="' + (z.y - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (on ? col : "#fff") + '" fill-opacity="' + (on || m.ok ? 1 : .85) + '" stroke="' + col + '"/><text x="' + (z.x + 6 + tw / 2) + '" y="' + (z.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="' + (on ? "#fff" : col) + '">' + txt + '</text>';
-    }).join("") : "";
+    var marks = "";
+    if (secPH && uw.smMarks && uw.smMarks[uw.sec]){
+      if (uw.sec === "hw") (uw.smZones || []).forEach(function(zn){ // where a hinge must not be (30 mm round a shelf hole / fixed shelf / runner row): light blue
+        var yl = x.y0 + (x.plinthM || 0) + Math.max(0, zn.lo) / 1000, yh = x.y0 + (x.plinthM || 0) + zn.hi / 1000, q = [P(x.a0, yl, x.d), P(x.a1, yl, x.d), P(x.a1, yh, x.d), P(x.a0, yh, x.d)];
+        marks += '<polygon points="' + q.map(function(pt){ return pt.x + "," + pt.y; }).join(" ") + '" fill="#0071e3" fill-opacity=".16" stroke="#0071e3" stroke-opacity=".35" stroke-dasharray="3 3"/>';
+      });
+      uw.smMarks[uw.sec].forEach(function(m){
+        if (m.abs == null) return;
+        var abs = uw.smDrag && uw.smDrag.id === m.id ? uw.smDrag.abs : m.abs, mmTxt = m.hinge ? Math.round(abs - m.hinge.dbot) : m.mm;
+        var y = x.y0 + (x.plinthM || 0) + abs / 1000, a = P(x.a0, y, x.d), z = P(x.a1, y, x.d), on = uw.smItem === uw.sec + ":" + m.id || (uw.smDrag && uw.smDrag.id === m.id);
+        var hit = m.hinge && (uw.smZones || []).some(function(zn){ return abs > zn.lo && abs < zn.hi; });
+        var col = hit ? "#d70015" : on ? "#0058a3" : m.ok ? "#2b2b2e" : "#8e8e93", txt = (m.ok && !hit ? "✓ " : "") + mmTxt, tw = String(txt).length * 7.4 + 14;
+        marks += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + z.x + '" y2="' + z.y + '" stroke="' + col + '" stroke-width="' + (on ? 2.6 : 1.4) + '"' + (on || m.ok ? '' : ' stroke-dasharray="5 4"') + '/>' +
+          '<rect x="' + (z.x + 6) + '" y="' + (z.y - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (on ? col : "#fff") + '" fill-opacity="' + (on || m.ok ? 1 : .85) + '" stroke="' + col + '"/><text x="' + (z.x + 6 + tw / 2) + '" y="' + (z.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="' + (on ? "#fff" : col) + '">' + txt + '</text>';
+        if (m.hinge) (uw.smHingeSides || ["r"]).forEach(function(sd){ var hp = P(sd === "l" ? x.a0 + 0.035 : x.a1 - 0.035, y, x.d);
+          marks += '<circle data-sm-hd="' + m.id + '" cx="' + hp.x + '" cy="' + hp.y + '" r="8" fill="' + (hit ? "#d70015" : "#fff") + '" stroke="' + (hit ? "#d70015" : "#0058a3") + '" stroke-width="2.5" style="pointer-events:all;cursor:ns-resize"/>'; });
+      });
+    }
     svg.innerHTML = marks + lines.filter(Boolean).filter(function(){ return !secPH; }).map(function(l){
       var active = uw.sec === l.key || hoverKey === l.key, fixed = !!picked[l.key], ghost = sm && !active && !fixed;
       if (!active && !fixed && !sm) return "";
@@ -8435,7 +8453,7 @@
       if (frontsFr && !uw.smida) secHtml.push(uwSec("door", __("Skúffur eða hurðir"), b.interior && b.interior.mode === "skuffur" ? __("Skúffur") : __("Hurðir"), bathFrontsHtml(b)));
       var innHtml = "";
       // "Skúffur" or "Hurð með hillum" was the step before — no Hillur/Skúffur switch again here (user, 2026-10-24)
-      var decided = !!uw.island || uw.smida || activeUnitTree()[uw.cat].opts.some(function(o, k){ return k !== uw.opt && o.type === b.type; }); // an island box's type chips already chose
+      var decided = !!uw.island || (!uw.smida && activeUnitTree()[uw.cat].opts.some(function(o, k){ return k !== uw.opt && o.type === b.type; })); // an island box's type chips already chose
       if (c.hasInterior) innHtml += '<div class="edit-field">' + hardwareHTML(b, c, PRO ? { sides:true, noToggle:decided || frontsFr } : { noToggle:decided || frontsFr }) + '</div>';
       // Preset samsetningar (2026-10-22): sama "hillur ALLTAF neðst-óháð, skúffur alltaf neðst" líkan og
       // steppararnir hér fyrir neðan — bara fljótleg byrjun, ekki endapunktur. Steppararnir sjálfir eru
@@ -8473,9 +8491,9 @@
       var innSum = c.hasInterior && b.interior && b.interior.mode === "skuffur" ? b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
         : shelfN != null ? shelfN + " " + plural(shelfN, "hilla", "hillur") : c.hasInterior && !c.shelfRange && b.interior ? __("Hurðir") : "";
       if (c.cls === "corner") innSum = (innSum ? innSum + " · " : "") + (b.swing === "vinstri" ? __("hurð vinstra megin") : __("hurð hægra megin"));
-      if (isCloset() && closetTall(b) && PRO && !uw.cornerUnit) // PRO keeps its own Innvols (Smíða opens next) but gets the Hurðir step before it, with Rennihurð í hlið (2026-10-26)
+      if (isCloset() && closetTall(b) && PRO && !uw.smida && !uw.cornerUnit) // PRO keeps its own Innvols (Smíða opens next) but gets the Hurðir step before it, with Rennihurð í hlið (2026-10-26)
         secHtml.push(uwSec("door", "Hurðir", b.type === "harskapurOpinn" ? "Opið" : uw.doorKind === "pocket" ? "Rennihurð í hlið" : "Með hurðum", closetDoorsHtml(b, true)));
-      if (isCloset() && closetTall(b) && !PRO){ // the same picture cards as the side panel; doors first — they change the options (user, 2026-10-26)
+      if (isCloset() && closetTall(b) && (!PRO || uw.smida)){ // the same picture cards as the side panel; doors first — they change the options (user, 2026-10-26)
         if (!opt.pocket && !opt.doorSys) secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
         innHtml = slideDoorsHtml(b) + closetBayHtml(b, true, true);
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
@@ -8484,7 +8502,7 @@
       var hasInn = !shortWiz && !machineOnly && !!innHtml.replace(/<div class="edit-field"><\/div>/g, "").trim();
       if (uw.smida) uw.smHasInn = hasInn;
       if (hasInn) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), uw.smida ? (smInnOk(b) ? (innSum || "") + " ✓" : "—") : innSum, uw.smida ? innHtml + smAckBtn("inn", "Innvols er rétt", smInnOk(b)) : innHtml));
-      if (uw.smida){ smItemSecs(b, c, secHtml); smYfirSec(b, c, secHtml); html += '<div class="uw-secs">' + secHtml.join("") + '</div>' + smTray(b, c) + smActions(b, c); side.innerHTML = html; wireUnitWizard(side); schedulePreview(); return; }
+      if (uw.smida){ smItemSecs(b, c, secHtml); smMoreSec(b, c, secHtml); smYfirSec(b, c, secHtml); html += '<div class="uw-secs">' + secHtml.join("") + '</div>' + smTray(b, c) + smActions(b, c); side.innerHTML = html; wireUnitWizard(side); schedulePreview(); return; }
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
       if (uw.island){
         side.innerHTML = html + '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>' + __("← Til baka") + '</button>' +
@@ -8873,6 +8891,7 @@
       st.controls.minPolarAngle = 0.2;
       st.controls.maxPolarAngle = 1.45; // never from below the floor
       swayPreview(st, Math.atan2(g.normal.x, g.normal.z));
+      if (uw.smida){ var ct = st.controls; ct.minAzimuthAngle = -Infinity; ct.maxAzimuthAngle = Infinity; ct.minPolarAngle = 0; ct.maxPolarAngle = Math.PI; ct.autoRotate = false; ct.enableRotate = true; } // Smíða: free orbit, nothing capped (customers' Ný eining keeps its limits)
       st.controls.update();
       uwDimCtx = { g:g, a0:0.4, a1:0.4 + b.widthMm / 1000, a2:0.4 + wEff / 1000, y0:elevM, y1:elevM + hM, d:(b.depthMm || c.d) / 1000, b:b, extraTop:c.sink ? 0.34 : 0, // the tap stands above the unit
         hungM:state.hungUnits && c.zone === "floor" && !c.panel ? (typeof uwPl === "number" ? uwPl : BATH_HUNG_MM) / 1000 : 0,
@@ -10992,7 +11011,7 @@
   }
   function refreshAfterEdit(){
     if (state.step !== "editor") return;
-    if (uw && uw.smida) return; // Smíða's preview is the one 3D scene — the room is rebuilt when the wizard closes
+    if (uw && uw.smida){ uwPrevKey = ""; renderUnitWizard(); return; } // Smíða's preview is the one 3D scene — the wizard redraws itself, the room is rebuilt when it closes
     if (boundBusy) return; // inside withBoundPanels: it refreshes once when the panels are back (a drop rebuilt the 3D twice — 350 ms of jank, owner 2026-10-27)
     if (autoCornerSwing()) save();
     if (clampIslands()) save();
@@ -17488,8 +17507,8 @@
     if (CATALOG[b.type].bur) KP3D.burDrawersOf(b, drawerSys()).forEach(function(dd){ rows.push({ at:dd.mm + 54, what:"braut innskúffu " + dd.code, fix:"innskúffuna" }); }); // runner = front bottom + 54 (/cnc)
     KP3D.shelfLayoutOf(b, body, drawerSys()).forEach(function(sh){
       if (sh.fixed){ rows.push({ at:sh.mm - 8, what:"föstu hillunni í " + sh.mm }); return; }
-      var first = sh.mm - 16 - Math.floor((sh.pos - 1) / 2) * 50;
-      for (var k = 0; k < sh.pos; k++) rows.push({ at:first + k * 50, what:"hillugötum hillunnar í " + sh.mm });
+      var gp = sh.gap || 50, first = sh.mm - 16 - Math.floor((sh.pos - 1) / 2) * gp;
+      for (var k = 0; k < sh.pos; k++) rows.push({ at:first + k * gp, what:"hillugötum hillunnar í " + sh.mm });
     });
     return rows;
   }
@@ -17971,12 +17990,29 @@
         smAckBtn(d.k, "Rétt", ok)));
     });
   }
+  // everything still standing between this cabinet and "Klár" — shown plainly in Yfirlit, each one clickable
+  function smMissing(x){
+    var b = x.b, c = x.c, m = [];
+    x.dims.forEach(function(d){ if (!smAckOk(b, d.k, d.mm)) m.push({ sec:d.k, text:d.label + " er ekki staðfest" }); });
+    if (uw.smHasInn && !smInnOk(b)) m.push({ sec:"inn", text:"Innvols er ekki staðfest" });
+    [["pos", "Staðsetning"], ["hw", "Vélbúnaður"]].forEach(function(g){
+      if (g[0] === "pos" ? !uw.smHasPos : !uw.smHasHw) return;
+      smItems(g[0], x).filter(smReal).forEach(function(it){ if (!smItemAckOk(b, g[0], it)) m.push({ sec:g[0], grp:g[0], id:it.kind === "mm" ? it.id : null, text:g[1] + ": " + it.label }); });
+    });
+    proIssues(b, c, x.zone, true).forEach(function(i){ m.push({ sec:"yfir", text:i.text, fix:i.fix }); });
+    return m;
+  }
   function smYfirSec(b, c, secHtml){
-    var x = smCtx(), iss = proIssues(b, c, x.zone, true), ready = proReady(b);
-    secHtml.push(uwSec("yfir", "Yfirlit", ready ? "klár ✓" : "",
-      (ready ? '<p class="sec-note">Skápurinn er merktur klár til framleiðslu.</p>' : iss.length ? '<div class="uw-sm-issues">' + iss.map(function(i){ return '<div>' + escapeHtmlPro(i.text) + (i.fix ? '<br><button type="button" class="btn btn-secondary btn-small" data-sm-fix="' + i.fix + '">Laga</button>' : '') + '</div>'; }).join("") + '</div>' : '<p class="sec-note">Allt stemmir — ýttu á Klár.</p>') +
-      (ready ? '<button type="button" class="btn btn-secondary btn-small" data-sm-unready>Taka af merkingu</button> ' : '') +
-      (bathSinkUnit(b, c) ? '<button type="button" class="btn btn-secondary btn-small" data-sm-editor>Opna eldri Smíða-ritil (göt í toppi)</button>' : '')));
+    var x = smCtx(), miss = smMissing(x), ready = proReady(b);
+    var body;
+    if (ready) body = '<p class="sec-note">Skápurinn er merktur klár til framleiðslu.</p>';
+    else if (!miss.length) body = '<p class="sec-note">Allt stemmir — ýttu á Klár.</p>';
+    else body = '<p class="sec-note"><b>Vantar enn (' + miss.length + '):</b></p><div class="uw-sm-miss">' + miss.slice(0, 12).map(function(m, i){
+      return m.fix ? '<div class="uw-sm-issues"><div>' + escapeHtmlPro(m.text) + '<br><button type="button" class="btn btn-secondary btn-small" data-sm-fix="' + m.fix + '">Laga</button></div></div>'
+        : '<button type="button" class="uw-sm-missbtn" data-sm-goto="' + i + '">' + escapeHtmlPro(m.text) + ' →</button>'; }).join("") + (miss.length > 12 ? '<p class="sec-note">… og ' + (miss.length - 12) + ' í viðbót</p>' : '') + '</div>';
+    uw.smMiss = miss;
+    secHtml.push(uwSec("yfir", "Yfirlit", ready ? "klár ✓" : miss.length ? miss.length + " vantar" : "", body +
+      (ready ? '<button type="button" class="btn btn-secondary btn-small" data-sm-unready>Taka af merkingu</button> ' : '')));
   }
   function smChips(x){
     var b = x.b, c = x.c, sm = smidaFor(b, c, x.zone), inn = smInnOk(b) && (!uw.smHasPos || smGrpDone(x, "pos")), hwOk = !uw.smHasHw || smGrpDone(x, "hw"), out = [{ t:"Mál", v:x.dims.map(function(d){ return d.mm; }).join(" × "), sec:"w", done:smMalDone(x) }];
@@ -17993,10 +18029,11 @@
   }
   function smTray(b, c){ var x = smCtx(); return '<div class="uw-smtray">' + smChips(x).map(function(ch){ return '<button type="button" class="uw-smchip' + (ch.done ? '' : ' pending') + '" data-sm-chip="' + ch.sec + '">' + ch.t + ' <b>' + escapeHtmlPro(String(ch.done ? ch.v : "—")) + '</b></button>'; }).join("") + '</div>'; }
   function smActions(b, c){
-    var x = smCtx(), ord = smOrder(), cur = uw.sec && ord.indexOf(uw.sec) >= 0 ? uw.sec : (ord.find(function(k){ return !smSecDone(x, k); }) || "yfir"), i = ord.indexOf(cur), can;
-    if (cur === "yfir") can = smMalDone(x) && (!uw.smHasInn || smInnOk(b)) && (!uw.smHasPos || smGrpDone(x, "pos")) && (!uw.smHasHw || smGrpDone(x, "hw")) && !proIssues(b, c, x.zone).length; else can = smSecDone(x, cur);
+    var x = smCtx(), ord = smOrder(), cur = uw.sec && ord.indexOf(uw.sec) >= 0 ? uw.sec : (ord.find(function(k){ return !smSecDone(x, k); }) || "yfir"), i = ord.indexOf(cur);
+    var can = cur === "yfir" ? smMissing(x).length === 0 : smSecDone(x, cur);
+    // never dead: when something is missing the button still answers — it takes her to what is missing and says so
     return '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-sm-back' + (i <= 0 ? ' disabled' : '') + '>← Til baka</button>' +
-      '<button type="button" class="btn btn-primary" data-sm-next' + (can ? '' : ' disabled') + '>' + (cur === "yfir" ? "Klár" : "Áfram") + '</button></div>';
+      '<button type="button" class="btn btn-primary' + (can ? '' : ' uw-wait') + '" data-sm-next>' + (cur === "yfir" ? "Klár" : "Áfram") + '</button></div>';
   }
   function smAdvanceFrom(k){ var x = smCtx(), ord = smOrder(); uw.sec = ord.slice(ord.indexOf(k) + 1).find(function(kk){ return !smSecDone(x, kk); }) || "yfir"; uw.smFocus = true; }
   function smCommit(k, raw){
@@ -18046,6 +18083,7 @@
   function smItems(grp, x){
     var b = x.b, c = x.c, zone = x.zone, body = proBodyMm(b, c, zone), sys = drawerSys(), out = [], doors = proDoorsOf(b, c, zone);
     function mm(id, label, v, abs, set, extra){ out.push(Object.assign({ id:id, label:label, kind:"mm", mm:v, val:String(v), abs:abs, set:set }, extra || {})); }
+    function act(id, label, run){ out.push({ id:id, label:label, kind:"action", run:run }); }
     function ch(id, label, val, choices, set, group){ out.push({ id:id, label:label, kind:"choice", val:String(val), choices:choices, set:set, group:group }); }
     if (grp === "pos"){
       var cf = smCodesFronts(b, c, body);
@@ -18070,8 +18108,34 @@
             var list = KP3D.shelfLayoutOf(b, body, sys), r = KP3D.shelfSpaceMm(b, body, sys);
             if (!(v > r.lo + KP3D.OVEN_BOARD_MM && v < r.hi - 10)) toast("Hilla er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár.");
             list[k].mm = v; smSetShelves(b, c, list); return true; },
-            { val:sh.mm + (sh.fixed ? "F" : "L"), fixed:!!sh.fixed, typ:function(f){ var list = KP3D.shelfLayoutOf(b, body, sys); list[k].fixed = f; if (!f && !(list[k].pos > 0)) list[k].pos = 3; smSetShelves(b, c, list); } });
+            { val:sh.mm + (sh.fixed ? "F" : "L"), fixed:!!sh.fixed, typ:function(f){ var list = KP3D.shelfLayoutOf(b, body, sys); list[k].fixed = f; if (!f){ list[k].pos = 3; delete list[k].gap; } else delete list[k].gap; smSetShelves(b, c, list); },
+              locked:!!sh.locked, lock:function(){ var list = KP3D.shelfLayoutOf(b, body, sys); list[k].locked = !list[k].locked; smSetShelves(b, c, list); } });
+          if (!sh.fixed){
+            mm("shp" + k, (c.oven ? "Ofnhilla " : "Hilla ") + (k + 1) + " · fjöldi gata", sh.pos, null, function(v){ var list = KP3D.shelfLayoutOf(b, body, sys); list[k].pos = Math.max(1, Math.min(9, v)); smSetShelves(b, c, list); return true; }, { unit:"stk" });
+            mm("shg" + k, (c.oven ? "Ofnhilla " : "Hilla ") + (k + 1) + " · bil milli gata", sh.gap || 50, null, function(v){ var list = KP3D.shelfLayoutOf(b, body, sys); v = Math.max(10, Math.min(200, v)); if (v === 50) delete list[k].gap; else list[k].gap = v; smSetShelves(b, c, list); return true; }, {});
+          }
         });
+      }
+      var shelfOn2 = !!((doors.length || c.open) && (c.oven ? !c.lowOven : KP3D.hasShelfLayout(b)));
+      if (shelfOn2 && KP3D.shelfLayoutOf(b, body, sys).length > 1) act("spread", "⇅ Dreifa ólæstum hillum jafnt", function(){
+        var list = KP3D.shelfLayoutOf(b, body, sys), r = KP3D.shelfSpaceMm(b, body, sys), free = list.filter(function(q){ return !q.locked; });
+        if (!free.length){ toast("Engar ólæstar hillur til að dreifa — læstu eina eða bættu við hillu."); return false; }
+        var pinned = [r.lo, r.hi].concat(list.filter(function(q){ return q.locked; }).map(function(q){ return q.mm; })).filter(function(v, i, a){ return a.indexOf(v) === i; }).sort(function(a, z){ return a - z; }), gaps = [];
+        for (var i = 1; i < pinned.length; i++) gaps.push({ lo:pinned[i - 1], size:pinned[i] - pinned[i - 1] });
+        var total = gaps.reduce(function(a, g){ return a + g.size; }, 0) || 1, raw = gaps.map(function(g){ return free.length * g.size / total; }), counts = raw.map(Math.floor), left = free.length - counts.reduce(function(a, q){ return a + q; }, 0);
+        raw.map(function(v, i){ return { i:i, f:v - Math.floor(v) }; }).sort(function(a, z){ return z.f - a.f; }).forEach(function(o, k){ if (k < left) counts[o.i]++; });
+        var positions = []; gaps.forEach(function(g, gi){ for (var j = 1; j <= counts[gi]; j++) positions.push(Math.round(g.lo + g.size * j / (counts[gi] + 1))); });
+        if (positions.length !== free.length || positions.some(function(v){ return !(v > r.lo + KP3D.OVEN_BOARD_MM && v < r.hi - 10); })){ toast("Ekki nógu mikið pláss til að dreifa öllum hillunum jafnt."); return false; }
+        free.forEach(function(q, i){ q.mm = positions[i]; }); smSetShelves(b, c, list); return true; });
+      if (shelfOn2 && !c.oven){
+        var rb = b.radborun;
+        ch("rb", "Raðborun", rb ? "1" : "0", [{ v:"0", t:"Af" }, { v:"1", t:"Á" }], function(v){ if (v === "1") b.radborun = b.radborun || {}; else delete b.radborun; }, "Raðborun");
+        if (rb){
+          var setRb = function(patch){ var topMm = Math.max(0, patch.topMm != null ? patch.topMm : (b.radborun && b.radborun.topMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM), bottomMm = Math.max(0, patch.bottomMm != null ? patch.bottomMm : (b.radborun && b.radborun.bottomMm) || KP3D.RADBORUN_MARGIN_DEFAULT_MM), sp = KP3D.shelfSpaceMm(b, body, sys);
+            if ((sp.hi - topMm) - (sp.lo + bottomMm) < KP3D.RADBORUN_PITCH_MM) toast("Spönnin er of lítil fyrir þessi mörk."); b.radborun = { topMm:topMm, bottomMm:bottomMm }; return true; };
+          mm("rbt", "Raðborun · topp", (rb.topMm || KP3D.RADBORUN_MARGIN_DEFAULT_MM), null, function(v){ return setRb({ topMm:v }); }, { group:"Raðborun" });
+          mm("rbb", "Raðborun · botn", (rb.bottomMm || KP3D.RADBORUN_MARGIN_DEFAULT_MM), null, function(v){ return setRb({ bottomMm:v }); }, { group:"Raðborun" });
+        }
       }
       if (c.railRange){
         KP3D.railLayoutOf(b, body, sys).forEach(function(rl, k){
@@ -18097,6 +18161,20 @@
             smSetInner(b, list, body); return true; });
         });
       }
+      if (c.cls === "tall" && !c.bur && !isDrawerUnit(b) && !c.fridge && !c.oven && !c.appliance && (c.railRange || c.shelfRange)) act("inneradd", "＋ Innskúffa á bak við hurð", function(){
+        var list = KP3D.innerDrawersOf(b, sys), codes = KP3D.DRAWER_CODES[sys].codes, code = codes[0], mmv = list.length ? list[list.length - 1].mm + list[list.length - 1].h + 35 : 60, h = (KP3D.DRAWER_CODES[sys].side[code] || 120) + 20;
+        if (mmv + h > body - 60){ toast("Ekki pláss fyrir fleiri innskúffur."); return false; }
+        list.push({ code:code, mm:mmv, h:h }); smSetInner(b, list, body); return true; });
+      if (bathSinkUnit(b, c)){
+        var bt = bathTopOf(b, c), bset = function(k, v, max){ if (!(v >= 0 && v <= max)){ toast("Gatið þarf að vera á toppnum (0–" + max + " mm)."); return false; } var t = Object.assign({}, b.bathTop || {}); t[k] = v; b.bathTop = t; return true; };
+        mm("bdx", "Frárennslisgat · frá vinstri", bt.drainX, null, function(v){ return bset("drainX", v, b.widthMm); }, { group:"Göt í toppi" });
+        mm("bdy", "Frárennslisgat · frá bakvegg", bt.drainY, null, function(v){ return bset("drainY", v, b.depthMm || c.d); }, { group:"Göt í toppi" });
+        ch("btap", "Krani", bt.tap, [{ v:"toppur", t:"Í toppi" }, { v:"veggur", t:"Á vegg" }, { v:"ekkert", t:"Ekkert" }], function(v){ var t = Object.assign({}, b.bathTop || {}); t.tap = v; b.bathTop = t; }, "Göt í toppi");
+        if (bt.tap === "toppur"){
+          mm("btx", "Kranagat · frá vinstri", bt.tapX, null, function(v){ return bset("tapX", v, b.widthMm); }, { group:"Göt í toppi" });
+          mm("bty", "Kranagat · frá bakvegg", bt.tapY, null, function(v){ return bset("tapY", v, b.depthMm || c.d); }, { group:"Göt í toppi" });
+        }
+      }
     } else { // hw
       var bothHinges = !!(doors.length && KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner");
       var anyHinged = doors.some(function(d, i){ return proSpec(b, doors, i).type === "hinged"; });
@@ -18111,7 +18189,7 @@
           proSetSplit(b, body, list); return true; }, { group:"Frontar" });
       });
       if (doors.length && anyHinged && !bothHinges) ch("side", "Lamir hurðar", b.swing === "vinstri" ? "vinstri" : "haegri", [{ v:"vinstri", t:"Vinstri" }, { v:"haegri", t:"Hægri" }], function(v){ b.swing = v; }, "Hurðir");
-      var bottom = body;
+      var bottom = body, avoidRows = proShelfRows(b, body);
       doors.forEach(function(d, i){
         bottom -= d.box; var sp = proSpec(b, doors, i), grpName = d.label + " — " + d.box + " mm", dbot = bottom;
         ch("dt" + i, "Gerð", sp.type, [{ v:"hinged", t:"Á lömum" }, { v:"lift", t:"Lyftihurð" }, { v:"pocket", t:"Rennihurð" }], function(v){
@@ -18123,7 +18201,7 @@
             if (!(v >= 30 && v <= d.box - 30)) toast("Löm er nær enda hurðar en 30 mm — lagaðu áður en skápurinn er merktur klár.");
             pos[j] = Math.max(1, v); pos.sort(function(a, z){ return a - z; });
             s2.hinges = pos.map(function(q){ return q <= d.box / 2 ? { from:"bottom", mm:q } : { from:"top", mm:Math.round(d.box - q) }; }); proSetSpec(b, doors, i, s2);
-            return "hg" + i + "_" + pos.indexOf(Math.max(1, v)); }, { group:grpName, del:arr.length > proHingeMin(d.box) ? function(){ var s2 = proSpec(b, doors, i); s2.hinges.splice(j, 1); proSetSpec(b, doors, i, s2); } : null,
+            return "hg" + i + "_" + pos.indexOf(Math.max(1, v)); }, { group:grpName, hinge:{ i:i, box:d.box, dbot:dbot }, hit:avoidRows.find(function(r){ return Math.abs(dbot + p - r.at) < 30; }) || null, del:arr.length > proHingeMin(d.box) ? function(){ var s2 = proSpec(b, doors, i); s2.hinges.splice(j, 1); proSetSpec(b, doors, i, s2); } : null,
               add:j === arr.length - 1 ? function(){ var s2 = proSpec(b, doors, i), ps = [0].concat(CNCSIDES.specToPositions(s2.hinges, d.box), [d.box]), best = 0;
                 for (var q = 1; q < ps.length; q++) if (ps[q] - ps[q - 1] > ps[best + 1] - ps[best]) best = q - 1;
                 var mid = Math.round((ps[best] + ps[best + 1]) / 2); s2.hinges.push(mid <= d.box / 2 ? { from:"bottom", mm:mid } : { from:"top", mm:d.box - mid }); proSetSpec(b, doors, i, s2); } : null });
@@ -18131,6 +18209,8 @@
       });
       var cf2 = smCodesFronts(b, c, body), targets = proGripTargets(b, c, zone, body, doors, cf2.codes, cf2.fronts);
       function gp(t, extra){ var g = proGripOf(b, t) || {}; return Object.assign({ type:g.type, att:g.att, brun:g.brun, start:g.start, length:g.length }, extra); }
+      var hk = state.handle || "", handleGrip = /^(jey|hexxa|sponagrip)$/.test(hk);
+      if (handleGrip){ out.push({ id:"gripnote", kind:"note", group:"Grip", label:"Höldur verkefnisins er " + (((window.KPHANDLES && KPHANDLES.items && KPHANDLES.items[hk]) || {}).label || hk) + " — gripið kemur af höldunni (hluti af Eyðublaði „Grip?“), ekkert fræst grip er stillt hér. Fræst grip er aðeins fyrir fronta sem fá ekki þessa hönd." }); targets = targets.filter(function(t){ return proGripOf(b, t.target); }); }
       targets.forEach(function(t){
         var g = proGripOf(b, t.target), type = g ? g.type : "none", gname = "Grip — " + t.label + " (" + t.heightMm + " mm)";
         ch("gt:" + t.target, "Grip", type, [{ v:"none", t:"Ekkert" }].concat(t.allowAlla ? [{ v:"alla", t:"Alla leið" }] : [], [{ v:"hluti", t:"Hluti" }]), function(v){
@@ -18147,28 +18227,37 @@
     return out;
   }
   function smItemAckOk(b, grp, it){ return !!(b.smidaAck && b.smidaAck[grp] && b.smidaAck[grp][it.id] === it.val); }
-  function smGrpDone(x, grp){ return smItems(grp, x).every(function(it){ return smItemAckOk(x.b, grp, it); }); }
+  function smReal(it){ return it.kind === "mm" || it.kind === "choice"; }
+  function smGrpDone(x, grp){ return smItems(grp, x).filter(smReal).every(function(it){ return smItemAckOk(x.b, grp, it); }); }
   function smItemSecs(b, c, secHtml){
-    var x = smCtx(); uw.smHasPos = false; uw.smHasHw = false;
+    var x = smCtx(); uw.smHasPos = false; uw.smHasHw = false; uw.smMarks = {}; uw.smZones = [];
+    var both = !!(KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner" && proDoorsOf(b, c, x.zone).length);
+    uw.smHingeSides = both ? ["l", "r"] : [b.swing === "vinstri" ? "l" : "r"];
     [["pos", "Staðsetning"], ["hw", "Vélbúnaður"]].forEach(function(g){
-      var items = smItems(g[0], x); uw.smMarks = uw.smMarks || {}; uw.smMarks[g[0]] = items.map(function(it){ return { id:it.id, abs:it.abs, mm:it.kind === "mm" ? it.mm : "", ok:smItemAckOk(b, g[0], it) }; }); if (!items.length) return;
-      if (g[0] === "pos") uw.smHasPos = true; else uw.smHasHw = true;
-      var done = items.filter(function(it){ return smItemAckOk(b, g[0], it); }).length, lastGroup = null, html = '<p class="sec-note">' + (g[0] === "pos" ? 'Sláðu inn hverja stöðu — eða ýttu á Rétt ef teikningin stemmir. Mælt frá botni skáps.' : 'Staðfestu hverja löm, hurð og grip — sláðu inn eða ýttu á Rétt / veldu.') + '</p>';
+      var items = smItems(g[0], x), real = items.filter(smReal);
+      uw.smMarks[g[0]] = real.map(function(it){ return { id:it.id, abs:it.abs, mm:it.kind === "mm" ? it.mm : "", ok:smItemAckOk(b, g[0], it), hinge:it.hinge || null, hit:!!it.hit }; });
+      if (!items.length) return;
+      if (g[0] === "pos") uw.smHasPos = real.length > 0; else { uw.smHasHw = real.length > 0; uw.smZones = proShelfRows(b, proBodyMm(b, c, x.zone)).map(function(r){ return { lo:r.at - 30, hi:r.at + 30, what:r.what }; }); }
+      var done = real.filter(function(it){ return smItemAckOk(b, g[0], it); }).length, lastGroup = null, html = '<p class="sec-note">' + (g[0] === "pos" ? 'Sláðu inn hverja stöðu — eða ýttu á Rétt ef teikningin stemmir. Mælt frá botni skáps.' : 'Staðfestu hverja löm, hurð og grip — sláðu inn, dragðu lömina í teikningunni, eða ýttu á Rétt / veldu. Ljósbláu svæðin eru þar sem löm má ekki vera.') + '</p>';
       items.forEach(function(it){
         if (it.group && it.group !== lastGroup){ html += '<p class="uw-group">' + escapeHtmlPro(it.group) + '</p>'; lastGroup = it.group; }
         var ok = smItemAckOk(b, g[0], it), key = g[0] + ":" + it.id;
-        if (it.kind === "mm"){
-          html += '<div class="uw-smrow"><label>' + escapeHtmlPro(it.label) + '</label><input type="text" inputmode="decimal" autocomplete="off" placeholder="mm" data-sm-pin="' + key + '" value="' + (ok ? it.mm : '') + '"><small>mm</small>' +
-            (it.typ ? '<span class="uw-smtyp"><button type="button" class="hw-btn' + (it.fixed ? ' active' : '') + '" data-sm-typ="' + key + ':1">Föst</button><button type="button" class="hw-btn' + (!it.fixed ? ' active' : '') + '" data-sm-typ="' + key + ':0">Laus</button></span>' : '') +
+        if (it.kind === "note") html += '<p class="sec-note">' + escapeHtmlPro(it.label) + '</p>';
+        else if (it.kind === "action") html += '<div class="uw-smrow"><button type="button" class="btn btn-secondary btn-small" data-sm-act="' + key + '">' + escapeHtmlPro(it.label) + '</button></div>';
+        else if (it.kind === "mm"){
+          var unit = it.unit || "mm";
+          html += '<div class="uw-smrow' + (it.hit ? ' hit' : '') + '"><label>' + escapeHtmlPro(it.label) + '</label><input type="text" inputmode="decimal" autocomplete="off" placeholder="' + unit + '" data-sm-pin="' + key + '" value="' + (ok ? it.mm : '') + '"><small>' + unit + '</small>' +
+            (it.typ ? '<span class="uw-smtyp"><button type="button" class="hw-btn' + (it.fixed ? ' active' : '') + '" data-sm-typ="' + key + ':1">Föst</button><button type="button" class="hw-btn' + (!it.fixed ? ' active' : '') + '" data-sm-typ="' + key + ':0">Laus</button><button type="button" class="hw-btn' + (it.locked ? ' active' : '') + '" data-sm-lock="' + key + '" title="Læst hilla færist ekki þegar hillum er dreift jafnt">Læst</button></span>' : '') +
             '<button type="button" class="btn ' + (ok ? 'btn-secondary on' : 'btn-primary') + ' btn-small uw-sm-ok" data-sm-pok="' + key + '">' + (ok ? '✓' : 'Rétt') + '</button>' +
-            (it.del ? '<button type="button" class="iconbtn" data-sm-del="' + key + '" title="Taka löm">✕</button>' : '') + '</div>' + (it.add ? '<div class="uw-smrow"><button type="button" class="btn btn-secondary btn-small" data-sm-add="' + key + '">＋ Löm</button></div>' : '');
+            (it.del ? '<button type="button" class="iconbtn" data-sm-del="' + key + '" title="Taka löm">✕</button>' : '') + '</div>' +
+            (it.hit ? '<div class="uw-smhit">Löm er of nálægt ' + escapeHtmlPro(it.hit.what) + ' — minnst 30 mm frá. Færðu hana úr bláa svæðinu.</div>' : '') +
+            (it.add ? '<div class="uw-smrow"><button type="button" class="btn btn-secondary btn-small" data-sm-add="' + key + '">＋ Löm</button></div>' : '');
         } else {
-          var v0 = it.val;
           html += '<div class="uw-smrow"><label>' + escapeHtmlPro(it.label) + '</label><div class="uw-chips">' + it.choices.map(function(chc){
-            return '<button type="button" class="hw-btn' + (ok && chc.v === v0 ? ' active' : (!ok && chc.v === v0 ? ' suggest' : '')) + '" data-sm-ch="' + key + ':' + chc.v + '">' + chc.t + '</button>'; }).join("") + '</div></div>';
+            return '<button type="button" class="hw-btn' + (ok && chc.v === it.val ? ' active' : (!ok && chc.v === it.val ? ' suggest' : '')) + '" data-sm-ch="' + key + ':' + chc.v + '">' + chc.t + '</button>'; }).join("") + '</div></div>';
         }
       });
-      secHtml.push(uwSec(g[0], g[1], done === items.length ? done + " ✓" : done + "/" + items.length, html + smAckAll(g[0], items, b)));
+      secHtml.push(uwSec(g[0], g[1], real.length ? (done === real.length ? done + " ✓" : done + "/" + real.length) : "", html));
     });
   }
   function smAckAll(grp, items, b){ return ''; }
@@ -18178,7 +18267,7 @@
     var m = Object.assign({}, x.b.smidaAck && x.b.smidaAck[grp]); m[id] = it.val;
     x.b.smidaAck = Object.assign({}, x.b.smidaAck, { at:new Date().toISOString() }); x.b.smidaAck[grp] = m;
   }
-  function smNextItem(grp){ var x = smCtx(), it = smItems(grp, x).find(function(i){ return !smItemAckOk(x.b, grp, i); }); return it ? it.id : null; }
+  function smNextItem(grp){ var x = smCtx(), it = smItems(grp, x).filter(smReal).find(function(i){ return !smItemAckOk(x.b, grp, i); }); return it ? it.id : null; }
   function smItemDone(grp, id, raw, choice){
     var f = smFindItem(grp + ":" + id), it = f.it; if (!it) return;
     var res = true;
@@ -18192,6 +18281,34 @@
     smAckItem(grp, typeof res === "string" ? res : id); save();
     var nx = smNextItem(grp); if (nx) uw.smFocusItem = grp + ":" + nx; else smAdvanceFrom(grp);
     renderUnitWizard();
+  }
+  function smMoreSec(b, c, secHtml){
+    if (c.panel || c.notOrdered) return;
+    secHtml.push(uwSec("more", "Fleiri stillingar", "", '<p class="sec-note">Allar stillingar skápsins — þær sömu og í hliðarspjaldinu (innvols, framhlið, LED, úthlið, tegund …).</p><div class="sm-panel" id="smPanelA"></div><div class="sm-panel" id="smPanelB"></div>'));
+  }
+  function smMountPanels(b){
+    var a = document.getElementById("smPanelA"), z = document.getElementById("smPanelB"); if (!a || !z) return;
+    var keep = proTab; selectedBlockId = b.id;
+    try{ proTab = "innvols"; renderEditPanelInto(a); if (PRO){ proTab = "annad"; renderEditPanelInto(z); } else z.remove(); } finally { proTab = keep; } // (customers' panel has no tabs — one copy)
+  }
+  // hinges drag up/down on their door in the preview; the typed mm follows (smItemDone writes it and confirms it)
+  function smAbsAt(clientY, m){
+    var st = KP3D._three(), x = uwDimCtx, svg = document.getElementById("uwDims"); if (!st || !x || !svg) return m.abs;
+    var r = svg.getBoundingClientRect(), T = window.__THREE__, g = x.g, al = x.a0 + 0.02, py = clientY - r.top, lo = 0, hi = 3200;
+    function sy(abs){ var v = new T.Vector3(g.origin.x + g.axis.x * al + g.normal.x * x.d, x.y0 + (x.plinthM || 0) + abs / 1000, g.origin.z + g.axis.z * al + g.normal.z * x.d).project(st.camera); return (1 - v.y) / 2 * r.height; }
+    for (var i = 0; i < 32; i++){ var mid = (lo + hi) / 2; if (sy(mid) > py) lo = mid; else hi = mid; } // the screen Y falls as the height rises
+    return (lo + hi) / 2;
+  }
+  function smBindDrag(){
+    var svg = document.getElementById("uwDims"); if (!svg || svg.__smDrag) return; svg.__smDrag = true;
+    svg.addEventListener("pointerdown", function(e){
+      var h = e.target.closest && e.target.closest("[data-sm-hd]"); if (!h || !uw || !uw.smida) return;
+      var id = h.dataset.smHd, m = ((uw.smMarks || {}).hw || []).find(function(q){ return q.id === id; }); if (!m || !m.hinge) return;
+      e.preventDefault(); uw.smDrag = { id:id, abs:m.abs };
+      function mv(ev){ var a = smAbsAt(ev.clientY, m); uw.smDrag.abs = Math.max(m.hinge.dbot + 30, Math.min(m.hinge.dbot + m.hinge.box - 30, a)); drawUwDims(); var inp = document.querySelector('[data-sm-pin="hw:' + id + '"]'); if (inp && document.activeElement !== inp) inp.value = Math.round(uw.smDrag.abs - m.hinge.dbot); }
+      function up(){ window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); var d = uw && uw.smDrag; if (uw) uw.smDrag = null; if (d) smItemDone("hw", id, String(Math.round(d.abs - m.hinge.dbot))); }
+      window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
+    });
   }
   function smWire(side, b, c){
     var x = smCtx(); if (!x) return;
@@ -18229,10 +18346,24 @@
     var un = side.querySelector("[data-sm-unready]"); if (un) un.addEventListener("click", function(){ proSetReadyQuiet(b, false); renderUnitWizard(); });
     var ed = side.querySelector("[data-sm-editor]"); if (ed) ed.addEventListener("click", function(){ smOldEditor(b.id); });
     var bk = side.querySelector("[data-sm-back]"); if (bk) bk.addEventListener("click", function(){ var ord = smOrder(), i = ord.indexOf(uw.sec); if (i > 0){ uw.sec = ord[i - 1]; renderUnitWizard(); } });
+    function smGoMissing(m){
+      toast((m.sec === "yfir" ? "Lagaðu: " : "Vantar: ") + m.text);
+      if (m.sec === "yfir") return;
+      uw.sec = m.sec; if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard();
+    }
+    side.querySelectorAll("[data-sm-goto]").forEach(function(el){ el.addEventListener("click", function(){ var m = (uw.smMiss || [])[+el.dataset.smGoto]; if (m){ uw.sec = m.sec; if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard(); } }); });
+    side.querySelectorAll("[data-sm-act]").forEach(function(el){ el.addEventListener("click", function(){ var f = smFindItem(el.dataset.smAct); if (f.it && f.it.run){ var r = f.it.run(); if (r !== false){ save(); uwPrevKey = ""; uw.sec = f.grp; renderUnitWizard(); } } }); });
+    side.querySelectorAll("[data-sm-lock]").forEach(function(el){ el.addEventListener("click", function(){ var f = smFindItem(el.dataset.smLock); if (f.it && f.it.lock){ f.it.lock(); save(); renderUnitWizard(); } }); });
+    if (uw.sec === "more") smMountPanels(b);
+    smBindDrag();
     var nx = side.querySelector("[data-sm-next]"); if (nx) nx.addEventListener("click", function(){
-      if (nx.disabled) return;
-      var ord = smOrder(), cur = uw.sec && ord.indexOf(uw.sec) >= 0 ? uw.sec : "yfir";
-      if (cur !== "yfir"){ uw.sec = ord[ord.indexOf(cur) + 1]; renderUnitWizard(); return; }
+      var miss = smMissing(x), ord = smOrder(), cur = uw.sec && ord.indexOf(uw.sec) >= 0 ? uw.sec : "yfir";
+      if (cur !== "yfir"){
+        var m1 = miss.find(function(m){ return m.sec === cur; });
+        if (m1){ toast("Staðfestu fyrst: " + m1.text); if (m1.grp && m1.id) uw.smFocusItem = m1.grp + ":" + m1.id; else if (!m1.grp) uw.smFocus = true; renderUnitWizard(); return; }
+        uw.sec = ord[ord.indexOf(cur) + 1]; renderUnitWizard(); return;
+      }
+      if (miss.length){ smGoMissing(miss[0]); return; }
       if (!proReady(b)){ proSetReadyQuiet(b, true); if (!proReady(b)){ renderUnitWizard(); return; } }
       smNext();
     });
@@ -18260,7 +18391,7 @@
       save(); closeUnitWizard(); openRoom(cat); setTimeout(function(){ openSmidaWizard(id); }, 500); return;
     }
     var fb = findBlock(id); if (!fb) return;
-    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uw.smDone = false; uw.smFocus = true; uwPrevKey = "";
+    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uw.smDone = false; uw.smFocus = true; uwPrevKey = ""; selectedBlockId = fb.block.id;
     renderUnitWizard();
   }
   var smReturn = null;
@@ -18271,7 +18402,7 @@
     if (fb.block.locked){ toast("Skápurinn er læstur — opnaðu hann fyrst."); return; }
     if (!(uw && uw.smida)){ proSoloPanel("wiz"); openUnitWizard(); }
     uw.smida = true; uw.step = 3; uw.cat = null; uw.opt = null; uw.island = null; uw.smDone = false; uw.smFocus = true;
-    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uwPrevKey = "";
+    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uwPrevKey = ""; selectedBlockId = fb.block.id;
     renderUnitWizard();
   }
   function smClose(){ if (uw && uw.smida) closeUnitWizard(); }

@@ -547,7 +547,7 @@
     // drawer-front and door-split fixes, just one layer down (the geometry reader, not the editor).
     if (Array.isArray(b.shelfPos)) return b.shelfPos
       .filter(function(x){ return x && typeof x.mm === "number"; })
-      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked, tray:!!x.tray }; }) // locked: Smíða-only bookkeeping ("Dreifa ólæstum jafnt") — passed through so every setShelves read-then-rewrite doesn't silently drop it
+      .map(function(x){ var o = { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked, tray:!!x.tray }; if (!x.fixed && +x.gap > 0 && Math.round(+x.gap) !== 50) o.gap = Math.round(+x.gap); return o; }) // gap = the hole spacing when it isn't the usual 50 mm (Smíða wizard) — absent otherwise, so Smíðagögn are unchanged // locked: Smíða-only bookkeeping ("Dreifa ólæstum jafnt") — passed through so every setShelves read-then-rewrite doesn't silently drop it
       .sort(function(a, z){ return a.mm - z.mm; });
     var scoped = c.bur || inDrawerShelfZone(b, c);
     var n = c.bur ? (b.burShelves != null ? b.burShelves : 2) : (shelvesOf(b) || 0), out = [];
@@ -595,7 +595,7 @@
     var r = ovenUpperMm(b, sysKey, bodyMm);
     if (Array.isArray(b.ovenShelves)) return b.ovenShelves // clamped into the current band, never dropped — see shelfLayoutOf
       .filter(function(x){ return x && typeof x.mm === "number"; })
-      .map(function(x){ return { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked, tray:!!x.tray }; })
+      .map(function(x){ var o = { mm:Math.round(Math.min(Math.max(x.mm, r.lo + OVEN_BOARD_MM + 1), r.hi - 11)), fixed:!!x.fixed, pos:x.fixed ? 1 : Math.max(1, Math.min(9, Math.round(x.pos) || 3)), locked:!!x.locked, tray:!!x.tray }; if (!x.fixed && +x.gap > 0 && Math.round(+x.gap) !== 50) o.gap = Math.round(+x.gap); return o; }) // gap = the hole spacing when it isn't the usual 50 mm (Smíða wizard) — absent otherwise, so Smíðagögn are unchanged
       .sort(function(a, z){ return a.mm - z.mm; });
     return [1, 2].map(function(k){ return { mm:Math.round(r.lo + (r.hi - r.lo) * k / 3), fixed:false, pos:3 }; });
   }
