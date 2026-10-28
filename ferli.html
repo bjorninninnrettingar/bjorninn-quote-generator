@@ -60,22 +60,33 @@
   .pageHd h1 { font-size:2rem; font-weight:700; letter-spacing:-.02em; }
   .back { display:inline-block; color:var(--accent); text-decoration:none; font-size:.9rem; margin-bottom:14px; }
   .back[hidden] { display:none; }
-  .lead { color:var(--muted); font-size:.95rem; margin:4px 0 34px; min-height:1.2em; }
+  .lead { color:var(--muted); font-size:.95rem; margin:4px 0 22px; min-height:1.2em; }
 
   /* ---- Board (list, 2026-10-28) ---- */
   .group { margin-bottom:34px; }
   .secTitle { font-size:.78rem; font-weight:600; color:var(--muted); letter-spacing:.02em; margin:0 4px 10px; }
   .secTitle.bad { color:var(--bad); }
   .list { background:var(--surface); border-radius:14px; overflow:hidden; }
-  .prow { display:flex; align-items:center; gap:18px; padding:16px 20px; border-bottom:1px solid var(--line); text-decoration:none; color:var(--text); }
+  .prow { display:flex; align-items:center; gap:14px; padding:11px 18px; border-left:3px solid var(--sc, transparent); border-bottom:1px solid var(--line); text-decoration:none; color:var(--text); }
   .prow:last-child { border-bottom:none; }
   .prow:hover { background:var(--bg); }
   .prow:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
   .pn { flex:1; min-width:0; }
-  .pn .t { font-weight:600; font-size:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pn .s { font-size:.84rem; color:var(--muted); margin-top:2px; }
+  .pn .t { font-weight:600; font-size:.96rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pn .s { font-size:.8rem; color:var(--muted); margin-top:1px; }
   .pn .s .stale { color:var(--warn); font-weight:600; }
   .pn .s .late { color:var(--bad); font-weight:600; }
+  .stg { flex:none; width:128px; text-align:center; font-size:.74rem; font-weight:600; padding:4px 0; border-radius:999px; }
+  .tools { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
+  .tools input { width:100%; font:inherit; font-size:.95rem; padding:10px 14px; border:none; border-radius:10px; background:var(--surface); color:var(--text); outline:none; }
+  .tools input:focus { box-shadow:0 0 0 2px var(--accent); }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chipf { display:inline-flex; align-items:center; gap:6px; border:none; background:var(--surface); color:var(--muted); font:inherit; font-size:.82rem; padding:6px 13px; border-radius:999px; cursor:pointer; }
+  .chipf i { width:8px; height:8px; border-radius:50%; }
+  .chipf b { font-weight:600; color:var(--dim); }
+  .chipf:hover { color:var(--text); }
+  .chipf.on { background:var(--text); color:var(--surface); }
+  .chipf.on b { color:inherit; opacity:.7; }
   .steps { display:flex; gap:4px; flex:none; }
   .steps i { width:22px; height:4px; border-radius:2px; background:var(--line); }
   .steps i.on { background:var(--accent); }
@@ -428,18 +439,20 @@
   function hasOpenOrderFor(name, openOrderNames) {
     return Object.keys(openOrderNames).some(function (label) { return label.indexOf(name) === 0; });
   }
+  var STAGE_LOOK = { forskipulag: { c: "#e9b000", t: "#9a6700" }, skipulag: { c: "#d6473c", t: "#c4291c" }, yfirfara: { c: "#0f6cbd", t: "#0f6cbd" }, pontun: { c: "#8250df", t: "#6f42c1" } };
+  var boardFilter = "all", boardQuery = "";
   function renderBoard(projects, orders) {
     // Names with a still-open (not "Komið í hús") order — splits "Klárt til framleiðslu" into the
-    // Pöntunarlisti group vs graduated, and tags ANY project with an open order.
+    // Pöntunarlisti stage vs graduated, and tags ANY project with an open order.
     var openOrderNames = {};
     orders.forEach(function (o) {
       var f = o.fields || {};
       if (f["Staða"] !== "Komið í hús 🐻") openOrderNames[f["Stöðu kenni"] || ""] = true;
     });
     var DATE = "Áætlaður afhendingardagur Björninn (internal)";
-    var groups = STAGES.map(function (s, i) { return { id: s.id, label: s.label, step: i, items: [] }; });
-    groups.push({ id: "pontun", label: "Pöntunarlisti", step: 3, items: [] });
-    var attention = [];
+    var stages = STAGES.map(function (s, i) { return { id: s.id, label: s.label, step: i }; });
+    stages.push({ id: "pontun", label: "Pöntunarlisti", step: 3 });
+    var items = [];
     projects.forEach(function (p) {
       var f = p.fields || {};
       if (f["Staða í framleiðslu"] === PROD_DONE) return; // delivered — off this board
@@ -447,43 +460,59 @@
       var g;
       if (stNow === "Klárt til framleiðslu") {
         if (!hasOpenOrderFor(name, openOrderNames)) return; // skipulag done, nothing open — graduated
-        g = groups[3];
+        g = stages[3];
       } else {
         var idx = STAGES.findIndex(function (s) { return s.match === stNow; });
-        g = groups[idx === -1 ? 0 : idx];
+        g = stages[idx === -1 ? 0 : idx];
       }
-      p._g = g; p._open = hasOpenOrderFor(name, openOrderNames);
-      if ((f["Verk ósnert dagar 📅"] || 0) >= STALE_DAYS) attention.push(p); else g.items.push(p);
+      p._g = g; p._open = hasOpenOrderFor(name, openOrderNames); p._stale = Math.round(f["Verk ósnert dagar 📅"] || 0) >= STALE_DAYS;
+      items.push(p);
     });
-    function byUrgency(a, b) {
+    // One flat list: untouched projects first, then soonest delivery.
+    items.sort(function (a, b) {
+      if (a._stale !== b._stale) return a._stale ? -1 : 1;
       var da = a.fields[DATE] || "9999", db = b.fields[DATE] || "9999";
       return da < db ? -1 : da > db ? 1 : 0;
-    }
-    attention.sort(function (a, b) { return (b.fields["Verk ósnert dagar 📅"] || 0) - (a.fields["Verk ósnert dagar 📅"] || 0); });
-    groups.forEach(function (g) { g.items.sort(byUrgency); });
+    });
 
     function rowHtml(p) {
-      var f = p.fields, name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)", g = p._g, bits = [];
-      var stale = Math.round(f["Verk ósnert dagar 📅"] || 0);
-      if (stale >= STALE_DAYS) bits.push('<span class="stale">' + stale + " daga ósnert</span>");
+      var f = p.fields, name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)", g = p._g, look = STAGE_LOOK[g.id], bits = [];
+      if (p._stale) bits.push('<span class="stale">' + Math.round(f["Verk ósnert dagar 📅"] || 0) + " daga ósnert</span>");
       if (f[DATE]) {
         var d = daysTo(f[DATE]);
-        bits.push(d < 0 ? '<span class="late">Afhending ' + dateIs(f[DATE]) + " · " + (-d) + " d. of seint</span>" : "Afhending " + dateIs(f[DATE]) + " · eftir " + d + " d.");
+        bits.push(d < 0 ? '<span class="late">' + (-d) + " d. of seint</span>" : "afhending " + dateIs(f[DATE]) + " · " + d + " d.");
       }
-      var dots = ""; for (var i = 0; i < 4; i++) dots += '<i class="' + (i <= g.step ? "on" : "") + '"></i>';
-      return '<a class="prow" href="/ferli?recordId=' + p.id + (k ? "&k=" + encodeURIComponent(k) : "") + '">' +
+      return '<a class="prow" style="--sc:' + look.c + '" href="/ferli?recordId=' + p.id + (k ? "&k=" + encodeURIComponent(k) : "") + '">' +
+        '<span class="stg" style="background:' + look.c + '22;color:' + look.t + '">' + esc(g.label) + "</span>" +
         '<div class="pn"><div class="t">' + esc(name) + (p._open && g.id !== "pontun" ? '<span class="tag pt">Pöntun opin</span>' : "") + "</div>" +
-        '<div class="s">' + (bits.length ? bits.join(" · ") : esc(g.label)) + "</div></div>" +
-        '<div class="steps" title="' + esc(g.label) + '">' + dots + "</div>" + CHEV + "</a>";
+        (bits.length ? '<div class="s">' + bits.join(" · ") + "</div>" : "") + "</div>" + CHEV + "</a>";
     }
-    function grp(title, items, cls, showStage) {
-      return items.length ? '<div class="group"><div class="secTitle ' + (cls || "") + '">' + esc(title) + " · " + items.length + '</div><div class="list">' + items.map(rowHtml).join("") + "</div></div>" : "";
+
+    var boardEl = document.getElementById("board");
+    boardEl.innerHTML =
+      '<div class="tools"><input type="search" id="bq" placeholder="Leita að verki…" autocomplete="off" value="' + esc(boardQuery) + '"/><div class="chips" id="chips"></div></div><div id="rows"></div>';
+    function paint() {
+      var q = boardQuery.trim().toLowerCase();
+      var counts = { all: items.length, stale: items.filter(function (p) { return p._stale; }).length };
+      stages.forEach(function (g) { counts[g.id] = items.filter(function (p) { return p._g.id === g.id; }).length; });
+      var defs = [["all", "Allt"]].concat(counts.stale ? [["stale", "Þarf athygli"]] : []).concat(stages.map(function (g) { return [g.id, g.label]; }));
+      if (!counts[boardFilter] && boardFilter !== "all") boardFilter = "all";
+      document.getElementById("chips").innerHTML = defs.map(function (d) {
+        var st = STAGE_LOOK[d[0]];
+        return '<button type="button" class="chipf' + (boardFilter === d[0] ? " on" : "") + '" data-f="' + d[0] + '"' + (st ? ' style="--sc:' + st.c + '"' : "") + ">" + (st ? '<i style="background:' + st.c + '"></i>' : "") + esc(d[1]) + " <b>" + (counts[d[0]] || 0) + "</b></button>";
+      }).join("");
+      var shown = items.filter(function (p) {
+        if (boardFilter === "stale" && !p._stale) return false;
+        if (boardFilter !== "all" && boardFilter !== "stale" && p._g.id !== boardFilter) return false;
+        return !q || (p.fields["Heiti tækifæris / verkefnis"] || "").toLowerCase().indexOf(q) !== -1;
+      });
+      document.getElementById("rows").innerHTML = shown.length ? '<div class="list">' + shown.map(rowHtml).join("") + "</div>"
+        : '<div class="list"><div class="note">' + (items.length ? "Ekkert verk passar við leitina." : "Ekkert verk er í skipulagi núna.") + "</div></div>";
     }
-    var total = attention.length + groups.reduce(function (n, g) { return n + g.items.length; }, 0);
-    document.getElementById("lead").textContent = total ? total + (total === 1 ? " verk í skipulagi" : " verk í skipulagi") + (attention.length ? " · " + attention.length + " þarf athygli" : "") : "";
-    document.getElementById("board").innerHTML = total
-      ? grp("Þarfnast athygli", attention, "bad") + groups.map(function (g) { return grp(g.label, g.items); }).join("")
-      : '<div class="list"><div class="note">Ekkert verk er í skipulagi núna.</div></div>';
+    document.getElementById("lead").textContent = items.length ? items.length + (items.length === 1 ? " verk" : " verk") + " í skipulagi" : "";
+    document.getElementById("bq").addEventListener("input", function () { boardQuery = this.value; paint(); });
+    document.getElementById("chips").addEventListener("click", function (e) { var b = e.target.closest("button[data-f]"); if (b) { boardFilter = b.dataset.f; paint(); } });
+    paint();
   }
   var CHEV = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
 
