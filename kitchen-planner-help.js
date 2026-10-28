@@ -7,8 +7,8 @@
     // ---- Byrja og rými ----
     { cat:{ is:"Byrja og rými", en:"Getting started" },
       q:{ is:"Hvernig byrja ég?", en:"How do I start?" },
-      a:{ is:"Ýttu á „Byrja →“ á forsíðunni og veldu rýmin sem þú vilt hanna: Eldhús, Fataskápur, Baðherbergi, Þvottahús, Innihurðir eða Aðeins rými (stofa, gangur — bara til að sýna rýmið). Ýttu á „Hanna“ við rýmið. Hvert rými fer í gegnum þrjú skref: 1 Rými → 2 Efni → 3 Skipulag.",
-          en:"Press “Start →” on the front page and pick the rooms you want to design: Kitchen, Wardrobe, Bathroom, Laundry, Interior doors or Room only (living room, hallway — just to show the room). Press “Design” next to a room. Each room has three steps: 1 Room → 2 Materials → 3 Layout." } },
+      a:{ is:"Ýttu á „Byrja →“ á forsíðunni og veldu rýmin sem þú vilt hanna: Eldhús, Fataskápur, Baðherbergi, Þvottahús eða Innihurðir. Ýttu á „Hanna“ við rýmið. Hvert rými fer í gegnum þrjú skref: 1 Rými → 2 Efni → 3 Skipulag.",
+          en:"Press “Start →” on the front page and pick the rooms you want to design: Kitchen, Wardrobe, Bathroom, Laundry or Interior doors. Press “Design” next to a room. Each room has three steps: 1 Room → 2 Materials → 3 Layout." } },
     { cat:{ is:"Byrja og rými", en:"Getting started" },
       q:{ is:"Hvernig hanna ég fleiri en eitt rými?", en:"How do I design more than one room?" },
       a:{ is:"Ýttu á „Rýmin þín“ efst og svo „+ Bæta við rými“. Hvert rými er sér spjald á listanum (Klárt / Í vinnslu / Ekki byrjað). Þú færð eitt tilboð fyrir öll rýmin þegar þú sendir inn.",

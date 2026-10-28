@@ -2301,7 +2301,7 @@
     "Veldu gólf og vegglit — svo þrívíddin líkist rýminu þínu.": "Choose the floor and wall colour so the 3D looks like your room.",
     "Veldu hvernig innréttingin liggur. Málin koma næst.": "Choose how the units are laid out. The sizes come next.",
     "Allir veggir, innrétting þar sem þú vilt": "Every wall, units wherever you like",
-    "Innréttingar fyrir allt heimilið, hannaðar af þér í 3D og smíðaðar af okkur.": "Cabinetry for the whole home, designed by you in 3D and made by us.",
+    "Innréttingar fyrir allt heimilið, hannaðar af þér og smíðaðar af okkur.": "Cabinetry for the whole home, designed by you and made by us.",
     "Veldu rýmin": "Choose your rooms",
     "Hannaðu heimilið þitt.": "Design your home.",
     "Við förum yfir og sendum teikningar": "We review it and send you drawings",

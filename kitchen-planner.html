@@ -220,6 +220,7 @@
   .wel-hero{ position:relative; margin:0; width:100%; aspect-ratio:16 / 10; border-radius:22px; overflow:hidden; background:#f4f3ef; box-shadow:0 44px 80px -34px rgba(20,20,20,.30), 0 14px 32px -14px rgba(20,20,20,.12); isolation:isolate; }
   .wel-hero .wh-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; opacity:0; z-index:2; transition:opacity .7s ease; }
   .wel-hero .wh-img.base{ opacity:1; z-index:0; }
+  .wel-hero .wh-img, .wel-hero figcaption{ pointer-events:none; } /* the invisible room pictures lay over the 3D kitchen and swallowed the drag (owner, 2026-10-28) */
   .wel-hero .wh-img.on{ opacity:1; }
   /* the live, slowly turning 3D kitchen over the picture (2026-10-12); the picture stays as the poster underneath */
   .wel-scene{ position:absolute; inset:0; opacity:0; transition:opacity .8s ease; z-index:1; }
@@ -280,7 +281,8 @@
   .hl-kinds{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:14px; }
   .hl-type{ display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:6px; text-align:left; padding:20px; border:1px solid var(--line); border-radius:14px; background:#fff; cursor:pointer; font:inherit; color:var(--ink); min-height:150px; transition:border-color .15s, box-shadow .15s; }
   .hl-type:hover, .hl-type:focus-visible{ border-color:var(--ink); box-shadow:0 8px 22px rgba(25,25,25,.08); outline:none; }
-  .hl-type .ht-ic{ margin-bottom:auto; color:var(--ink); } .hl-type b{ font-size:17px; } .hl-type small{ font-size:13px; color:var(--ink-soft); line-height:1.4; }
+  .hl-type .ht-ic{ margin-bottom:auto; color:var(--ink); } .hl-type .ht-ic svg{ stroke-width:.8; }
+  .hl-kinds .hl-type{ grid-column:span 2; } .hl-kinds .hl-type:nth-child(4):nth-last-child(2){ grid-column:2 / span 2; } /* five cards: 3 + 2 centred */ .hl-type b{ font-size:17px; } .hl-type small{ font-size:13px; color:var(--ink-soft); line-height:1.4; }
   .hl-type .ht-add{ margin-top:6px; font-size:13px; font-weight:700; color:var(--blue); }
   .studio-card{ min-height:130px; }
   .studio-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
@@ -2139,7 +2141,7 @@
           <button type="button" id="tourBtn" hidden data-i18n>Sýna leiðsögnina</button>
           <button type="button" id="reportBtn" data-i18n>⚠️ Villa / hugmynd</button>
           <button type="button" id="resetBtn" data-i18n>Byrja upp á nýtt</button>
-          <button type="button" class="help-lang" data-setlang="en" lang="en">In English</button>
+          <button type="button" class="help-lang" data-setlang="en" lang="en">English</button>
           <button type="button" class="help-lang" data-setlang="is" lang="is">Á íslensku</button>
         </div>
       </div>
@@ -2210,7 +2212,7 @@
     <div class="wel">
       <div class="wel-main">
         <h2 class="wel-h" data-i18n>Hannaðu heimilið þitt.</h2>
-        <p class="wel-lede" data-i18n>Innréttingar fyrir allt heimilið, hannaðar af þér í 3D og smíðaðar af okkur.</p>
+        <p class="wel-lede" data-i18n>Innréttingar fyrir allt heimilið, hannaðar af þér og smíðaðar af okkur.</p>
         <div class="wel-actions">
           <button class="wel-go" id="welStart" type="button" data-i18n>Byrja →</button>
           <button class="reset-link" id="welReset" type="button" hidden data-i18n>Byrja upp á nýtt</button>
@@ -15894,8 +15896,8 @@
       document.getElementById("homeSub").textContent = __("Smelltu á rými til að bæta því við. Þú getur bætt fleirum við hvenær sem er.");
       hlGate = null; hlLaidOut = null;
       var tH = Math.max(150, Math.min(250, Math.floor(((host.clientHeight || innerHeight - 312) - 40 - 14) / 2))); // two rows of three, filling the box
-      host.innerHTML = '<div class="home-list"><div class="hl-kinds" style="grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:' + tH + 'px">' + STUDIO_ROOMS.map(function(r){
-        return '<button type="button" class="hl-type" data-hltypeadd="' + r.key + '"><span class="ht-ic">' + icon(r.key === "rymi" ? "ibud" : r.key, 44) + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small><span class="ht-add">' + __("+ Bæta við") + '</span></button>'; }).join("") + '</div></div>';
+      host.innerHTML = '<div class="home-list"><div class="hl-kinds" style="grid-template-columns:repeat(6,minmax(0,1fr));grid-auto-rows:' + tH + 'px">' + STUDIO_ROOMS.map(function(r){
+        return '<button type="button" class="hl-type" data-hltypeadd="' + r.key + '"><span class="ht-ic">' + icon(r.key, 44) + '</span><b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small><span class="ht-add">' + __("+ Bæta við") + '</span></button>'; }).join("") + '</div></div>';
       host.onclick = function(e){ var b = e.target.closest("[data-hltypeadd]"); if (b) addRooms([b.dataset.hltypeadd]); };
       return;
     }
@@ -15967,8 +15969,7 @@
     { key:"fataskapar", label:"Fataskápur", desc:"Skápar og innvols" },
     { key:"bad", label:"Baðherbergi", desc:"Veggfestir vaskaskápar og efri skápar" },
     { key:"thvottahus", label:"Þvottahús", desc:"Þvottavél, þurrkari og vaskur" },
-    { key:"hurdir", label:"Innihurðir", desc:"Hurðir um allt heimilið" },
-    { key:"rymi", label:"Aðeins rými", desc:"Stofa, gangur eða annað rými án innréttingar" }
+    { key:"hurdir", label:"Innihurðir", desc:"Hurðir um allt heimilið" }
   ];
   function hasProject(){ return !!(state.home && (homeRooms().length || hlHasDoors())); }
   function roomCardsHtml(pick, attr){ // the big room cards with a tick — the start page and "+ Bæta við rými" share them
@@ -15978,7 +15979,7 @@
       var have = r.key === "hurdir" || !state.home ? 0 : homeRooms().filter(function(k){ return String(k).split(":")[0] === r.key; }).length;
       var sub = off ? __("Á listanum") : have ? (on ? __("Bætist við · nr. {n}", { n:have + 1 }) : __("Í verkefninu · {n}", { n:have })) : __(r.desc);
       return '<button type="button" class="studio-card pick' + (on ? ' on' : '') + '" ' + attr + '="' + r.key + '"' + (off ? ' disabled title="' + __("Innihurðir eru þegar á listanum") + '"' : '') + ' aria-pressed="' + on + '">' +
-        '<span class="tick" aria-hidden="true">' + (on ? '&#10003;' : '') + '</span><span class="ic">' + icon(r.key === "rymi" ? "ibud" : r.key, 26) + '</span><b>' + __(r.label) + '</b><small' + (have && !on ? ' class="in-proj"' : '') + '>' + sub + '</small></button>';
+        '<span class="tick" aria-hidden="true">' + (on ? '&#10003;' : '') + '</span><span class="ic">' + icon(r.key, 26) + '</span><b>' + __(r.label) + '</b><small' + (have && !on ? ' class="in-proj"' : '') + '>' + sub + '</small></button>';
     }).join("");
   }
   // add the picked kinds to the project — no walk: they show on Rýmin þín, "Hanna" opens one (owner, 2026-10-27)

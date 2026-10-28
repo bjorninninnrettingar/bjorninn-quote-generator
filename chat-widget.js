@@ -108,6 +108,13 @@
     });
   });
 
+  // Studio: a press anywhere outside the chat closes it (owner, 2026-10-28)
+  if (STUDIO) document.addEventListener("pointerdown", function (e) {
+    if (!panel) return;
+    var path = e.composedPath ? e.composedPath() : [];
+    if (path.indexOf(host) < 0) closePanel();
+  }, true);
+
   var style = document.createElement("style");
   style.textContent = [
     ":host{all:initial;}",
