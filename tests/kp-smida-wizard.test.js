@@ -49,3 +49,11 @@ test("no function name is declared twice in the planner script (a later one sile
   }
   assert.deepEqual(dup, []);
 });
+
+test("Staðsetning / Vélbúnaður: every item is acked on its own, and legacy helpers can't rebuild the room over the preview", () => {
+  const body = fnBody("smItemAckOk");
+  assert.ok(/smidaAck\[grp\]\[it\.id\] === it\.val/.test(body), "an item's ack is the value it was confirmed at");
+  const refresh = fnBody("refreshAfterEdit");
+  assert.ok(/uw && uw\.smida\) return/.test(refresh), "refreshAfterEdit is a no-op while Smíða's preview is the 3D scene");
+  ["smidaFor", "smidaHash", "proIssues"].forEach((n) => assert.ok(!/smidaAck/.test(fnBody(n))));
+});
