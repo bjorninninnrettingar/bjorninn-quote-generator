@@ -13233,6 +13233,7 @@
   }
   // Every room's handles as { id, n } per SKU — sent as `handleSkus`; the server turns them into the Tækifæri's two
   // priced slots (api/kp-submit.js handleSlots, G1 2026-10-27; this used to send every length with one total count, ~4×).
+  // [] = the drawing has NO handles (server clears the Taekifaeri's slots); the PRO payload always includes it (P-03)
   function projectHandleSkus(){
     var by = {};
     withEachCategory(function(cat){
@@ -18600,7 +18601,7 @@
   // Keyra skipulag, and only once every line is green. Two lines can't be decided by the drawing alone, so Rakel
   // confirms them by hand and that is kept on the drawing (state.proAck): a unit no standard product fits (its
   // Útfærsla is picked on the Line Item in Airtable) and the fit warnings (some are deliberate).
-  var pc = { open:false, timer:null, badge:"" };
+  var pc = { open:false, timer:null, badge:"", savePromise:null };
   function proCheckFacts(){
     var f = { rooms:[], unlinked:[], issues:[], unready:[], cabinets:0, warnings:[], worktops:[] };
     withEachCategory(function(cat){
@@ -19388,6 +19389,7 @@
   function proSaveErrText(status, msg){
     if (!status) return "Ekkert samband við þjóninn — athugaðu nettenginguna og reyndu aftur.";
     if (status === 401 || status === 403) return "Lykillinn virkar ekki — opnaðu verkefnið aftur með hnappnum á Tækifærinu í Airtable.";
+    if (status === 413) return "Teikningin er of stór til að vista — fækkaðu herbergjum eða skiptu verkefninu.";
     if (status === 409) return "Einhver annar vistaði verkefnið á undan þér — ekkert var vistað.";
     if (status === 400) return "Airtable tók ekki við gögnunum" + (msg ? ": " + msg : ".");
     if (status === 429) return "Airtable er upptekið í augnablikinu — bíddu smá og reyndu aftur.";
@@ -19398,7 +19400,18 @@
     return d.toDateString() === td.toDateString() ? "kl. " + t : d.getDate() + "." + (d.getMonth() + 1) + ". kl. " + t; } // "kl. 13:42" today, "10.10. kl. 14:14" another day
   // Vista → true when it reached Airtable. Never silent: a failure opens Yfirferð with a red box + "Reyna aftur";
   // another computer's newer save (409) asks "Sækja nýrri útgáfu" / "Skrifa samt yfir" first.
-  async function proSave(resolve, force){
+  // P-06: one save at a time — a second call while one is in flight gets the same promise (two parallel saves both
+  // POSTed "no row for Sk9" = duplicate Line Item, or sent a stale basedOn = bogus 409). The internal conflict/force
+  // re-calls go through proSaveRun directly.
+  function proSave(resolve, force){
+    if (pc.savePromise) return pc.savePromise;
+    var pr = proSaveRun(resolve, force);
+    pc.savePromise = pr;
+    var clear = function(){ if (pc.savePromise === pr) pc.savePromise = null; };
+    pr.then(clear, clear);
+    return pr;
+  }
+  async function proSaveRun(resolve, force){
     try{ state.roomMats = projectRoomMats(); }catch(e){} // every room's materials → the quote PDF's EFNISVAL
     var bt = document.getElementById("proSave"); if (bt) bt.disabled = true;
     proBar("Vista…"); pc.saving = true; if (pc.open) proCheckRender();
@@ -19417,18 +19430,24 @@
             '<p><b>Sækja nýrri útgáfu</b> = breytingarnar hér hverfa og nýja útgáfan opnast. <b>Skrifa samt yfir</b> = þessi teikning gildir.</p>',
           cancel:"Hætta við", alt:"Sækja nýrri útgáfu", ok:"Skrifa samt yfir" });
         if (ch === "alt"){ try{ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(STORAGE_KEY + ":dirty"); localStorage.removeItem(STORAGE_KEY + ":at"); }catch(e2){} location.reload(); return false; }
-        if (ch === true) return proSave(resolve, true);
+        if (ch === true) return proSaveRun(resolve, true);
       }
       pc.saveErr = proSaveErrText(e.status || 0, d.error || "");
+      if (d.partial){ // P-04: the Line Items did reach Airtable, only the project state did not — say so, keep what was written
+        if (d.liSent) state.liSent = Object.assign({}, state.liSent || {}, d.liSent);
+        pc.saveErr = "Línurnar vistuðust (" + (d.created || 0) + " nýjar, " + (d.updated || 0) + " uppfærðar) en staða verkefnisins vistaðist ekki — ýttu aftur á Vista, það er óhætt.";
+        save();
+      }
       proCheckOpen(true);
       proBar("Vistun tókst ekki" + (proDirty() ? " · ● óvistað" : "")); // A10: the unsaved marker stays visible
       return false;
     }
     pc.saving = false; pc.saveErr = null;
     if (d.liSent) state.liSent = d.liSent;
+    if (d.trimmed && d.trimmed.length) toast("Teikningin var of stór — þessu var sleppt við vistun: " + d.trimmed.join(", ") + ".");
     if (d.proSavedAt) state.proSavedAt = d.proSavedAt; // the next Vista is based on this one
     save(); // keeps the frozen Sk numbers
-    if (d.conflicts && d.conflicts.length && !resolve) return proSave(proAskConflicts(d.conflicts));
+    if (d.conflicts && d.conflicts.length && !resolve) return proSaveRun(proAskConflicts(d.conflicts));
     try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){}
     proBar();
     if (pc.open) proCheckRender();

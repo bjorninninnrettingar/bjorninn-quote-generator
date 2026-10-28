@@ -126,12 +126,13 @@ export async function price(at, body) {
   const materialsChanged = ["carcass", "front", "front2", "top"].filter((k) => m[k] && m[k] !== first(pf[P[k]]));
   const sameMaterials = !materialsChanged.length;
   // per-SKU counts → the same two slots Vista writes (kp-submit handleSlots, needs the prices first)
+  const ownHandles = Array.isArray(m.handleSkus); // [] = the drawing has NO handles (clears the Taekifaeri's); undefined = no handle info (P-03)
   const skuRecs = m.handleSkus && m.handleSkus.length ? await byIds(at, PRODUCTS, m.handleSkus.map((x) => x.id), [PR_PRICE]) : null;
   const slots = skuRecs ? handleSlots(m.handleSkus, (id) => num((skuRecs[id] || {})[PR_PRICE])) : null;
-  const handleIds = slots ? [slots[0].id] : m.handles != null ? m.handles : ids(pf[P.h1]);
-  const handleCount = slots ? slots[0].n : m.handleCount != null ? m.handleCount : num(pf[P.h1n]);
-  const own2 = slots ? slots.length > 1 : !!(m.handles2 && m.handles2.length); // the drawing's Halda 2; else the Tækifæri's (maybe set by hand)
-  const handleIds2 = own2 ? (slots ? [slots[1].id] : m.handles2) : ids(pf[P.h2]);
+  const handleIds = slots ? [slots[0].id] : ownHandles ? [] : m.handles != null ? m.handles : ids(pf[P.h1]);
+  const handleCount = slots ? slots[0].n : ownHandles ? 0 : m.handleCount != null ? m.handleCount : num(pf[P.h1n]);
+  const own2 = slots ? slots.length > 1 : ownHandles ? true : !!(m.handles2 && m.handles2.length); // the drawing's Halda 2; else the Tækifæri's (maybe set by hand)
+  const handleIds2 = own2 ? (slots ? [slots[1].id] : ownHandles ? [] : m.handles2) : ids(pf[P.h2]);
   const handleCount2 = own2 ? (slots ? slots[1].n : m.handleCount2 || 0) : num(pf[P.h2n]);
 
   const allV = [];

@@ -88,6 +88,21 @@ export function validate(body) {
   return null;
 }
 
+// Airtable's long text holds 100 000 characters (P-01): drop the bulk keys, least important first, rather than fail.
+export const PLANNER_JSON_MAX = 99000;
+export const TRIM_KEYS = ["measurement", "proAck", "categoryData"];
+export function fitPlannerJson(state, build) {
+  let json = build(state);
+  if (json.length <= PLANNER_JSON_MAX) return { json, dropped: [] };
+  const st = Object.assign({}, state), dropped = [];
+  for (const k of TRIM_KEYS) {
+    if (!(k in st)) continue;
+    delete st[k]; dropped.push(k); json = build(st);
+    if (json.length <= PLANNER_JSON_MAX) return { json, dropped };
+  }
+  return { json: null, dropped };
+}
+
 export async function save(at, body) {
   const opp = await at("GET", `${PROJECTS}/${body.recordId}`);
   const old = (() => { try { return JSON.parse((opp.fields || {})[PLANNER_JSON] || "{}"); } catch (e) { return {}; } })();
@@ -167,14 +182,16 @@ export async function save(at, body) {
 
   const updates = [...patch].map(([id, fields]) => ({ id, fields }));
   unchanged = rows.filter((r) => { const k = String(r.fields["🔑"] || "").trim(); return !patch.has(r.id) && (k in body.smida || newLines.has(k)); }).length;
-  for (let i = 0; i < updates.length; i += 10) await at("PATCH", LINE_ITEMS, { records: updates.slice(i, i + 10) });
-  for (let i = 0; i < creates.length; i += 10) await at("POST", LINE_ITEMS, { typecast: true, records: creates.slice(i, i + 10) });
+  // (the Line Items are written below, after the planner JSON is known to fit — a 413 must happen before any write)
 
   // Materials/handles — see PROJECT_SYNC. Only fields the drawing actually has a value for are touched.
   const oldProj = old.projSent && typeof old.projSent === "object" ? old.projSent : {};
   const projFields = {}, projSent = Object.assign({}, oldProj), projectUpdated = [];
   const hInfo = {};
   if (body.handleSkus && body.handleSkus.length) body.project = Object.assign({}, body.project, await handleSlotFields(at, body.handleSkus, hInfo)); // priced slots (G1)
+  // handleSkus: [] = the drawing has NO handles (Sponagrip, push-open, Fraest grip, none): clear both slots (P-03, 2026-10-28).
+  // undefined/null = no handle info (old page): leave the Taekifaeri's handles alone.
+  else if (Array.isArray(body.handleSkus)) body.project = Object.assign({}, body.project, { "H\u00f6ldur Vi\u00f0skiptavinar \u270a": [], "Magn Halda 1": 0, "H\u00f6ldur Vi\u00f0skiptavinar \u270a2.0": [], "Magn halda 2.0": 0 });
   // more SKUs than slots: what the quote PDF prints instead of the two slot rows, while the slots are still these
   const handlesPrint = hInfo.skus && hInfo.skus.length > 2 ? { key: hInfo.key, skus: hInfo.skus } : null;
   for (const [f, v] of Object.entries(body.project || {})) {
@@ -182,16 +199,30 @@ export async function save(at, body) {
     projSent[f] = D;
     if (A === D) continue;
     if (B !== undefined && D === B && A !== B) { projSent[f] = B; continue; } // hand-changed in Airtable, drawing untouched
-    if (B === undefined && HANDLE2.includes(f) && (D === "" || D === "0")) { delete projSent[f]; continue; } // a one-SKU drawing never clears a Halda 2 set by hand
+    if (B === undefined && HANDLE2.includes(f) && (D === "" || D === "0") && !(Array.isArray(body.handleSkus) && !body.handleSkus.length)) { delete projSent[f]; continue; } // a one-SKU drawing never clears a Halda 2 set by hand
     projFields[f] = v;
     projectUpdated.push(f);
   }
 
   // The state goes last, so liSent only ever records what really reached the Line Items.
   const proSavedAt = new Date().toISOString();
-  const json = JSON.stringify(Object.assign({}, body.state, old.submissionId ? { submissionId: old.submissionId } : {},
+  const build = (st) => JSON.stringify(Object.assign({}, st, old.submissionId ? { submissionId: old.submissionId } : {},
     { liSent, liExtra, projSent, proSavedAt, handlesPrint }));
-  await at("PATCH", PROJECTS, { typecast: true, records: [{ id: opp.id, fields: Object.assign({ [PLANNER_JSON]: json }, projFields) }] });
+  const { json, dropped } = fitPlannerJson(body.state, build);
+  if (!json) { const e = new Error("Teikningin er of st\u00f3r til a\u00f0 vista (" + build(body.state).length + " stafir)"); e.status = 413; throw e; }
+  for (let i = 0; i < updates.length; i += 10) await at("PATCH", LINE_ITEMS, { records: updates.slice(i, i + 10) });
+  for (let i = 0; i < creates.length; i += 10) await at("POST", LINE_ITEMS, { typecast: true, records: creates.slice(i, i + 10) });
+  // Retry the final write (P-04): the Line Items are already written. Re-running a save is safe anyway (rows that match
+  // the drawing need no write, created rows are found by their key), but two retries avoid showing a failure at all.
+  let lastErr = null, saved = false;
+  for (let a = 0; a < 3 && !saved; a++) {
+    try { await at("PATCH", PROJECTS, { typecast: true, records: [{ id: opp.id, fields: Object.assign({ [PLANNER_JSON]: json }, projFields) }] }); saved = true; }
+    catch (e) { lastErr = e; if (e.status && e.status < 500 && e.status !== 429) break; }
+  }
+  if (!saved) { // partial: say honestly what did reach the Line Items
+    const e = new Error("L\u00ednurnar vistu\u00f0ust en sta\u00f0a verkefnisins t\u00f3kst ekki a\u00f0 skrifa: " + (lastErr && lastErr.message));
+    e.status = (lastErr && lastErr.status) || 502; e.partial = { created: creates.length, updated: updates.length, liSent }; throw e;
+  }
 
   // Product names for the conflict question (the ids alone mean nothing to Rakel).
   const ids = [...new Set(conflicts.flatMap((c) => [...c.drawing, ...c.airtable]))];
@@ -204,7 +235,7 @@ export async function save(at, body) {
   const named = (a) => a.map((id) => names[id] || id);
   const removed = [...byKey.keys()].filter((k) => KEY_RE.test(k) && !(k in body.smida)).sort((a, z) => a.slice(2) - z.slice(2));
   return { recordId: opp.id, project: (opp.fields || {})[PROJECT_NAME] || "", created: creates.length, updated: updates.length, unchanged, missing, removed,
-    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent, projectUpdated, proSavedAt };
+    conflicts: conflicts.map((c) => Object.assign(c, { drawingNames: named(c.drawing), airtableNames: named(c.airtable) })), liSent, projectUpdated, proSavedAt, trimmed: dropped };
 }
 
 export default async function handler(req, res) {
@@ -220,6 +251,8 @@ export default async function handler(req, res) {
     return res.status(200).json(Object.assign({ ok: true }, await save(makeAirtable(token), body)));
   } catch (e) {
     if (e.status === 409 && e.savedAt) return res.status(409).json({ error: e.message, conflict: true, savedAt: e.savedAt });
+    if (e.partial) return res.status(502).json(Object.assign({ error: e.message, partial: true }, e.partial));
+    if (e.status === 413) return res.status(413).json({ error: e.message });
     return res.status(e.status && e.status < 500 && e.status !== 429 ? 400 : 502).json({ error: e.message });
   }
 }

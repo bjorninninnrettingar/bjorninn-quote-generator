@@ -130,3 +130,14 @@ test("price(): handleSkus → the two priced slots, the same Vista writes", asyn
   assert.equal(d.handles.total, slotsTotal(d.handleSlots));
   assert.equal(validate({ recordId: A, lines: [], materials: { handleSkus: [{ id: "x", n: 1 }] } }), "Ógildar höldur");
 });
+
+test("price(): handleSkus [] = the drawing has no handles (old Tækifæri handles not priced); undefined = fall back", async () => {
+  const opp = { id: "recOPP0000000000a", fields: { fldDC7LI0D4cUeCds: "T-99 | Prófun", fldtFyOJnSYidfqjI: [J[600]], fldroX7FdGTb9c296: 10 } };
+  const at = async (method, path) => path.startsWith("tbl4LMXlQjp66RFKI/") ? opp : path.startsWith("tblFcsUoGxsuUwNEH") ? { records: [] }
+    : path.startsWith("tblzuuRSRkeXaLWxC") ? { records: Object.keys(JP).filter((id) => decodeURIComponent(path).includes(id)).map((id) => ({ id, fields: { fldCJjSJWoUWyT7iv: JP[id] } })) } : { records: [] };
+  const none = await price(at, { recordId: opp.id, lines: [], materials: { handleSkus: [] } });
+  assert.equal(none.handles.count, 0);
+  assert.equal(none.handles.total, 0);
+  const keep = await price(at, { recordId: opp.id, lines: [], materials: {} });
+  assert.equal(keep.handles.count, 10);
+});

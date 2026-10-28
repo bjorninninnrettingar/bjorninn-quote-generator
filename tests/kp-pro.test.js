@@ -228,3 +228,53 @@ test("handleSkus → Höldur ✊ / ✊2.0 slots, Halda 2 set by hand survives a 
   assert.equal(hp.key, [p["Höldur Viðskiptavinar ✊"].join(","), p["Magn Halda 1"], p["Höldur Viðskiptavinar ✊2.0"].join(","), p["Magn halda 2.0"]].join("|"));
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, handleSkus: [{ id: H1, n: -1 }] }), "Ógildar höldur");
 });
+
+// ---- PRO save path fixes (2026-10-28: P-01, P-03, P-04) ----
+const PJ = "Sjálfsafgreiðsla skipulag (JSON) 📐";
+test("P-01: planner JSON over 99 000 chars drops measurement/proAck/categoryData first and says so; never-fits = 413 before any write", async () => {
+  const big = "x".repeat(60000);
+  let f = fakeFetch(routes);
+  const out = await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [], measurement: big, proAck: big }, smida: { Sk1: SM(797) } });
+  assert.deepEqual(out.trimmed, ["measurement"]);
+  const proj = f.calls.find((c) => c.method === "PATCH" && c.url.includes("tbl4LMXlQjp66RFKI"));
+  const saved = JSON.parse(proj.body.records[0].fields[PJ]);
+  assert.ok(!("measurement" in saved) && "proAck" in saved);
+  f = fakeFetch(routes);
+  await assert.rejects(save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [], x: "y".repeat(100000) }, smida: { Sk2: SM(467) } }), (e) => e.status === 413);
+  assert.ok(!f.calls.some((c) => c.method === "PATCH" || c.method === "POST"), "nothing written when the JSON can never fit");
+});
+
+test("P-03: handleSkus [] clears both handle slots; undefined (no handle info) leaves them alone", async () => {
+  const withHandles = (call) => {
+    const o = routes(call);
+    if (call.method === "GET" && call.url.includes(`tbl4LMXlQjp66RFKI/${OPP}`)) o.body.fields = Object.assign({}, o.body.fields, { "Höldur Viðskiptavinar ✊": ["recH1H1H1H1H1H1H1"], "Magn Halda 1": 12 });
+    return o;
+  };
+  let f = fakeFetch(withHandles);
+  const out = await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [] }, smida: {}, handleSkus: [] });
+  const fields = f.calls.find((c) => c.method === "PATCH" && c.url.includes("tbl4LMXlQjp66RFKI")).body.records[0].fields;
+  assert.deepEqual(fields["Höldur Viðskiptavinar ✊"], []);
+  assert.equal(fields["Magn Halda 1"], 0);
+  assert.ok(out.projectUpdated.includes("Magn Halda 1"));
+  f = fakeFetch(withHandles);
+  const out2 = await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [] }, smida: {} });
+  assert.ok(!out2.projectUpdated.includes("Magn Halda 1"));
+});
+
+test("P-04: the final state write is retried; if it never lands the handler answers partial with what was written", async () => {
+  let n = 0;
+  const flaky = (call) => {
+    if (call.method === "PATCH" && call.url.includes("tbl4LMXlQjp66RFKI")) { n++; return n < 3 ? { status: 503, body: { error: "x" } } : routes(call); }
+    return routes(call);
+  };
+  const out = await save(makeAirtable("t", { fetchImpl: fakeFetch(flaky), delays: [] }), { recordId: OPP, state: { walls: [] }, smida: { Sk2: SM(467) } });
+  assert.equal(out.updated, 1);
+  const dead = (call) => (call.method === "PATCH" && call.url.includes("tbl4LMXlQjp66RFKI") ? { status: 503, body: { error: "x" } } : routes(call));
+  const res = mockRes();
+  process.env.AIRTABLE_TOKEN = "t"; process.env.VERK_KEY = "secret";
+  const orig = globalThis.fetch; globalThis.fetch = fakeFetch(dead);
+  try { await handler({ method: "POST", body: { k: "secret", recordId: OPP, state: { walls: [] }, smida: { Sk2: SM(467) } } }, res); } finally { globalThis.fetch = orig; }
+  assert.equal(res.statusCode, 502);
+  assert.equal(res.body.partial, true);
+  assert.equal(res.body.updated, 1);
+});
