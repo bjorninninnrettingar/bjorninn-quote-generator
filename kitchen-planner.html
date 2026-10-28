@@ -20436,6 +20436,16 @@
       if (langBack && state.step === "welcome" && state.resumeStep) resumeLeftStep();
       introBoot();
       startChat();
+      if (SCENE){ // owner's "Afrita senu": the state + the camera he last had, to paste back so the picture can be re-shot (docs/kitchen-planner.md)
+        var cb = document.createElement("button"); cb.type = "button"; cb.textContent = "Afrita senu";
+        cb.style.cssText = "position:fixed;right:14px;bottom:14px;z-index:99998;padding:8px 14px;border:1px solid #d9d4ca;border-radius:999px;background:#fff;font:600 12px 'Kumbh Sans',Arial,sans-serif;cursor:pointer";
+        cb.addEventListener("click", function(){
+          var st3 = KP3D._three(), out = JSON.stringify({ scene:SCENE, state:state, cam:st3 ? { pos:st3.camera.position.toArray(), target:st3.controls.target.toArray(), fov:st3.camera.fov } : null });
+          (navigator.clipboard ? navigator.clipboard.writeText(out) : Promise.reject()).then(function(){ cb.textContent = "Afritað ✓"; }, function(){ window.prompt("Afritaðu þetta:", out); });
+          setTimeout(function(){ cb.textContent = "Afrita senu"; }, 2500);
+        });
+        document.body.appendChild(cb);
+      }
     }
   }
 
