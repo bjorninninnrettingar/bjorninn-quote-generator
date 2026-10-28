@@ -27,3 +27,11 @@ Change the existing automation trigger from button to "When checkbox is checked"
 
 ## G18 / G24
 G18: remove the duplicated Chat webhook calls from the 6+ scripts (needs a per-script review; no safe Find/Replace without reading each). G24: delete the dead "LOKA PRENT Skipulag 5.0" button/automation in the Airtable UI.
+
+
+## Konto paid-sync fields (api/konto-paid-sync.js, api/konto-invoice.js, api/greidslur.js)
+Create on Tækifæri 📣 (exact names; nothing else is renamed). Until they exist everything still works: the cron ticks Greiðsla 2/3 from guids parsed out of `Konto drög 🧾` and reports `missingFields:true`; G1 paid and the "already announced" memory need the fields.
+1. `Konto reikningar JSON` - Long text (plain, no rich text). Written by the app; do not edit by hand.
+2. `Greiðsla 1 greidd (Konto)` - Checkbox. Ticked by the cron when the G1 invoice is Paid in Konto.
+Also: Vercel env `CRON_SECRET` must be set (field-check/morgunyfirlit use it). Check list_automations before testing: ticking Greiðsla 2/3 greidd fires "Skráir tíma þegar Greiðsla 2/3 er greidd" (intended).
+First run by hand: `/api/konto-paid-sync?k=<VERK_KEY>&dry=1` and confirm the counts look right.

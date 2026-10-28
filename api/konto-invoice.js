@@ -23,6 +23,9 @@
 //
 // Env: AIRTABLE_TOKEN, WEBHOOK_SECRET, KONTO_USERNAME, KONTO_API_KEY.
 
+import { addLine } from "./virkni.js";
+import { LEDGER_FIELD, parseLedger } from "./_konto-ledger.js";
+
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const PROJECTS_TABLE = "tbl4LMXlQjp66RFKI";
 const CONTACTS_TABLE = "tblQ8zeUanriESWvL";
@@ -355,11 +358,22 @@ export default async function handler(req, res) {
     const guid = (result && (result.guid || result.result?.guid || result.result)) || "?";
     console.log(`konto-invoice: draft accepted with shape "${used}"`);
     await appendLog(recordId, project, `${stamp} · ${payment} · drög ${typeof guid === "string" ? guid : JSON.stringify(guid)} · ${isk(draft.amount)} · (${used})`);
+    // Structured copy of the guid for the paid-sync cron (api/konto-paid-sync.js). Best effort: the
+    // field may not exist yet, and the log line above is the fallback the cron also reads.
+    try {
+      const ledger = parseLedger(project[LEDGER_FIELD]);
+      ledger[payment] = { guid: typeof guid === "string" ? guid : JSON.stringify(guid), created: stamp, amount: Math.round(draft.amount), due: draft.due_date };
+      await at(`${PROJECTS_TABLE}/${recordId}`, { method: "PATCH", body: JSON.stringify({ fields: { [LEDGER_FIELD]: JSON.stringify(ledger) } }) });
+    } catch (e) { console.error("konto-invoice ledger:", e.message); }
     const chat = chatText({ name: draft.description, recordId, payment, amount: draft.amount, lines, dueDate: draft.due_date });
     return res.status(200).json({ ok: true, payment, amount: draft.amount, guid, chat });
   } catch (e) {
     console.error("konto-invoice:", e);
     try { await appendLog(recordId, project, `${stamp} · ${payment} · ❌ ${e.message}`); } catch {}
+    // F7: a failed draft is visible in the app too (Virkni bell + /crm deal popup banner), not only the log.
+    try {
+      await addLine({ texti: `Konto drög ${payment} mistókust: ${e.message}`.slice(0, 300), tegund: "annað", til: "Skrifstofa", t: recordId, hver: "Konto" }); // no chat: the Airtable automation posts the returned `chat` text itself
+    } catch {}
     const chat = chatText({ name: String(project[P.name] || "").trim(), recordId, payment, error: e.message });
     return res.status(500).json({ error: e.message, chat });
   }
