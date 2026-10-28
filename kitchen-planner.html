@@ -1259,6 +1259,19 @@
   .ed-menus .cat-sec > summary{ padding:7px 12px; border:1px solid var(--line); border-radius:999px; background:#fff; font-size:13px; gap:6px; }
   .ed-menus .cat-sec[open] > summary{ border-color:var(--blue); color:var(--blue); background:var(--blue-soft); }
   .ed-menus .cat-sec > .sec-body{ position:absolute; top:calc(100% + 6px); left:0; z-index:60; width:330px; max-height:72vh; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.18); padding:14px 16px; }
+  /* owner 2026-10-28: only Rými + Efni on the bar; both popups hang from the left edge of the toolbar and Efni is wide */
+  #catalogPanel{ position:relative; }
+  #catalogPanel .cat-sec{ position:static; }
+  #catalogPanel .cat-sec[data-sec="efni"] > .sec-body{ width:min(640px, 62vw); max-height:82vh; }
+  #catalogPanel .cat-sec[data-sec="rymi"] > .sec-body{ width:380px; max-height:82vh; }
+  #catalogPanel .ed-fronts{ max-height:44vh; overflow-y:auto; }
+  .ed-fsearch{ width:100%; box-sizing:border-box; margin:2px 0 8px; font:inherit; font-size:13.5px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
+  .sub-sec{ border-top:1px solid var(--line); margin-top:10px; }
+  .sub-sec > summary{ list-style:none; cursor:pointer; padding:10px 2px; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:space-between; }
+  .sub-sec > summary::-webkit-details-marker{ display:none; }
+  .sub-sec > summary::after{ content:"▾"; color:var(--ink-soft); font-weight:400; }
+  .sub-sec:not([open]) > summary::after{ content:"▸"; }
+  button.mat-ok{ margin-left:6px; font:inherit; font-size:10.5px; font-weight:700; padding:1px 8px; border-radius:999px; border:1px solid currentColor; background:transparent; color:var(--blue); cursor:pointer; }
   .warn-pop:not([hidden]){ position:absolute; top:calc(100% + 6px); right:14px; z-index:60; width:360px; max-height:60vh; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 14px 40px rgba(0,0,0,.18); padding:12px 14px; }
   #tipBar{ display:none !important; }
 
@@ -1464,6 +1477,11 @@
   body.pro #proBar { flex:1 1 auto; min-width:0; justify-content:flex-end; gap:8px; }
   body.pro #proBar > * { flex:none; white-space:nowrap; }
   body.pro #proBar .pb-name { flex:0 1 auto; min-width:48px; max-width:none; }
+  #proBar .pb-left { display:flex; align-items:center; gap:12px; margin-right:auto; min-width:0; }
+  #proBar .pb-left .pb-tno { font-size:15px; font-weight:800; opacity:1; }
+  #proBar .pb-left .pb-name { opacity:.85; font-size:14px; max-width:22vw; }
+  /* owner 2026-10-28: no Villa / hugmynd in PRO — Rakel raises problems at the daily meeting instead */
+  body.pro #reportTopBtn, body.pro #reportBtn { display:none !important; }
   body.pro #proBar button { padding:6px 12px; }
   /* Tilboð open: the panel slides over the right of the page, header included — keep the bar clear of it (the brand gives way first) */
   body.pro.tp-open .top { padding-right:calc(var(--tp-w) - 24px); }
@@ -8940,6 +8958,8 @@
   // ---------- left sidebar: collapsible sections ----------
   var SEC_KEY = "bjorninn:kitchenPlanner:sections";
   var openSecs = {}; // the toolbar dropdowns start closed
+  var openSubs = {}; // the folded sections inside Rými
+  var edFrontQ = ""; // the Framhlið search box
   var edFrontTab = null; // the Efni dropdown's Framhlið tab (defaults to the chosen front's own)
   function closeEdMenus(){
     var any = false;
@@ -8970,6 +8990,9 @@
     function sec(key, title, body){
       return '<details class="cat-sec" data-sec="' + key + '"' + (openSecs[key] ? " open" : "") + '><summary>' + title + '</summary><div class="sec-body">' + body + '</div></details>';
     }
+    function sub(key, title, body){ // nested under Rými (owner 2026-10-28): own open state, never closes the parent menu
+      return '<details class="sub-sec" data-sub="' + key + '"' + (openSubs[key] ? " open" : "") + '><summary>' + title + '</summary><div class="sub-body">' + body + '</div></details>';
+    }
     // --- Breyta rými: floor, wall colour, ceiling, shape ---
     var F = KP3D.FLOORS, activeFloor = state.floor || "parket_eik";
     var roomBody = '<div class="cat-title">' + __("Gólfefni") + '</div><div class="fl-grid">' + Object.keys(F).map(function(k){
@@ -8981,11 +9004,11 @@
       '<div class="cat-title">' + __("Lofthæð") + '</div><div class="dim-f" style="margin-bottom:12px;"><input type="number" id="roomHeightInput" data-len min="' + MIN_ROOM_HEIGHT_MM + '" max="3200" step="10" value="' + state.roomHeightMm + '"><small>' + uUnit() + ' · ' + uNum(MIN_ROOM_HEIGHT_MM) + '–' + uNum(3200) + '</small></div>' +
       '<button type="button" class="btn btn-secondary btn-small" data-act="shape">' + __("Breyta lögun og lengd veggja") + '</button>';
     if (!PRO && suggestKinds()) roomBody += '<button type="button" class="reset-link" data-suggest="1" style="margin-top:10px;">' + __("Fá tillögu að innréttingu") + '</button>';
-    var html = sec("rymi", __("Rými"), roomBody);
+    var html = "";
 
     // (cabinets: "＋ Ný eining" sits at the right end of the 3D toolbar, #edNewUnit — moved there 2026-10-02)
     // --- windows + doors ---
-    html += sec("gluggar", __("Gluggar og hindranir"),
+    var secGluggar = sub("gluggar", __("Gluggar og hindranir"),
       item("opening", "gluggi", "window", __("Gluggi"), uDims(WINDOW_DEFAULT.heightMm, WINDOW_DEFAULT.widthMm), true) +
       item("opening", "hurd", "door", __("Hurð"), uDims(DOOR_DEFAULT.heightMm, DOOR_DEFAULT.widthMm), true) +
       item("opening", "gat", "gap", __("Op í vegg (án hurðar)"), uDims(GAP_DEFAULT.heightMm, GAP_DEFAULT.widthMm), true) +
@@ -9000,7 +9023,7 @@
     var L = lighting(), lbtn = function(key, label){ return '<button type="button" class="hw-btn' + (L[key] ? ' active' : '') + '" data-light="' + key + '">' + (L[key] ? '✓ ' : '') + label + '</button>'; };
     var bom = lightingBOM();
     var clLed = isCloset() ? closetLedAll() : null; // a wardrobe: one switch for the LED in every unit (it's set per unit otherwise)
-    var secLysing = sec("lysing", __("Lýsing"),
+    var secLysing = sub("lysing", __("Lýsing"),
       (clLed != null
         ? '<div class="cat-title">' + __("LED í öllum skápum") + '</div><div class="hw-toggle">' + [["", "Ekkert"], ["hlid", "Lóðrétt í hlið"], ["hilla", "Undir efstu hillu"]].map(function(o){
             return '<button type="button" class="hw-btn' + (clLed === o[0] ? ' active' : '') + '" data-closetledall="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div>' +
@@ -9010,7 +9033,7 @@
       '<button type="button" class="btn btn-secondary btn-small" data-act="mood">' + (moodOn ? __("Dagsbirta") : __("Sjá í kvöldstemningu")) + '</button>' +
       (bom ? '<p class="sec-note">' + lightingText(bom).join(" · ") + '</p><p class="sec-note" style="font-size:11px;">' + __(LED_POWER_NOTE) + '</p>' : '<p class="sec-note">' + (clLed != null ? __("Smelltu á skáp til að kveikja eða slökkva á ljósi í honum.") : __("Smelltu á efri skáp til að kveikja eða slökkva á ljósi undir honum einum.")) + '</p>'));
     var DEC = KP3D.DECOR;
-    var secSkraut = sec("skraut", __("Húsgögn"),
+    var secSkraut = sub("skraut", __("Húsgögn"),
       KP3D.DECOR_GROUPS.map(function(gp){
         var kinds = KP3D.decorKindsFor(state.activeCategory).filter(function(k){ return DEC[k].group === gp.key; }); // a wardrobe: bedroom things (user, 2026-10-26)
         if (!kinds.length) return "";
@@ -9024,7 +9047,7 @@
       '<p class="sec-note">' + __("Bara til að sjá rýmið fyrir sér — ekki hluti af pöntuninni. Dragðu hlutina til í 3D.") + '</p>');
     // --- materials, changed right here mid-design (2026-10-10) ---
     var undNow = PRO ? matUndecided() : [];
-    function undTag(key){ return undNow.indexOf(key) >= 0 ? '<em class="mat-und" title="Sjálfgefið — ekki valið enn. Veldu hér eða staðfestu í Yfirferð.">óákveðið</em>' : ''; }
+    function undTag(key){ return undNow.indexOf(key) >= 0 ? '<em class="mat-und" title="Sjálfgefið — ekki valið enn. Veldu hér, eða smelltu til að staðfesta sjálfgefna valið.">óákveðið</em><button type="button" class="mat-ok" data-matok="' + key + '" title="Staðfesta sjálfgefna valið">Staðfesta</button>' : ''; }
     function matSel(key, label, groups, value){ // groups: [{label|null, items:[[val, text]]}]
       var known = groups.some(function(g){ return g.items.some(function(it){ return it[0] === value; }); });
       return '<label class="mat-sel"><span>' + label + undTag(key) + '</span><select data-matsel="' + key + '">' +
@@ -9038,8 +9061,13 @@
     // Framhlið: the Efni step's own tiles and tabs, not a 40-line list of Egger names (2026-10-26)
     var fCats = LOOK_CATEGORIES.filter(function(cg){ return visLooks(cg.key).length; });
     if (!fCats.some(function(cg){ return cg.key === edFrontTab; })) edFrontTab = (state.look && LOOKS[state.look] && fCats.some(function(cg){ return cg.key === LOOKS[state.look].category; })) ? LOOKS[state.look].category : (fCats[0] || {}).key;
-    var frontPick = '<div class="mat-sel"><span>' + __("Framhlið") + undTag("look") + '</span><div class="tabs-row ed-ftabs">' + tabsHTML(fCats, function(k){ return visLooks(k).length; }, edFrontTab, "data-edftab") + '</div>' +
-      '<div class="sw-grid ed-fronts">' + visLooks(edFrontTab).map(function(k){ return lookTileHTML(k, "data-edlook"); }).join("") + '</div></div>';
+    function frontTiles(){
+      var q = edFrontQ.trim().toLowerCase();
+      var keys = q ? Object.keys(LOOKS).filter(function(k){ return !LOOKS[k].hidden && (__(LOOKS[k].label) + " " + LOOKS[k].label + " " + (LOOKS[k].code || "") + " " + k).toLowerCase().indexOf(q) >= 0; }) : visLooks(edFrontTab);
+      return keys.length ? keys.map(function(k){ return lookTileHTML(k, "data-edlook"); }).join("") : '<p class="sec-note">' + __("Ekkert fannst — prófaðu annað orð eða kóða.") + '</p>';
+    }
+    var frontPick = '<div class="mat-sel"><span>' + __("Framhlið") + undTag("look") + '</span><input type="search" class="ed-fsearch" placeholder="' + __("Leita: nafn eða kóði (t.d. W1000)") + '" value="' + escapeHtmlPro(edFrontQ) + '" autocomplete="off"><div class="tabs-row ed-ftabs"' + (edFrontQ.trim() ? ' style="display:none"' : '') + '>' + tabsHTML(fCats, function(k){ return visLooks(k).length; }, edFrontTab, "data-edftab") + '</div>' +
+      '<div class="sw-grid ed-fronts">' + frontTiles() + '</div></div>';
     var hasTop = (categoryDef(state.activeCategory) || {}).worktop !== false; // no Borðplata in a wardrobe
     var DAT = { eldhus:"Eldhúsi", fataskapar:"Fataskápum", bad:"Baðherbergi", thvottahus:"Þvottahúsi" };
     var mfCat = state.matFrom && String(state.matFrom).split(":")[0];
@@ -9061,7 +9089,8 @@
     // PRO (audit #8): materials nobody picked yet are named on the closed Efni button, and the menu opens by itself once per project
     var efniTitle = __("Efni") + (PRO && undNow.length ? ' <em class="mat-und">' + undNow.length + ' óákveðið</em>' : "");
     if (PRO && undNow.length && state.step === "editor"){ var efKey = STORAGE_KEY + ":efniOpened"; try{ if (!localStorage.getItem(efKey)){ localStorage.setItem(efKey, "1"); openSecs.efni = true; } }catch(e){} }
-    html += sec("efni", efniTitle, matBody) + secLysing + secSkraut; // Rými → Gluggar og hindranir → Efni → Lýsing → Húsgögn (user, 2026-10-24)
+    // Only Rými and Efni on the bar (owner 2026-10-28); Gluggar og hindranir, Lýsing and Húsgögn are folded inside Rými
+    html = sec("rymi", __("Rými"), roomBody + secGluggar + secLysing + secSkraut) + sec("efni", efniTitle, matBody);
     var bodyScroll = {}; host.querySelectorAll(".cat-sec[open] > .sec-body").forEach(function(b){ bodyScroll[b.parentNode.dataset.sec] = b.scrollTop; });
     var frontsScroll = (host.querySelector(".ed-fronts") || {}).scrollTop || 0;
     host.innerHTML = html;
@@ -9076,10 +9105,22 @@
         openSecs[d.dataset.sec] = d.open;
       });
     });
-    host.querySelectorAll("[data-edftab]").forEach(function(b){ b.addEventListener("click", function(){ edFrontTab = b.dataset.edftab; renderCatalogPanel(); var g = host.querySelector(".ed-fronts"); if (g) g.scrollTop = 0; }); });
-    host.querySelectorAll("[data-edlook]").forEach(function(b){
-      b.addEventListener("click", function(){ if (b.dataset.edlook === state.look) return; selectLookQuiet(b.dataset.edlook); save(); refreshAfterEdit(); renderCatalogPanel(); });
+    host.querySelectorAll(".sub-sec").forEach(function(d){ d.addEventListener("toggle", function(){ if (d.isConnected) openSubs[d.dataset.sub] = d.open; }); });
+    var fq = host.querySelector(".ed-fsearch");
+    if (fq) fq.addEventListener("input", function(){
+      edFrontQ = fq.value;
+      var g = host.querySelector(".ed-fronts"); if (!g) return;
+      g.innerHTML = frontTiles();
+      host.querySelector(".ed-ftabs").style.display = edFrontQ.trim() ? "none" : "";
+      g.querySelectorAll("[data-edlook]").forEach(wireLook);
     });
+    host.querySelectorAll("[data-edftab]").forEach(function(b){ b.addEventListener("click", function(){ edFrontTab = b.dataset.edftab; renderCatalogPanel(); var g = host.querySelector(".ed-fronts"); if (g) g.scrollTop = 0; }); });
+    function wireLook(b){
+      b.addEventListener("click", function(){
+        if (b.dataset.edlook === state.look){ if (state.matAuto && state.matAuto.look != null){ delete state.matAuto.look; save(); renderCatalogPanel(); } return; } // picking the default confirms it
+        selectLookQuiet(b.dataset.edlook); if (state.matAuto) delete state.matAuto.look; save(); refreshAfterEdit(); renderCatalogPanel(); });
+    }
+    host.querySelectorAll("[data-edlook]").forEach(wireLook);
     host.querySelectorAll("[data-hcolor]").forEach(function(b){ b.addEventListener("click", function(){ pickHandleColor(b.dataset.hcolor); refreshAfterEdit(); renderCatalogPanel(); }); });
     host.querySelectorAll("[data-decor-add]").forEach(function(b){ b.addEventListener("click", function(){ addDecor(b.dataset.decorAdd); }); });
     host.querySelectorAll("[data-suggest]").forEach(function(b){ b.addEventListener("click", function(){ var sec0 = b.closest("details"); if (sec0) sec0.open = false; applySuggestion(false); }); });
@@ -9091,6 +9132,7 @@
         save(); refreshAfterEdit(); renderCatalogPanel();
       });
     });
+    host.querySelectorAll("[data-matok]").forEach(function(b){ b.addEventListener("click", function(ev){ ev.preventDefault(); if (state.matAuto) delete state.matAuto[b.dataset.matok]; save(); refreshAfterEdit(); renderCatalogPanel(); }); });
     host.querySelectorAll("[data-matsel]").forEach(function(sel){
       sel.addEventListener("change", function(){
         var key = sel.dataset.matsel, v = sel.value || null;
@@ -9100,6 +9142,7 @@
         }
         if (key === "look") selectLookQuiet(v);
         else state[key] = v;
+        if (state.matAuto) delete state.matAuto[key]; // a pick — even the default — settles it
         if (key === "look2" && !v) surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ delete b.front2; }); }); // no FR2 any more → every cabinet back on FR1
         if (key === "handle" && (!handleColorable(v) || (HANDLES[v].finishes && HANDLES[v].finishes.indexOf(state.handleColor) < 0))) state.handleColor = null;
         save(); refreshAfterEdit(); renderCatalogPanel();
@@ -18679,7 +18722,7 @@
       : '<span class="pb-stat' + (!msg && proDirty() ? ' pb-dirty' : '') + '">' + (msg ? escapeHtmlPro(msg) : proDirty() ? '● óvistað' : (PRO.locked ? 'opið til breytinga · ' : '') + '✓ vistað' +(state.proSavedAt ? ' ' + escapeHtmlPro(proClock(state.proSavedAt)) : '')) + '</span>';
     var off = function(cond, why){ return cond ? ' disabled title="' + escapeHtmlPro(why) + '"' : ''; };
     var needsDot = PRO.needsReview ? '<span class="pb-dot" title="Teikning frá viðskiptavini bíður yfirferðar"></span>' : "";
-    el.innerHTML = backBtn + '<span>PRO</span>' + proNameHtml() + stat +
+    el.innerHTML = '<span class="pb-left">' + proNameHtml() + backBtn + '</span>' + stat +
       // Vista saves straight to Airtable (one click, Cmd/Ctrl+S); Yfirferð is the checklist and the gated "Klár til framleiðslu"
       '<button type="button" id="proSave" class="pb-save"' + (locked ? off(true, lockWhy) : (PRO.ready && !pc.saving ? ' title="Vista í Airtable (Cmd+S)"' : ' disabled title="' + (pc.saving ? "Vista…" : "Verkefnið er enn að opnast") + '"')) + '>Vista</button>' +
       '<button type="button" id="proYfirferd" class="pb-chk' + (pc.open ? ' on' : '') + '"' + (locked ? off(true, lockWhy) : (PRO.ready ? ' title="Yfirferð: listi yfir það sem þarf að vera klárt áður en verkefnið fer í framleiðslu"' : ' disabled')) + '>Yfirferð<span class="pb-prog" id="proProg">' + escapeHtmlPro(pc.badge || "") + '</span></button>' +
@@ -18687,7 +18730,6 @@
       '<button type="button" id="proWorkDraw" title="2D vinnuteikningar fyrir verkstæðið">Teikningar</button>' +
       '<button type="button" id="proDoorList"' + (locked ? off(true, lockWhy) : ' title="Innihurðir fyrir allt heimilið (HU = hurð, ein lína í pöntun fyrir hverja hurð)"') + '>Hurðir</button>' +
       '<button type="button" id="proMeasure"' + (locked ? off(true, lockWhy) : ' title="Mælingarblað: sláðu inn málin á staðnum beint í teikninguna"') + '>Mæling</button>' +
-      '<button type="button" id="proSmidaCnc" title="' + (PRO.legacy ? "Eldra verkefni: lamir, hillur, ofn og innskúffur fyrir CNC eru stillt beint á framleiðslulínurnar (Eyðublöð) sem eru til" : "Smíða & CNC (/smida): hliðar, frontar og það sem CNC borar — opnast í nýjum flipa") + '">Smíða & CNC ↗</button>' +
       '<button type="button" id="proMoreBtn" class="pb-more' + (pm.open ? ' on' : '') + '" aria-haspopup="menu" aria-expanded="' + !!pm.open + '" title="Fleiri aðgerðir">Meira' + needsDot + icon("down", 12) + '</button>';
     var $ = function(id){ return el.querySelector(id); }, on = function(id, fn){ var b = $(id); if (b && !b.disabled) b.addEventListener("click", fn); };
     on("#proUnlock", proUnlock);
@@ -18697,7 +18739,6 @@
     on("#proWorkDraw", openWorkDrawings);
     on("#proDoorList", function(){ openDoors("list"); }); // the customer's HU list + Hanna, in mm (2026-10-26)
     on("#proMeasure", openMeasurePanel);
-    on("#proSmidaCnc", proOpenSmidaEy);
     on("#proMoreBtn", function(ev){ ev.stopPropagation(); proMoreToggle(!pm.open); });
     proMoreRender();
     proCheckSoon();
@@ -18715,7 +18756,6 @@
     var items = [];
     if (proFromStudio()){ items.push('<button type="button" role="menuitem" id="proStudioBtn" title="Það sem viðskiptavinurinn sendi inn úr Studio: svör, athugasemd, tengiliður, rými og sérkerfi">Frá Studio</button>'); go.proStudioBtn = function(){ var p = document.getElementById("proStudio"); proStudioRender(!p || p.hidden); }; }
     if (PRO.needsReview){ items.push('<button type="button" role="menuitem" id="proReviewed" title="Teikning frá viðskiptavini: merktu hana yfirfarna (hún fer þá af „Til yfirferðar“ listanum)">Merkja teikningu yfirfarna</button>'); go.proReviewed = proMarkReviewed; }
-    items.push('<button type="button" role="menuitem" id="proCnc" title="CNC-útflutningur (/cnc) fyrir þetta verkefni — opnast í nýjum flipa">CNC-útflutningur ↗</button>'); go.proCnc = function(){ window.open(proCncUrl(), "_blank", "noopener"); };
     m.__go = go; m.innerHTML = items.join(""); m.hidden = false;
     var r = b.getBoundingClientRect(); m.style.top = Math.round(r.bottom + 6) + "px"; m.style.right = Math.max(8, Math.round(window.innerWidth - r.right)) + "px";
   }

@@ -588,6 +588,8 @@
     "Eins og á myndinni": "As in the picture",
     "Skúffukerfi": "Drawer system",
     "Sjá myndir af efnunum": "See pictures of the materials",
+    "Ekkert fannst — prófaðu annað orð eða kóða.": "Nothing found — try another word or code.",
+    "Leita: nafn eða kóði (t.d. W1000)": "Search: name or code (e.g. W1000)",
     "Efni": "Materials",
     "Skipta í {name}?\n\n{n} skápur með skúffum breytist — skúffuhæðir og vörur (V2) fylgja nýja kerfinu.": "Switch to {name}?\n\n{n} cabinet with drawers will change — drawer heights and products (V2) follow the new system.",
     "Skipta í {name}?\n\n{n} skápar með skúffum breytast — skúffuhæðir og vörur (V2) fylgja nýja kerfinu.": "Switch to {name}?\n\n{n} cabinets with drawers will change — drawer heights and products (V2) follow the new system.",
