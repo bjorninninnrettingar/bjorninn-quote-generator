@@ -34,7 +34,7 @@
   var NAV = [
     { id: "home",    icon: "home", label: "Yfirlit",         roles: ["eigandi"], href: "/skrifstofa" },
     { id: "ferli",   icon: "plan", label: "Skipulagsferli",  roles: ["allt"], href: "/ferli" },
-    { id: "verkst",  icon: "shop", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
+    { id: "verkst",  icon: "shop", label: "Framleiðsla",     roles: ["allt"], href: "/framleidsla" },
     { id: "crm",     icon: "people", label: "CRM",             roles: ["allt"], href: "/crm" },
     // PRO home (2026-10-23) — a landing screen in kitchen-planner.html (?pro=home) so staff can start or
     // find a project without first going through CRM/Ferli's own per-project "Opna í hönnuðinum" link.

@@ -2,88 +2,147 @@
 <html lang="is">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="robots" content="noindex" />
-<title>Verkstæði — Björninn</title>
+<title>Framleiðsla — Björninn</title>
 <link rel="icon" href="/icons/icon-192.png" />
 <script>
-// Apply a saved dark-theme choice before first paint (avoids a light→dark flash) — same pattern
-// app.html/verk.html already use for the floor PWA, see office-shell.js's theme comment.
 (function () {
   try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
 })();
 </script>
 <style>
-  /* framleidsla.html — "Verkstæði" (2026-10-18), the office-side production overview the user asked
-     for by name: "í skrifstofa get ég séð það sem appið sér, ég smelli á verkstæði og fæ betra
-     yfirlit yfir hvað er að gerast á gólfinu. Ekki bogað niður í öðru noise." Not new floor
-     functionality — /verk, /app, /cutlist, /cnc, /fraesing already cover that (confirmed by reading
-     them before building anything here). This is a clean, desktop, noise-free OFFICE view of the
-     same production data, assembled from signals that already exist: the floor's own
-     "Staða í framleiðslu" stage, Sögunarlisti's Skurðarskrá (cutty-exported signal, same one /ferli's
-     Yfirfara chip already uses), the "6. CNC yfirfarið" flag (set automatically by cnc.html's export
-     since yesterday), and Pantaðir-listar open-order status (same logic /ferli's 📦 chip uses).
-     Read-only — stage advancement stays /verk's job, carefully gated there; this page only links out
-     to the real tools for taking action. */
+  /* framleidsla.html (rewritten 2026-10-28, Apple pass) — office view of what is in production.
+     Why someone opens it: (1) what is late / due soon, (2) where a job stands, (3) what has happened
+     in it, (4) glance at the drawings, (5) what to watch out for. The list is sorted by urgency
+     (no kanban — nothing here is dragged); the project page answers 2–5 on one screen.
+     Reads only; same proxy rules as before (Tækifæri with k, Pantaðir, Sögunarlisti, /api/virkni). */
   :root {
-    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
-    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --bg:#f5f5f7; --surface:#ffffff; --line:#e6e6ea; --sidebar:#1b2430;
+    --text:#1d1d1f; --muted:#6e6e73; --dim:#a1a1a6;
     --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --warn-bg:#fdf2d9; --good-bg:#e5f6ea; --bad-bg:#fbe4e1; --acc-bg:#e6f0fa;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   :root[data-theme="dark"] {
-    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
-    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
+    --bg:#101216; --surface:#1a1d23; --line:#2a2e37;
+    --text:#f2f2f5; --muted:#9a9aa3; --dim:#6b6b73;
     --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
+    --warn-bg:#332a10; --good-bg:#102414; --bad-bg:#3a1a17; --acc-bg:#14283d;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
-  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
+  button { font:inherit; color:inherit; }
+  a { color:inherit; }
 
   #shell { display:flex; min-height:100vh; }
   .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; height:100vh; position:sticky; top:0; overflow-y:auto; }
-  .sidebar .brand { padding:0 18px 18px; font-weight:700; color:#fff; font-size:1.05rem; border-bottom:1px solid #2a3442; margin-bottom:10px; }
   .sidebar nav { display:flex; flex-direction:column; gap:1px; flex:1; }
   .sidebar nav a { display:flex; align-items:center; gap:10px; padding:9px 18px; text-decoration:none; color:#cfd5dd; font-size:.88rem; }
   .sidebar nav a:hover { background:#242e3b; }
   .sidebar nav a.active { background:var(--accent); color:#fff; }
-  .sidebar .user { padding:14px 18px 0; border-top:1px solid #2a3442; margin-top:10px; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; }
-  .sidebar .user button { background:none; border:none; color:#8aa4c7; font:inherit; font-size:.8rem; cursor:pointer; }
 
-  .main { flex:1; min-width:0; padding:24px 28px 40px; max-width:1500px; }
-  .pageHd { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px; }
-  .pageHd h1 { font-size:1.35rem; font-weight:700; }
-  .pageHd a { color:var(--accent); text-decoration:none; font-size:.85rem; }
+  .main { flex:1; min-width:0; padding:44px 48px 80px; max-width:1180px; }
+  .back { display:inline-block; color:var(--accent); text-decoration:none; font-size:.9rem; margin-bottom:14px; }
+  .back:hover { text-decoration:underline; }
+  .back[hidden] { display:none; }
+  h1 { font-size:2rem; font-weight:700; letter-spacing:-.02em; }
+  .lead { color:var(--muted); font-size:.95rem; margin:4px 0 34px; }
 
-  .board { display:flex; gap:14px; overflow-x:auto; padding-bottom:10px; }
-  .col { flex:0 0 260px; }
-  .col h2 { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.02em; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
-  .col h2 .colLabel { flex:1; }
-  .col h2 .cnt { color:var(--dim); font-weight:500; }
-  .col h2 .colorDot { width:8px; height:8px; border-radius:50%; flex:none; }
-  .cards { display:flex; flex-direction:column; gap:8px; }
-  .kcard { background:var(--surface); border-radius:12px; padding:11px 13px; box-shadow:0 1px 3px rgba(0,0,0,.05); text-decoration:none; color:var(--text); display:block; font-size:.86rem; font-weight:600; }
-  .kcard .sub { font-size:.74rem; color:var(--muted); font-weight:500; margin-top:4px; }
-  .kcard .late { color:var(--bad); }
-  .empty { text-align:center; color:var(--muted); padding:16px 0; font-size:.8rem; }
-  .loading { text-align:center; color:var(--muted); padding:60px 0; }
+  .secTitle { font-size:.78rem; font-weight:600; color:var(--muted); letter-spacing:.02em; margin:0 4px 10px; display:flex; align-items:center; gap:8px; }
+  .secTitle.bad { color:var(--bad); }
+  .group { margin-bottom:34px; }
+  .list { background:var(--surface); border-radius:14px; overflow:hidden; }
+  .prow { display:flex; align-items:center; gap:18px; padding:16px 20px; border-bottom:1px solid var(--line); text-decoration:none; }
+  .prow:last-child { border-bottom:none; }
+  .prow:hover { background:var(--bg); }
+  .prow:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .pn { flex:1; min-width:0; }
+  .pn .t { font-weight:600; font-size:1rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pn .s { font-size:.84rem; color:var(--muted); margin-top:2px; }
+  .pn .s.late { color:var(--bad); font-weight:600; }
+  .pn .s.soon { color:var(--warn); font-weight:600; }
+  .pct { width:140px; flex:none; }
+  .pct .n { font-size:.8rem; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; margin-bottom:5px; }
+  .bar { height:5px; border-radius:3px; background:var(--line); overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--accent); border-radius:3px; }
+  .bar i.g { background:var(--good); }
+  .chev { color:var(--dim); flex:none; }
 
-  .projHd { background:var(--surface); border-radius:12px; padding:14px 18px; margin-bottom:18px; }
-  .projHd .nm { font-size:1.1rem; font-weight:700; }
-  .projHd .st { color:var(--muted); font-size:.85rem; margin-top:3px; }
-  .progBar { background:var(--line); border-radius:999px; height:8px; margin-top:10px; overflow:hidden; }
-  .progBar .fill { background:var(--good); height:100%; }
-  .projHd .progLbl { font-size:.74rem; color:var(--muted); margin-top:5px; }
+  .chip { display:inline-block; font-size:.72rem; font-weight:600; padding:2px 10px; border-radius:999px; background:var(--bg); color:var(--muted); }
+  .chip.ok { background:var(--good-bg); color:var(--good); }
+  .chip.warn { background:var(--warn-bg); color:var(--warn); }
+  .chip.bad { background:var(--bad-bg); color:var(--bad); }
+  .chip.acc { background:var(--acc-bg); color:var(--accent); }
 
-  .pSection { background:var(--surface); border-radius:12px; padding:16px 18px; margin-bottom:12px; border:1px solid var(--line); }
-  .pSection h3 { font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
-  .pSection h3 a { font-size:.78rem; font-weight:600; color:var(--accent); text-transform:none; letter-spacing:0; text-decoration:none; }
-  .pRow { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:.86rem; }
-  .pRow:last-child { border-bottom:none; }
-  .pRow .k { color:var(--muted); }
-  .chip { font-size:.7rem; font-weight:700; padding:2px 9px; border-radius:999px; white-space:nowrap; }
-  .chip.ok { background:var(--good); color:#fff; }
-  .chip.warn { background:#fdf2d9; color:var(--warn); }
-  .chip.bad { background:#fbe9e7; color:var(--bad); }
+  .note { color:var(--muted); font-size:.92rem; padding:22px; }
+  .note.err { color:var(--bad); }
+  .link { background:none; border:none; color:var(--accent); cursor:pointer; font-size:.88rem; padding:2px 4px; }
+  .link:hover { text-decoration:underline; }
+  .skel { height:62px; border-bottom:1px solid var(--line); background:linear-gradient(90deg,var(--surface),var(--bg),var(--surface)); background-size:200% 100%; animation:sh 1.4s infinite; }
+  @keyframes sh { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* project page */
+  .hero { margin-bottom:28px; }
+  .hero .sub { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:8px; color:var(--muted); font-size:.95rem; }
+  .hero .sub .late { color:var(--bad); font-weight:600; }
+  .hero .sub .soon { color:var(--warn); font-weight:600; }
+  .cols { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:28px; align-items:start; }
+  .card { background:var(--surface); border-radius:14px; padding:20px; margin-bottom:22px; }
+  .card h3 { font-size:.78rem; font-weight:600; color:var(--muted); letter-spacing:.02em; margin-bottom:14px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:6px; }
+  .stat .l { font-size:.76rem; color:var(--muted); margin-bottom:2px; }
+  .stat .v { font-size:1.5rem; font-weight:700; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+  .stat .v small { font-size:.9rem; font-weight:500; color:var(--muted); }
+  .stat .bar { margin-top:8px; }
+  .watch { background:var(--warn-bg); }
+  .watch h3 { color:var(--warn); }
+  .wn { margin-bottom:14px; }
+  .wn:last-child { margin-bottom:0; }
+  .wn .k { font-size:.76rem; font-weight:600; color:var(--warn); margin-bottom:2px; }
+  .wn .v { font-size:.93rem; white-space:pre-wrap; }
+  .plain .wn .k { color:var(--muted); }
+
+  .draws { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+  .dr { display:block; background:var(--bg); border-radius:10px; overflow:hidden; text-decoration:none; border:none; cursor:pointer; text-align:left; }
+  .dr:hover { outline:2px solid var(--accent); }
+  .dr .im { height:110px; background:var(--line) center/cover no-repeat; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:.8rem; font-weight:600; }
+  .dr .cap { padding:8px 10px; font-size:.78rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .feed { list-style:none; }
+  .feed li { display:flex; gap:14px; padding:10px 0; border-bottom:1px solid var(--line); font-size:.92rem; }
+  .feed li:last-child { border-bottom:none; }
+  .feed .tm { flex:none; width:92px; color:var(--muted); font-size:.8rem; padding-top:1px; font-variant-numeric:tabular-nums; }
+  .feed .tx { flex:1; min-width:0; }
+  .feed .hv { color:var(--muted); font-size:.8rem; }
+
+  .chk { list-style:none; }
+  .chk li { display:flex; align-items:center; gap:10px; padding:8px 0; font-size:.92rem; }
+  .chk svg { flex:none; }
+  .chk .d { color:var(--dim); }
+  .chk .y { color:var(--good); }
+  .chk .r { margin-left:auto; font-size:.78rem; color:var(--muted); text-align:right; }
+  .tools { display:flex; flex-direction:column; }
+  .tools a { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line); text-decoration:none; font-size:.92rem; color:var(--accent); }
+  .tools a:last-child { border-bottom:none; }
+  .tools a:hover { text-decoration:underline; }
+  .tools a span { color:var(--dim); }
+
+  .lb { position:fixed; inset:0; background:rgba(0,0,0,.86); z-index:100; display:none; align-items:center; justify-content:center; }
+  .lb.open { display:flex; }
+  .lb img { max-width:92vw; max-height:88vh; border-radius:6px; background:#fff; }
+  .lb .cap { position:absolute; bottom:16px; left:0; right:0; text-align:center; color:#ddd; font-size:.85rem; }
+  .lb button { position:absolute; background:rgba(255,255,255,.14); border:none; color:#fff; width:44px; height:44px; border-radius:50%; font-size:1.5rem; cursor:pointer; }
+  .lb button:hover { background:rgba(255,255,255,.28); }
+  .lb .x { top:18px; right:18px; } .lb .pv { left:18px; } .lb .nx { right:18px; }
+
+  @media (max-width:980px) { .cols { grid-template-columns:1fr; } }
+  @media (max-width:760px) {
+    #shell { display:block; } .sidebar { display:none; }
+    .main { padding:28px 16px 60px; } h1 { font-size:1.6rem; }
+    .pct { width:80px; } .prow { padding:14px; gap:12px; }
+    .stats { grid-template-columns:1fr 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -94,16 +153,13 @@
     <div id="officeSidebarBottom"></div>
   </div>
   <div class="main">
-    <div class="pageHd">
-      <h1 id="pageTitle">Verkstæði</h1>
-      <a href="/framleidsla" id="backToBoard" style="display:none;">← Öll verk</a>
-    </div>
-
-    <div id="loading" class="loading">Sæki…</div>
-    <div class="board" id="board" style="display:none;"></div>
-    <div id="detail" style="display:none;"></div>
+    <a class="back" id="back" href="/framleidsla" hidden>‹ Öll verk</a>
+    <h1 id="title">Framleiðsla</h1>
+    <div class="lead" id="lead"></div>
+    <div id="view"><div class="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></div>
   </div>
 </div>
+<div class="lb" id="lb"><button class="x" id="lbX" aria-label="Loka">&times;</button><button class="pv" id="lbP" aria-label="Fyrri">&lsaquo;</button><img id="lbI" alt="" /><button class="nx" id="lbN" aria-label="Næsta">&rsaquo;</button><div class="cap" id="lbC"></div></div>
 
 <script src="/office-shell.js"></script>
 <script>
@@ -116,167 +172,249 @@
   var shellInfo = window.OfficeShell.boot("verkst");
   if (!shellInfo) return;
   var k = shellInfo.k;
-  var params = new URLSearchParams(location.search);
-  var recordId = params.get("recordId");
+  var recordId = new URLSearchParams(location.search).get("recordId");
+  var kq = k ? "&k=" + encodeURIComponent(k) : "";
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function arr(v) { return Array.isArray(v) ? v : (v == null || v === "" ? [] : [v]); }
+  function txt(v) { return arr(v).filter(function (x) { return x != null && x !== ""; }).join(" / ").trim(); }
+  function nn(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+  var CHEV = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  var TICK = '<svg class="y" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/></svg>';
+  var OPEN = '<svg class="d" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/></svg>';
 
   function api(path, extra) {
-    var u = "/api/airtable?path=" + encodeURIComponent(path);
-    if (k) u += "&k=" + encodeURIComponent(k);
-    if (extra) u += "&" + extra;
-    return fetch(u).then(function (r) { return r.json(); });
+    var u = "/api/airtable?path=" + encodeURIComponent(path) + kq + (extra ? "&" + extra : "");
+    return fetch(u).then(function (r) { return r.json().then(function (d) { if (!r.ok || d.error) throw new Error((d.error && (d.error.message || d.error)) || ("HTTP " + r.status)); return d; }); });
   }
-  function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
-  function eqFilter(fieldPrefixEncoded, name) {
-    var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    return fieldPrefixEncoded + "%3D" + encodeURIComponent('"' + e + '"');
+  function retry(msg, fn) {
+    var id = "r" + Math.random().toString(36).slice(2);
+    setTimeout(function () { var b = $(id); if (b) b.addEventListener("click", fn); }, 0);
+    return '<div class="list"><div class="note err">' + esc(msg) + ' <button class="link" id="' + id + '" type="button">Reyna aftur</button></div></div>';
   }
-  // Project-link filters (2026-10-27): {Link}="<name>" never matches a project whose name has a
-  // comma ("…, 112 Reykjavík") — Airtable quotes such names when it stringifies a link field. So
-  // match with FIND over ARRAYJOIN and then keep only records whose link really holds this
-  // project's record id (FIND alone could also hit a longer name that contains this one).
+  // Project-link filters: {Link}="<name>" never matches a name with a comma — match with FIND over
+  // ARRAYJOIN, then keep only rows whose link really holds this project's record id.
   function linkFilter(fieldPrefixEncoded, name) {
     var e = String(name).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     return encodeURIComponent('FIND("' + e + '", ARRAYJOIN(') + fieldPrefixEncoded + encodeURIComponent(')) > 0');
   }
   function onlyProject(recs, linkField, projectId) {
-    return (recs || []).filter(function (r) {
-      var l = (r.fields || {})[linkField];
-      return !Array.isArray(l) || l.indexOf(projectId) !== -1;
-    });
+    return (recs || []).filter(function (r) { var l = (r.fields || {})[linkField]; return !Array.isArray(l) || l.indexOf(projectId) !== -1; });
   }
 
+  var MONTHS = ["jan.", "feb.", "mars", "apr.", "maí", "júní", "júlí", "ág.", "sept.", "okt.", "nóv.", "des."];
+  function ymd(d) { return new Date(d).toISOString().slice(0, 10); }
+  function todayStr() { return new Date().toLocaleDateString("sv-SE", { timeZone: "Atlantic/Reykjavik" }); }
+  function dateIs(s) { if (!s) return ""; var p = String(s).slice(0, 10).split("-"); return (+p[2]) + ". " + MONTHS[+p[1] - 1]; }
+  function daysTo(s) { return Math.round((Date.parse(String(s).slice(0, 10)) - Date.parse(todayStr())) / 86400000); }
+  function dueText(s, delivered) {
+    if (!s) return { t: "Afhendingardagur vantar", c: delivered ? "" : "soon" };
+    var d = daysTo(s), base = "Afhending " + dateIs(s);
+    if (delivered) return { t: base, c: "" };
+    if (d < 0) return { t: base + " · " + (-d) + (d === -1 ? " degi" : " dögum") + " of seint", c: "late" };
+    if (d === 0) return { t: base + " · í dag", c: "soon" };
+    return { t: base + " · eftir " + d + (d === 1 ? " dag" : " daga"), c: d <= 7 ? "soon" : "" };
+  }
 
   var STAGES = [
-    { match: "Tilbúið til framleiðslu 📋", label: "Tilbúið", color: "#e9b000" },
-    { match: "Verk í vinnslu 🔨", label: "Í vinnslu", color: "#0f6cbd" },
-    { match: "Samsetning og pökkun 🪛📦", label: "Samsetning", color: "#8250df" },
-    { match: "Má Afhenda 🚚", label: "Má afhenda", color: "#1a7d36" },
+    { match: "Tilbúið til framleiðslu 📋", label: "Tilbúið til framleiðslu" },
+    { match: "Verk í vinnslu 🔨", label: "Í vinnslu" },
+    { match: "Samsetning og pökkun 🪛📦", label: "Samsetning og pökkun" },
+    { match: "Má Afhenda 🚚", label: "Má afhenda" },
   ];
+  function stageLabel(m) { var s = STAGES.filter(function (x) { return x.match === m; })[0]; return s ? s.label : (m || "—"); }
   function prioRank(p) { var m = String(p || "").match(/^(\d)/); return m ? Number(m[1]) : 9; }
+  var DATE = "Áætlaður afhendingardagur Björninn (internal)";
 
-  if (!recordId) { loadBoard(); } else { loadDetail(recordId); }
-
-  // ======================= BOARD =======================
-  function loadBoard() {
-    document.getElementById("loading").style.display = "block";
+  // ============ LIST ============
+  function loadList() {
+    $("view").innerHTML = '<div class="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
     var fml = 'AND({Staða í söluferli}="🏆 Tækifæri unnið",{Staða í skipulagi}="Klárt til framleiðslu",{Staða í framleiðslu}!="",{Staða í framleiðslu}!="Afhent (LOKIÐ ✅)")';
-    api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) +
-      "&fields%5B%5D=Heiti%20t%C3%A6kif%C3%A6ris%20%2F%20verkefnis&fields%5B%5D=Sta%C3%B0a%20%C3%AD%20framlei%C3%B0slu" +
-      "&fields%5B%5D=Forgangur%20framlei%C3%B0slu%20%F0%9F%A5%87&fields%5B%5D=" + encodeURIComponent("Áætlaður afhendingardagur Björninn (internal)") +
-      "&fields%5B%5D=" + encodeURIComponent("Framvinda framleiðslu [weighted]") + "&pageSize=100")
-      .then(function (d) {
-        document.getElementById("loading").style.display = "none";
-        document.getElementById("board").style.display = "flex";
-        renderBoard(d.records || []);
-      });
+    var fields = ["Heiti tækifæris / verkefnis", "Staða í framleiðslu", "Forgangur framleiðslu 🥇", DATE, "Framvinda framleiðslu [weighted]"]
+      .map(function (f) { return "fields%5B%5D=" + encodeURIComponent(f); }).join("&");
+    api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&" + fields + "&pageSize=100").then(function (d) { renderList(d.records || []); })
+      .catch(function () { $("view").innerHTML = retry("Tókst ekki að sækja verkin.", loadList); });
   }
 
-  function renderBoard(projects) {
-    var DATE_FIELD = "Áætlaður afhendingardagur Björninn (internal)";
-    var today = new Date().toISOString().slice(0, 10);
-    var board = document.getElementById("board");
-    board.innerHTML = "";
-    var cols = STAGES.map(function (s) { return { label: s.label, color: s.color, match: s.match, items: [] }; });
-    projects.forEach(function (p) {
-      var idx = STAGES.findIndex(function (s) { return s.match === p.fields["Staða í framleiðslu"]; });
-      if (idx === -1) return;
-      cols[idx].items.push(p);
+  function rowHtml(p) {
+    var f = p.fields, delivered = f["Staða í framleiðslu"] === STAGES[3].match;
+    var due = dueText(f[DATE], delivered), pct = Math.round(nn(f["Framvinda framleiðslu [weighted]"]) * 100);
+    return '<a class="prow" href="/framleidsla?recordId=' + p.id + kq + '">' +
+      '<div class="pn"><div class="t">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</div>' +
+      '<div class="s ' + due.c + '">' + esc(due.t) + '</div></div>' +
+      '<div class="pct"><div class="n">' + (pct ? pct + "%" : "Ekki hafið") + '</div><div class="bar"><i class="' + (pct >= 100 ? "g" : "") + '" style="width:' + Math.min(100, pct) + '%"></i></div></div>' + CHEV + "</a>";
+  }
+
+  function renderList(ps) {
+    $("lead").textContent = "";
+    if (!ps.length) { $("view").innerHTML = '<div class="list"><div class="note">Ekkert verk er í framleiðslu núna.</div></div>'; return; }
+    var today = todayStr(), late = [], going = [], ready = [], done = [];
+    ps.forEach(function (p) {
+      var st = p.fields["Staða í framleiðslu"], d = p.fields[DATE];
+      if (st === STAGES[3].match) done.push(p);
+      else if (d && d < today) late.push(p);
+      else if (st === STAGES[0].match) ready.push(p);
+      else going.push(p);
     });
-    cols.forEach(function (col) {
-      col.items.sort(function (a, b) {
-        var pa = prioRank(a.fields["Forgangur framleiðslu 🥇"]), pb = prioRank(b.fields["Forgangur framleiðslu 🥇"]);
-        if (pa !== pb) return pa - pb;
-        var da = a.fields[DATE_FIELD] || "9999", db = b.fields[DATE_FIELD] || "9999";
-        return da < db ? -1 : da > db ? 1 : 0;
+    function srt(a, b) {
+      var pa = prioRank(a.fields["Forgangur framleiðslu 🥇"]), pb = prioRank(b.fields["Forgangur framleiðslu 🥇"]);
+      if (pa !== pb) return pa - pb;
+      var da = a.fields[DATE] || "9999", db = b.fields[DATE] || "9999";
+      return da < db ? -1 : da > db ? 1 : 0;
+    }
+    [late, going, ready, done].forEach(function (g) { g.sort(srt); });
+    var bits = [ps.length - done.length + " í framleiðslu"];
+    if (late.length) bits.push(late.length + " of sein");
+    if (done.length) bits.push(done.length + " má afhenda");
+    $("lead").textContent = bits.join(" · ");
+    function grp(title, items, cls) {
+      return items.length ? '<div class="group"><div class="secTitle ' + (cls || "") + '">' + title + " · " + items.length + '</div><div class="list">' + items.map(rowHtml).join("") + "</div></div>" : "";
+    }
+    $("view").innerHTML = grp("Of seint", late, "bad") + grp("Í vinnslu", going) + grp("Tilbúið til að byrja", ready) + grp("Má afhenda", done);
+  }
+
+  // ============ PROJECT ============
+  function loadProject(id) {
+    $("back").hidden = false;
+    $("title").textContent = "";
+    $("view").innerHTML = '<div class="list"><div class="skel"></div><div class="skel"></div></div>';
+    api(TAEKIFAERI + "/" + id).then(function (proj) { renderProject(proj); })
+      .catch(function (e) { $("view").innerHTML = /404|NOT_FOUND/i.test(e.message) ? '<div class="list"><div class="note">Verkið fannst ekki.</div></div>' : retry("Tókst ekki að sækja verkið.", function () { loadProject(id); }); });
+  }
+
+  var shots = []; // lightbox images
+
+  function renderProject(proj) {
+    var f = proj.fields || {}, name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
+    document.title = name + " — Björninn";
+    $("title").textContent = name;
+    var st = f["Staða í framleiðslu"], delivered = st === STAGES[3].match;
+    var due = dueText(f[DATE], delivered);
+    $("lead").textContent = "";
+    var prio = txt(f["Forgangur framleiðslu 🥇"]);
+    var pct = Math.round(nn(f["Framvinda framleiðslu [weighted]"]) * 100);
+    var sawT = nn(f["Fjöldi varahluta til að saga"]), sawD = nn(f["Fjöldi varahluta sagaðir"]);
+    var milT = nn(f["Fjöldi hluta til að fræsa 🔬"]), milD = nn(f["Fjöldi hluta fræstir 🔬"]);
+    function stat(l, v, small, p) {
+      return '<div class="stat"><div class="l">' + l + '</div><div class="v">' + v + (small ? " <small>" + small + "</small>" : "") + '</div><div class="bar"><i class="' + (p >= 100 ? "g" : "") + '" style="width:' + Math.min(100, p) + '%"></i></div></div>';
+    }
+
+    // Notes the floor must not miss — amber, first thing after the numbers.
+    var watch = [["Hafa í huga", "🧠📌Það sem þarf að hafa í huga"], ["Fræsari", "🔬📌 Það sem Fræsari þarf að hafa í huga"], ["Uppsetning og samsetning", "🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗"], ["Spónlagning", "🪵📌 Það sem spónlagning þarf að hafa í huga"]]
+      .map(function (n) { var v = txt(f[n[1]]); return v ? '<div class="wn"><div class="k">' + n[0] + '</div><div class="v">' + esc(v) + "</div></div>" : ""; }).join("");
+    var plain = [["Verklýsing teiknara", "Ýtarleg verklýsing teiknara📝"], ["Verkfundur", "Verkfundar glósur"], ["Markmið", "🎯 Markmið:"]]
+      .map(function (n) { var v = txt(f[n[1]]); return v ? '<div class="wn"><div class="k">' + n[0] + '</div><div class="v">' + esc(v) + "</div></div>" : ""; }).join("");
+
+    // Drawings: images open in the lightbox, anything else (PDF) opens in a new tab.
+    var dsrc = [["Lokateikningar", "Loka teikningar verkefnis 📋"], ["Úr skipuleggjara", "Teikningar úr skipuleggjara 📐"], ["Sérfræsing", "Sér fræsi teikningar"], ["Málsettar myndir", "Málsettar myndir af rými 🖼️"], ["Heimilistæki", "Heimilistæki verkefnis"]];
+    shots = [];
+    var dHtml = "";
+    dsrc.forEach(function (src) {
+      arr(f[src[1]]).forEach(function (a) {
+        if (!a || !a.url) return;
+        var th = a.thumbnails && (a.thumbnails.large || a.thumbnails.small || a.thumbnails.full);
+        var isImg = /^image\//.test(a.type || "");
+        var cap = esc(src[0] + (a.filename ? " · " + a.filename.replace(/\.[^.]+$/, "") : ""));
+        if (isImg) {
+          shots.push({ url: a.url, cap: src[0] + (a.filename ? " · " + a.filename : "") });
+          dHtml += '<button class="dr" type="button" data-i="' + (shots.length - 1) + '"><div class="im" style="background-image:url(\'' + esc((th && th.url) || a.url) + '\')"></div><div class="cap">' + cap + "</div></button>";
+        } else {
+          dHtml += '<a class="dr" href="' + esc(a.url) + '" target="_blank" rel="noopener"><div class="im"' + (th ? ' style="background-image:url(\'' + esc(th.url) + '\')"' : "") + ">" + (th ? "" : esc((a.filename || "").split(".").pop().toUpperCase() || "Skjal")) + '</div><div class="cap">' + cap + "</div></a>";
+        }
       });
-      var el = document.createElement("div");
-      el.className = "col";
-      el.innerHTML = '<h2><span class="colorDot" style="background:' + col.color + '"></span><span class="colLabel">' + esc(col.label) + '</span><span class="cnt">' + col.items.length + '</span></h2><div class="cards"></div>';
-      var cardsEl = el.querySelector(".cards");
-      if (!col.items.length) cardsEl.innerHTML = '<div class="empty">Ekkert hér</div>';
-      col.items.forEach(function (p) {
-        var f = p.fields;
-        var date = f[DATE_FIELD] || "";
-        var late = date && date < today;
-        var a = document.createElement("a");
-        a.className = "kcard";
-        a.style.borderLeft = "3px solid " + col.color;
-        a.href = "/framleidsla?recordId=" + p.id + (k ? "&k=" + encodeURIComponent(k) : "");
-        a.innerHTML = esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") +
-          (date ? '<div class="sub' + (late ? ' late' : '') + '">' + (late ? "⚠️ " : "") + esc(date) + '</div>' : "");
-        cardsEl.appendChild(a);
-      });
-      board.appendChild(el);
     });
+
+    function chk(ok, label, right) { return "<li>" + (ok ? TICK : OPEN) + "<span>" + label + "</span>" + (right ? '<span class="r">' + right + "</span>" : "") + "</li>"; }
+    var tool = function (href, t) { return '<a href="' + href + '" target="_blank" rel="noopener">' + t + "<span>›</span></a>"; };
+    var rid = encodeURIComponent(proj.id);
+
+    $("view").innerHTML =
+      '<div class="hero"><div class="sub"><span class="chip acc">' + esc(stageLabel(st)) + "</span>" +
+        '<span class="' + due.c + '">' + esc(due.t) + "</span>" + (prio ? "<span>Forgangur " + esc(prio.replace(/^(\d).*/, "$1")) + "</span>" : "") + "</div></div>" +
+      '<div class="cols"><div>' +
+        '<div class="card"><h3>Staða</h3><div class="stats">' +
+          stat("Heild", pct + "%", "", pct) +
+          stat("Sögun", sawT ? sawD : "—", sawT ? "/ " + sawT : "", sawT ? sawD / sawT * 100 : 0) +
+          stat("Fræsing", milT ? milD : "—", milT ? "/ " + milT : "", milT ? milD / milT * 100 : 0) + "</div></div>" +
+        (watch ? '<div class="card watch"><h3>Athugið</h3>' + watch + "</div>" : "") +
+        (dHtml ? '<div class="card"><h3>Teikningar</h3><div class="draws">' + dHtml + "</div></div>" : '<div class="card"><h3>Teikningar</h3><div class="note" style="padding:0">Engar teikningar skráðar á verkið.</div></div>') +
+        '<div class="card"><h3>Saga verksins</h3><ul class="feed" id="feed"><li><span class="tx" style="color:var(--muted)">Sæki…</span></li></ul></div>' +
+        (plain ? '<div class="card plain"><h3>Nánar</h3>' + plain + "</div>" : "") +
+      "</div><div>" +
+        '<div class="card"><h3>Undirbúningur</h3><ul class="chk" id="chk">' +
+          chk(!!f["5. Efni lent í húsi"], "Efni komið í hús") +
+          chk(!!f["6. CNC yfirfarið"], "CNC á USB") +
+          chk(!!f["3. Teikningar prentaðar 2x"], "Teikningar prentaðar") +
+          chk(!!f["4. Verkfundur tekinn"], "Verkfundur tekinn") +
+          '<li id="cuttyLi">' + OPEN + "<span>Cutty keyrt</span></li></ul>" +
+          '<div id="orders" style="margin-top:6px"></div></div>' +
+        '<div class="card"><h3>Opna</h3><div class="tools">' +
+          tool("/verk?t=" + rid + kq, "Fullt yfirlit (eins og á gólfinu)") +
+          tool("/labels?recordId=" + rid, "Merkingar") +
+          tool("/fraesing?recordId=" + rid, "Fræsing") +
+          tool("/saga?recordId=" + rid, "Saga — æðar") +
+          tool("/pontun?recordId=" + rid + kq, "Efni og pantanir") +
+          tool("/cnc?recordId=" + rid, "CNC útflutningur") + "</div></div>" +
+      "</div></div>";
+
+    $("view").querySelectorAll(".dr[data-i]").forEach(function (b) { b.addEventListener("click", function () { openLb(+b.dataset.i); }); });
+
+    // Saga verksins — /api/virkni filtered to this project (newest first).
+    fetch("/api/virkni?k=" + encodeURIComponent(k) + "&til=Allt&t=" + encodeURIComponent(proj.id)).then(function (r) { return r.json(); }).then(function (d) {
+      var items = (d.items || []).slice(0, 12);
+      $("feed").innerHTML = items.length ? items.map(function (it) {
+        return '<li><span class="tm">' + esc(whenText(it.timi)) + '</span><span class="tx">' + esc(it.texti) + (it.hver ? ' <span class="hv">· ' + esc(it.hver) + "</span>" : "") + "</span></li>";
+      }).join("") : '<li><span class="tx" style="color:var(--muted)">Engin virkni skráð enn.</span></li>';
+    }).catch(function () { $("feed").innerHTML = '<li><span class="tx" style="color:var(--muted)">Tókst ekki að sækja sögu verksins.</span></li>'; });
+
+    // Cutty keyrt — same Skurðarskrá signal as /ferli.
+    var escd = name.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    api(SOGUNARLISTI, "filterByFormula=" + encodeURIComponent('FIND("' + escd + '", ARRAYJOIN({Tækifæri 📣 (projects)})) > 0') + "&fields%5B%5D=Skur%C3%B0arskr%C3%A1&maxRecords=200").then(function (d) {
+      var ok = (d.records || []).some(function (r) { return String((r.fields || {})["Skurðarskrá"] || "").trim(); });
+      var li = $("cuttyLi"); if (li && ok) li.innerHTML = TICK + "<span>Cutty keyrt</span>";
+    }).catch(function () {});
+
+    // Pantanir — one line per Pantaður listi with its status.
+    api(PANTADIR, "filterByFormula=" + linkFilter("%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D", name) + "&maxRecords=50").then(function (d) {
+      var recs = onlyProject(d.records, "Tækifæri 📣", proj.id), el = $("orders");
+      if (!el) return;
+      el.innerHTML = recs.length
+        ? '<ul class="chk">' + recs.map(function (r) {
+            var rf = r.fields || {}, done = rf["Staða"] === "Komið í hús 🐻";
+            return chk(done, esc(rf["Stöðu kenni"] || "Pöntun"), esc(String(rf["Staða"] || "").replace(/\s*[^\wÀ-ɏ\s]+\s*$/u, ""))) ;
+          }).join("") + "</ul>"
+        : '<div style="font-size:.86rem;color:var(--muted);padding:4px 0">Engar pantanir skráðar.</div>';
+    }).catch(function () {});
   }
 
-  // ======================= DETAIL =======================
-  function loadDetail(id) {
-    document.getElementById("loading").style.display = "block";
-    document.getElementById("backToBoard").style.display = "inline-block";
-    api(TAEKIFAERI + "/" + id).then(function (proj) {
-      document.getElementById("loading").style.display = "none";
-      document.getElementById("detail").style.display = "block";
-      renderDetail(proj);
-    });
+  function whenText(iso) {
+    if (!iso) return "";
+    var d = ymd(iso), t = todayStr();
+    var hm = new Date(iso).toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit", timeZone: "Atlantic/Reykjavik" });
+    var diff = Math.round((Date.parse(t) - Date.parse(new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Atlantic/Reykjavik" }))) / 86400000);
+    if (diff === 0) return "Í dag " + hm;
+    if (diff === 1) return "Í gær " + hm;
+    return dateIs(d);
   }
 
-  function renderDetail(proj) {
-    var f = proj.fields || {};
-    var name = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
-    document.getElementById("pageTitle").textContent = name;
-    var pct = Math.round((f["Framvinda framleiðslu [weighted]"] || 0) * 100);
-    var det = document.getElementById("detail");
-    det.innerHTML =
-      '<div class="projHd">' +
-        '<div class="nm">' + esc(name) + '</div>' +
-        '<div class="st">' + esc(f["Staða í framleiðslu"] || "—") + ' · Forgangur ' + esc(f["Forgangur framleiðslu 🥇"] || "—") +
-          ' · Afhending ' + esc(f["Áætlaður afhendingardagur Björninn (internal)"] || "—") + '</div>' +
-        '<div class="progBar"><div class="fill" style="width:' + pct + '%"></div></div>' +
-        '<div class="progLbl">' + pct + '% framleitt</div>' +
-      '</div>' +
-      '<div class="pSection"><h3>Sögun <a href="/cutlist?recordId=' + proj.id + '" target="_blank">Opna →</a></h3><div id="sawBody"><div class="empty">Sæki…</div></div></div>' +
-      '<div class="pSection"><h3>Fræsing / CNC <a href="/fraesing?recordId=' + proj.id + '" target="_blank">Opna →</a></h3><div id="cncBody"></div></div>' +
-      '<div class="pSection"><h3>Efni <a href="/pontun?recordId=' + proj.id + (k ? "&k=" + encodeURIComponent(k) : "") + '" target="_blank">Opna →</a></h3><div id="matBody"><div class="empty">Sæki…</div></div></div>' +
-      '<a class="proLink" href="/verk?t=' + proj.id + (k ? "&k=" + encodeURIComponent(k) : "") + '" target="_blank" style="display:inline-block;margin-top:4px;color:var(--accent);font-size:.85rem;text-decoration:none;">Opna fullt yfirlit í /verk →</a>';
+  // ---- lightbox ----
+  var lbI = 0;
+  function openLb(i) { lbI = i; paintLb(); $("lb").classList.add("open"); }
+  function paintLb() { var s = shots[lbI]; if (!s) return; $("lbI").src = s.url; $("lbC").textContent = s.cap + (shots.length > 1 ? "  ·  " + (lbI + 1) + " / " + shots.length : ""); $("lbP").style.display = $("lbN").style.display = shots.length > 1 ? "" : "none"; }
+  function stepLb(n) { lbI = (lbI + n + shots.length) % shots.length; paintLb(); }
+  $("lbX").addEventListener("click", function () { $("lb").classList.remove("open"); });
+  $("lbP").addEventListener("click", function () { stepLb(-1); });
+  $("lbN").addEventListener("click", function () { stepLb(1); });
+  $("lb").addEventListener("click", function (e) { if (e.target === $("lb")) $("lb").classList.remove("open"); });
+  document.addEventListener("keydown", function (e) {
+    if (!$("lb").classList.contains("open")) return;
+    if (e.key === "Escape") $("lb").classList.remove("open");
+    else if (e.key === "ArrowLeft") stepLb(-1);
+    else if (e.key === "ArrowRight") stepLb(1);
+  });
 
-    function row(k2, v) { return '<div class="pRow"><span class="k">' + esc(k2) + '</span><span>' + v + '</span></div>'; }
-
-    // CNC — the "6. CNC yfirfarið" flag cnc.html's own export now self-sets (2026-10-17), same
-    // signal /ferli's Loka-yfirferð checklist uses.
-    var cncOk = !!f["6. CNC yfirfarið"];
-    document.getElementById("cncBody").innerHTML =
-      row("Útflutt á USB", '<span class="chip ' + (cncOk ? "ok" : "warn") + '">' + (cncOk ? "✓ já" : "ekki enn") + '</span>');
-
-    // Sögun — reuses /ferli's exact Skurðarskrá-based signal + the sawing/milling progress counters
-    // already exposed for /verk's own Framvinda section.
-    var escd = name.replace(/"/g, '\\"');
-    var sawFml = 'FIND("' + escd + '", ARRAYJOIN({Tækifæri 📣 (projects)})) > 0';
-    api(SOGUNARLISTI, "filterByFormula=" + encodeURIComponent(sawFml) + "&fields%5B%5D=Skur%C3%B0arskr%C3%A1&maxRecords=200")
-      .then(function (d) {
-        var rows = d.records || [];
-        var cuttyDone = rows.some(function (r) { return String((r.fields || {})["Skurðarskrá"] || "").trim(); });
-        var sagad = f["Fjöldi varahluta sagaðir"] || 0, tilSaga = f["Fjöldi varahluta til að saga"] || 0;
-        var fraest = f["Fjöldi hluta fræstir 🔬"] || 0, tilFraesa = f["Fjöldi hluta til að fræsa 🔬"] || 0;
-        document.getElementById("sawBody").innerHTML =
-          row("Cutty keyrt", '<span class="chip ' + (cuttyDone ? "ok" : "warn") + '">' + (cuttyDone ? "✓ keyrt" : "ekki enn") + '</span>') +
-          row("Sagað", sagad + " / " + tilSaga) +
-          row("Fræst", fraest + " / " + tilFraesa);
-      });
-
-    // Efni — same open-order detection /ferli's 📦 chip already uses.
-    api(PANTADIR, "filterByFormula=" + linkFilter("%7BT%C3%A6kif%C3%A6ri%20%F0%9F%93%A3%7D", name) + "&maxRecords=50")
-      .then(function (d) {
-        var recs = onlyProject(d.records, "Tækifæri 📣", proj.id);
-        var el = document.getElementById("matBody");
-        if (!recs.length) { el.innerHTML = '<div class="empty">Engar pantanir skráðar</div>'; return; }
-        el.innerHTML = recs.map(function (r) {
-          var rf = r.fields || {};
-          var done = rf["Staða"] === "Komið í hús 🐻";
-          return row(rf["Stöðu kenni"] || "", '<span class="chip ' + (done ? "ok" : "bad") + '">' + esc(rf["Staða"] || "") + '</span>');
-        }).join("");
-      });
-  }
+  if (recordId) loadProject(recordId); else loadList();
 })();
 </script>
 </body>
