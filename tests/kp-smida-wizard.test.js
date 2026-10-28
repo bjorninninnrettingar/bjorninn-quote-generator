@@ -23,11 +23,29 @@ test("a copied cabinet does not inherit the confirmed Mál", () => {
 });
 
 test("the ack is a per-dimension record of mm — a drawing change makes it differ", () => {
-  const body = fnBody("pwAckOk");
+  const body = fnBody("smAckOk");
   assert.ok(/smidaAck\.mal\[k\] === mm/.test(body), "compares the confirmed mm to the current one");
+});
+
+test("Smíða is the Ný eining wizard (uw*) on the real block, never a parallel panel", () => {
+  assert.ok(!/id="proWiz"/.test(html));
+  assert.ok(/uw\.b = fb\.block/.test(fnBody("openSmidaWizard")), "edits the cabinet in the room, not a copy");
+  assert.ok(!/refreshAfterEdit\(/.test(fnBody("smCommit")), "the room scene must not be rebuilt over the preview");
 });
 
 test("the wizard only opens in PRO (or a test scene) and the old editor stays reachable", () => {
   assert.ok(/if \(!PRO && !SCENE\) return;/.test(fnBody("openSmidaWizard")));
-  assert.ok(/data-pw="editor"/.test(html) && /openBoxEditor\(pw\.id\)/.test(html));
+  assert.ok(/data-sm-editor/.test(html) && /openBoxEditor\(id\)/.test(fnBody("smOldEditor")));
+});
+
+test("no function name is declared twice in the planner script (a later one silently shadows the earlier — crossBounds broke growBlock)", () => {
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  const big = scripts.sort((a, b) => b.length - a.length)[0];
+  const seen = {};
+  const dup = [];
+  for (const m of big.matchAll(/^  function ([A-Za-z0-9_$]+)\(/gm)) {
+    if (seen[m[1]]) dup.push(m[1]);
+    seen[m[1]] = true;
+  }
+  assert.deepEqual(dup, []);
 });
