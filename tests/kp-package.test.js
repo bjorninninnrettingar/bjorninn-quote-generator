@@ -18,7 +18,7 @@ test("report: 6-10 lines, rooms, total with VSK, validity, next step", () => {
   assert.match(r.text, /gildir í 30 daga/);
   assert.match(r.text, /Næsta skref/);
   assert.match(r.text, /Ekki innifalið/);
-  assert.match(r.text, /Teikningar/);
+  assert.match(r.text, /Þrívíddarteikningar/);
   assert.match(r.text, /Eldhús: framhlið eik W1100, skrokkur dökkgrár, borðplata egger W1000, höldur hexxa svört\./);
 });
 
@@ -36,86 +36,65 @@ test("report with no price and no rooms still reads", () => {
   assert.ok(r.lines.length >= 6);
 });
 
-test("email: greeting with first name, report, link, signature", () => {
-  const rep = P.buildReport({ rooms, total: 1000 }).text;
-  const e = P.buildEmail({ first: "Jón", report: rep, link: "https://x.is/api/tilbod-pdf?r=1", projectName: "T-12 | Jón Jónsson" });
-  assert.match(e.subject, /Drög og tilboð frá Birninum — T-12/);
-  assert.ok(e.body.startsWith("Hæ Jón,"));
-  assert.ok(e.body.includes(rep));
-  assert.ok(e.body.includes("https://x.is/api/tilbod-pdf?r=1"));
-  assert.match(e.body, /Kær kveðja,\nRakel/);
-  assert.ok(!P.hasPlaceholder(e.body));
+test("quote sections: per room, handles on their own, total = sum of the printed lines = the panel's total", () => {
+  const data = { lines: [
+    { key: "Sk1", name: "Skápur 60", qty: 2, total: 100000 }, { key: "Sk2", name: "Skápur 80", qty: 1, total: 50000 },
+    { key: "Sk3", name: "Þvottahússskápur", qty: 1, total: 30000 }, { key: "BP1", name: "Borðplata", extra: "Egger", qty: 2, total: 0 } ],
+    other: [{ key: null, name: "Lína úr Airtable", total: 1000 }], handles: { count: 12, total: 20000 }, total: 201000 };
+  const q = P.buildQuoteSections(data, { Sk1: "Eldhús", Sk2: "Eldhús", Sk3: "Þvottahús", BP1: "Eldhús" }, { BP1: 40000 });
+  assert.deepEqual(q.rooms.map((r) => [r.name, r.sum]), [["Eldhús", 190000], ["Þvottahús", 30000], ["Aðrar línur", 1000]]);
+  assert.equal(q.rooms[0].lines.find((l) => /Stein/.test(l.name)).total, 40000);
+  assert.deepEqual(q.handles, { count: 12, total: 20000 });
+  assert.equal(q.total, 241000);
+  assert.equal(q.panelTotal, 241000);
+  assert.equal(q.mismatch, false);
 });
 
-test("email: placeholder link is swapped once the PDF exists, edits kept", () => {
-  const e = P.buildEmail({ first: "", report: "R", link: "" });
-  assert.ok(e.body.startsWith("Hæ,"));
-  assert.ok(P.hasPlaceholder(e.body));
-  const edited = e.body.replace("Takk fyrir síðast.", "Gaman að hitta þig.");
-  const done = P.withLink(edited, "https://l");
-  assert.ok(done.includes("https://l") && done.includes("Gaman að hitta þig.") && !P.hasPlaceholder(done));
+test("quote sections: a total that differs from the panel is flagged", () => {
+  const q = P.buildQuoteSections({ lines: [{ key: "Sk1", name: "A", qty: 1, total: 1000 }], other: [], handles: { count: 0, total: 0 }, total: 5000 }, { Sk1: "Eldhús" }, {});
+  assert.equal(q.mismatch, true);
+  assert.equal(q.handles, null);
 });
 
-test("gmailUrl encodes", () => {
-  const u = P.gmailUrl("a@b.is", "Tilboð & drög", "Hæ\nÞú");
-  assert.match(u, /to=a%40b\.is/);
-  assert.match(u, /su=Tilbo%C3%B0%20%26%20dr%C3%B6g/);
-  assert.match(u, /body=H%C3%A6%0A%C3%9E%C3%BA/);
-});
-
-const base = { dirty: false, rooms: [{ name: "Eldhús", closed: true, missing: [] }], email: "a@b.is", quote: { ok: true, link: "x", files: 1 } };
+const base = { dirty: false, rooms: [{ name: "Eldhús", closed: true, missing: [] }], address: "Bogahlíð 4", contact: "Jón Jónsson", imageCount: 6, hasQuote: true };
 
 test("readiness: everything green", () => {
   const r = P.readiness(base);
-  assert.equal(r.canSend, true);
+  assert.equal(r.canMake, true);
   assert.deepEqual(r.blocking, []);
-  assert.ok(r.items.every((i) => i.ok || i.optional));
+  assert.ok(r.items.every((i) => i.ok));
 });
 
 test("readiness: unsaved drawing blocks with a save fix", () => {
   const r = P.readiness({ ...base, dirty: true });
-  assert.equal(r.canSend, false);
-  const it = r.items.find((i) => i.id === "saved");
-  assert.equal(it.fix.id, "save");
+  assert.equal(r.canMake, false);
+  assert.deepEqual(r.blocking, ["saved"]);
+  assert.equal(r.items.find((i) => i.id === "saved").fix.id, "save");
 });
 
-test("readiness: open room says drawings are skipped; override lets it through", () => {
-  const rm = [{ name: "Eldhús", closed: true }, { name: "Bað", closed: false }];
-  const r = P.readiness({ ...base, rooms: rm });
-  assert.deepEqual(r.blocking, ["closed"]);
-  assert.match(r.items.find((i) => i.id === "closed").detail, /Bað/);
-  const r2 = P.readiness({ ...base, rooms: rm, skipDrawings: true });
-  assert.equal(r2.canSend, true);
-  assert.match(r2.items.find((i) => i.id === "closed").detail, /án teikninga/);
+test("readiness: open room / no 3D images / no address / no contact are said plainly but never block", () => {
+  const r = P.readiness({ ...base, rooms: [{ name: "Eldhús", closed: true }, { name: "Bað", closed: false }], address: "", contact: "" });
+  assert.equal(r.canMake, true);
+  assert.match(r.items.find((i) => i.id === "drawings").detail, /Bað/);
+  assert.equal(r.items.find((i) => i.id === "address").ok, false);
+  assert.equal(r.items.find((i) => i.id === "contact").ok, false);
+  const none = P.readiness({ ...base, imageCount: 0 });
+  assert.equal(none.canMake, true);
+  assert.match(none.items.find((i) => i.id === "drawings").detail, /Engar myndir/);
 });
 
-test("readiness: missing or bad e-mail blocks", () => {
-  assert.deepEqual(P.readiness({ ...base, email: "" }).blocking, ["email"]);
-  assert.deepEqual(P.readiness({ ...base, email: "nope" }).blocking, ["email"]);
-});
-
-test("readiness: quote not made yet is pending, not blocking; failed quote blocks", () => {
-  const p = P.readiness({ ...base, quote: null });
-  assert.equal(p.canSend, true);
-  assert.equal(p.items.find((i) => i.id === "quote").pending, true);
-  const f = P.readiness({ ...base, quote: { ok: true, link: "x", files: 0 } });
-  assert.deepEqual(f.blocking, ["quote"]);
-});
-
-test("readiness: unset materials (ÓÁKVEÐIÐ) block and name the room", () => {
+test("readiness: unset materials are named per room but do not block", () => {
   const r = P.readiness({ ...base, rooms: [{ name: "Eldhús", closed: true, missing: ["framhlið", "borðplata"] }] });
-  assert.deepEqual(r.blocking, ["materials"]);
+  assert.equal(r.canMake, true);
   assert.match(r.items.find((i) => i.id === "materials").detail, /Eldhús: framhlið, borðplata/);
 });
 
-test("readiness: drawings skipped after printing is reported with the reason", () => {
-  const r = P.readiness({ ...base, drawingsSkippedWhy: "Upphleðsla mistókst" });
-  assert.deepEqual(r.blocking, ["drawings"]);
-  assert.match(r.items.find((i) => i.id === "drawings").detail, /Upphleðsla/);
+test("readiness: no quote lines blocks", () => {
+  assert.deepEqual(P.readiness({ ...base, hasQuote: false }).blocking, ["quote"]);
 });
 
-test("readiness: Studio image is optional", () => {
-  const r = P.readiness({ ...base, studioKnown: 0 });
-  assert.equal(r.items.find((i) => i.id === "studio").optional, true);
-  assert.equal(r.canSend, true);
+test("no e-mail, Gmail or 'sent' left in the package logic", () => {
+  assert.equal(P.buildEmail, undefined);
+  assert.equal(P.gmailUrl, undefined);
+  assert.doesNotMatch(P.buildReport({ rooms, total: 1000 }).text, /póst/);
 });

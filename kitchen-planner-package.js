@@ -1,14 +1,13 @@
-// kitchen-planner-package.js — "Senda drög til viðskiptavinar" (PRO, 2026-10-28): the pure logic.
-// No DOM, no network: the report text, the e-mail, the readiness checklist. kitchen-planner.html gathers the facts
-// (rooms, materials, price, contact) and calls these; tests/kp-package.test.js runs them under node.
-//   KPPACKAGE.buildReport(d)   → { lines:[…6–10 plain Icelandic lines], text }
-//   KPPACKAGE.buildEmail(d)    → { subject, body }  (greeting + report + link + signature; link may still be a placeholder)
-//   KPPACKAGE.readiness(d)     → { items:[{id,ok,optional,label,detail,fix}], canSend, blocking:[ids] }
-//   KPPACKAGE.gmailUrl(to, subject, body)
+// kitchen-planner-package.js — "Búa til kynningu (PDF)" (PRO, 2026-10-28): the pure logic.
+// No DOM, no network: the report text, the per-room quote sections, the readiness checklist. kitchen-planner.html gathers
+// the facts (rooms, materials, price, contact, 3D views) and calls these, then posts to /api/kynning-pdf (the PDF itself).
+// tests/kp-package.test.js runs them under node.
+//   KPPACKAGE.buildReport(d)          → { lines:[…6–10 plain Icelandic lines], text }
+//   KPPACKAGE.buildQuoteSections(...) → per-room quote lines + totals, same numbers as the live Tilboð panel
+//   KPPACKAGE.readiness(d)            → { items:[{id,ok,optional,label,detail,fix}], canMake, blocking:[ids] }
 (function(root){
   "use strict";
 
-  var LINK_PLACEHOLDER = "[hlekkur á tilboðið kemur hér þegar það er tilbúið]";
   var VALID_DAYS = 30; // same as generate-quote.js ("Tilboð gildir í 30 daga frá útgáfudegi")
   // What the quote covers / does not — one place to edit the wording.
   var INCLUDES = "innréttingar eins og þær eru teiknaðar, framhliðar, höldur og efnið sem er valið";
@@ -16,8 +15,6 @@
 
   function pl(n, one, many){ return n === 1 ? one : many; }
   function trim(s){ return String(s == null ? "" : s).trim(); }
-  function isEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trim(s)); }
-  function firstName(full){ var f = trim(full).split(/\s+/)[0] || ""; return f; }
   // 1234567 → "1.234.567 kr." (no locale: the same text on every machine)
   function kr(n){
     var v = Math.round(Number(n) || 0), neg = v < 0; v = Math.abs(v);
@@ -49,66 +46,70 @@
     if (d.noHandles) lines.push("Höldur: engar í þessari útgáfu.");
     lines.push("Innifalið í tilboðinu: " + INCLUDES + ".");
     lines.push("Ekki innifalið: " + EXCLUDES + ".");
-    if (d.hasDrawings) lines.push("Teikningar af rýminu fylgja með tilboðinu.");
+    if (d.hasDrawings) lines.push("Þrívíddarteikningar af rýminu fylgja með.");
     lines.push(Number(d.total) > 0 ? "Heildarverð með vsk: " + kr(d.total) + "." : "Heildarverð: sjá tilboðið.");
     lines.push("Tilboðið gildir í " + VALID_DAYS + " daga.");
-    lines.push("Næsta skref: þú svarar þessum pósti eða hringir í okkur með breytingar eða ef þú vilt staðfesta — við gerum svo næstu skref með þér.");
+    lines.push("Næsta skref: hafðu samband við okkur með breytingar eða ef þú vilt staðfesta — við gerum svo næstu skref með þér.");
     return { lines: lines, text: lines.join("\n") };
   }
 
-  // d: { first, report (the text as edited), link (or empty → placeholder), projectName, signature }
-  function buildEmail(d){
-    d = d || {};
-    var nm = trim(d.projectName).split("|")[0].trim();
-    var subject = "Drög og tilboð frá Birninum" + (nm ? " — " + nm : "");
-    var sig = trim(d.signature) || "Kær kveðja,\nRakel\nBjörninn Innréttingar";
-    var body = (trim(d.first) ? "Hæ " + trim(d.first) + "," : "Hæ,") + "\n\n" +
-      "Takk fyrir síðast. Hér eru drög að innréttingunni og tilboð frá okkur.\n\n" +
-      trim(d.report) + "\n\n" +
-      "Tilboð, teikningar og efnisval (PDF):\n" + (trim(d.link) || LINK_PLACEHOLDER) + "\n\n" +
-      "Ef eitthvað er óljóst eða þú vilt breyta einhverju er velkomið að svara þessum pósti.\n\n" + sig;
-    return { subject: subject, body: body };
+  // The quote section of the PDF, per room, from the SAME numbers the live Tilboð panel shows (tp.data = /api/kp-price's answer):
+  //   data   { lines:[{key,name,extra,qty,total}], other:[…same…], handles:{count,total}, total }
+  //   roomOf { "Sk1": "Eldhús", … }   (the Line Items' "Rými 🏡")      stone { "BP1": kr } (typed stone-top prices)
+  // → { rooms:[{name, lines:[{name,extra,qty,total}], sum}], handles:{count,total}|null, total, panelTotal, mismatch }
+  // total = what is printed (sum of the lines); panelTotal = what the Tilboð panel shows; mismatch = they differ by > 2 kr
+  // (the caller then refuses to make the PDF — a quote whose total differs from the panel is never handed out).
+  function buildQuoteSections(data, roomOf, stone){
+    data = data || {}; roomOf = roomOf || {}; stone = stone || {};
+    var groups = [], idx = {}, stoneSum = 0;
+    function add(room, l){
+      if (!(room in idx)){ idx[room] = groups.length; groups.push({ name: room, lines: [], sum: 0 }); }
+      var g = groups[idx[room]], t = Number(l.total) || 0;
+      g.lines.push({ name: trim(l.name) || "Lína", extra: trim(l.extra), qty: l.qty == null ? null : Number(l.qty), total: t }); g.sum += t;
+    }
+    (data.lines || []).forEach(function(l){
+      var st = l.key && stone[l.key] != null ? Math.max(0, Number(stone[l.key]) || 0) : null;
+      if (st != null && /^BP\d+$/.test(l.key)){ stoneSum += st; l = { key: l.key, name: "Steinborðplata — verð frá steinsmið", extra: l.extra, qty: l.qty, total: st }; } // as proTilbodRender does
+      add(roomOf[l.key] || "Annað", l);
+    });
+    (data.other || []).forEach(function(l){ add("Aðrar línur", l); });
+    groups = groups.filter(function(g){ return g.lines.length; });
+    var h = data.handles && Number(data.handles.total) > 0 ? { count: Number(data.handles.count) || 0, total: Number(data.handles.total) } : null;
+    var total = groups.reduce(function(n, g){ return n + g.sum; }, 0) + (h ? h.total : 0);
+    var panelTotal = (Number(data.total) || 0) + stoneSum;
+    return { rooms: groups, handles: h, total: total, panelTotal: panelTotal, mismatch: Math.abs(total - panelTotal) > 2 };
   }
-  // the placeholder is swapped for the real link once the PDF exists (and the text Rakel edited is kept)
-  function withLink(body, link){ return String(body || "").split(LINK_PLACEHOLDER).join(link); }
-  function hasPlaceholder(body){ return String(body || "").indexOf(LINK_PLACEHOLDER) >= 0; }
 
-  function gmailUrl(to, subject, body){
-    return "https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(trim(to)) + "&su=" + encodeURIComponent(subject || "") + "&body=" + encodeURIComponent(body || "");
-  }
-
-  // d: { dirty, saved?, rooms:[{name, closed, units, missing:[…names of unchosen materials]}], skipDrawings (Rakel accepts none),
-  //      email, quote: null (not made yet) | { ok, files, link }, drawingsSkippedWhy, studioKnown (number|null) }
+  // The checklist in the "Búa til kynningu (PDF)" dialog. Only what really blocks stops the button; everything else says
+  // plainly what the PDF will leave out. d: { dirty, rooms:[{name, closed, units, missing:[…names of unchosen materials]}],
+  //   address, contact, imageCount (3D views captured; null = not captured yet), hasQuote }
   function readiness(d){
     d = d || {}; var items = [], rooms = d.rooms || [];
     items.push(d.dirty
-      ? { id:"saved", ok:false, label:"Teikningin er vistuð", detail:"Óvistaðar breytingar (● óvistað).", fix:{ id:"save", label:"Vista núna" } }
+      ? { id:"saved", ok:false, label:"Teikningin er vistuð", detail:"Óvistaðar breytingar (● óvistað) — kynningin yrði búin til eftir gamalli teikningu.", fix:{ id:"save", label:"Vista núna" } }
       : { id:"saved", ok:true, label:"Teikningin er vistuð" });
     var open = rooms.filter(function(r){ return !r.closed; });
-    if (!open.length) items.push({ id:"closed", ok:true, label:"Öll rými lokuð — teikningar fylgja" });
-    else if (d.skipDrawings) items.push({ id:"closed", ok:true, label:"Teikningar sleppt", detail:"Rýmið er ekki lokað: " + open.map(function(r){ return r.name; }).join(", ") + " — tilboðið fer án teikninga." });
-    else items.push({ id:"closed", ok:false, label:"Öll rými lokuð — teikningar fylgja",
-      detail:"Ekki lokað: " + open.map(function(r){ return r.name; }).join(", ") + ". Teikningar yrðu sleppt.", fix:{ id:"skipDrawings", label:"Senda án teikninga" } });
-    items.push(isEmail(d.email)
-      ? { id:"email", ok:true, label:"Netfang viðskiptavinar: " + trim(d.email) }
-      : { id:"email", ok:false, label:"Netfang viðskiptavinar vantar", detail:"Skrifaðu netfangið í reitinn hér að neðan.", fix:{ id:"focusEmail", label:"Skrifa netfang" } });
-    var q = d.quote;
-    if (!q) items.push({ id:"quote", ok:false, pending:true, label:"Tilboð (PDF) með hlekk", detail:"Verður búið til þegar þú ýtir á hnappinn." });
-    else if (q.ok && q.link && q.files > 0) items.push({ id:"quote", ok:true, label:"Tilboð (PDF) tilbúið, hlekkurinn virkar" });
-    else items.push({ id:"quote", ok:false, label:"Tilboð (PDF) náðist ekki", detail:"PDF-ið kom ekki á Tækifærið.", fix:{ id:"retry", label:"Reyna aftur" } });
-    if (d.drawingsSkippedWhy) items.push({ id:"drawings", ok:false, label:"Teikningar fylgdu ekki", detail:d.drawingsSkippedWhy, fix:{ id:"retry", label:"Reyna aftur" } });
+    if (d.imageCount === 0) items.push({ id:"drawings", ok:false, optional:true, label:"3D teikningar fylgja ekki", detail:"Engar myndir náðust — kaflinn um teikningar og 2D athugasemdin eru sleppt." });
+    else if (open.length) items.push({ id:"drawings", ok:false, optional:true, label:"3D teikningar fylgja ekki", detail:"Rýmið er ekki lokað: " + open.map(function(r){ return r.name; }).join(", ") + ". Lokaðu rýminu til að fá teikningar með." });
+    else items.push({ id:"drawings", ok:true, label:"3D teikningar fylgja" });
+    items.push(trim(d.address)
+      ? { id:"address", ok:true, label:"Heimilisfang: " + trim(d.address) }
+      : { id:"address", ok:false, optional:true, label:"Heimilisfang verkefnis vantar", detail:"Skrifaðu það í reitinn hér að neðan — annars sýnir forsíðan bara verkefnisnafnið.", fix:{ id:"focusAddress", label:"Skrifa heimilisfang" } });
+    items.push(trim(d.contact)
+      ? { id:"contact", ok:true, label:"Tengiliður: " + trim(d.contact) }
+      : { id:"contact", ok:false, optional:true, label:"Nafn tengiliðs vantar", detail:"Forsíðan sýnir ekkert nafn." });
     var unset = [];
     rooms.forEach(function(r){ if (r.missing && r.missing.length) unset.push(r.name + ": " + r.missing.join(", ")); });
     items.push(unset.length
-      ? { id:"materials", ok:false, label:"Efni valið", detail:"Óákveðið — " + unset.join("; "), fix:{ id:"materials", label:"Loka og velja efni" } }
+      ? { id:"materials", ok:false, optional:true, label:"Efni valið", detail:"Óákveðið — " + unset.join("; "), fix:{ id:"materials", label:"Loka og velja efni" } }
       : { id:"materials", ok:true, label:"Efni valið í öllum rýmum" });
-    items.push({ id:"studio", ok:Number(d.studioKnown) > 0, optional:true, label:"Studio mynd (valfrjálst)",
-      detail: Number(d.studioKnown) > 0 ? d.studioKnown + " " + pl(d.studioKnown, "mynd", "myndir") + " vistuð" : "Engin talin hér. Myndir á Tækifærinu fylgja ekki póstinum." });
-    var blocking = items.filter(function(i){ return !i.ok && !i.optional && !i.pending; }).map(function(i){ return i.id; });
-    return { items: items, canSend: !blocking.length, blocking: blocking };
+    items.push(d.hasQuote === false
+      ? { id:"quote", ok:false, label:"Tilboð vantar", detail:"Engar tilboðslínur — opnaðu Tilboð-flipann og bíddu eftir verðinu." }
+      : { id:"quote", ok:true, label:"Tilboð per rými" });
+    var blocking = items.filter(function(i){ return !i.ok && !i.optional; }).map(function(i){ return i.id; });
+    return { items: items, canMake: !blocking.length, blocking: blocking };
   }
 
-  var api = { buildReport: buildReport, buildEmail: buildEmail, readiness: readiness, gmailUrl: gmailUrl, withLink: withLink, hasPlaceholder: hasPlaceholder,
-    isEmail: isEmail, firstName: firstName, kr: kr, LINK_PLACEHOLDER: LINK_PLACEHOLDER, VALID_DAYS: VALID_DAYS };
+  var api = { buildReport: buildReport, buildQuoteSections: buildQuoteSections, readiness: readiness, kr: kr, VALID_DAYS: VALID_DAYS };
   root.KPPACKAGE = api;
 })(typeof window !== "undefined" ? window : globalThis);
