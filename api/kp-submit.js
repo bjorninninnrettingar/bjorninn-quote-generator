@@ -39,7 +39,16 @@ export const PROJECT_FIELDS = ["Skrokka efni 🔲 viðskiptavinar", "Fronta efni
   "Höldur Viðskiptavinar ✊", "Litur á höldum 🎨", "Magn Halda 1", "Höldur Viðskiptavinar ✊2.0", "Magn halda 2.0", // one SKU per slot (G1, 2026-10-27)
   "Fronta efni 2.0 Viðskiptavinar 🖼️", "Innskúffufrontar [Handvalið]"]; // FR2 + inner drawer fronts default (2026-10-23)
 export const LINE_FIELDS = ["Rými 🏡", "Vöru reitur 1", "Vöru reitur 2", "Vöru reitur 3", "Magn", "🔑", "Skilaboð til skipulags", "Smíðagögn (JSON) 🔧",
-  "Frontaefni #2", "Tegund innskúffu fronts"];
+  "Frontaefni #2", "Tegund innskúffu fronts",
+  "Skrokkaefni (lína) 🔲", "Borðplata (lína) 🍽️"]; // a room's OWN carcass / worktop (links to Efnislisti), only when it differs from the Tækifæri's (2026-10-28)
+// The two link fields above may not exist in Airtable yet: every write/read that touches them falls back to the same call
+// without them (UNKNOWN_FIELD_NAME 422) and reports `matsSkipped` — a missing field must never fail a save.
+export const MAT_LINE_FIELDS = ["Skrokkaefni (lína) 🔲", "Borðplata (lína) 🍽️"];
+export const isMatErr = (e) => !!e && e.status === 422 && /UNKNOWN_FIELD_NAME|Unknown field name/i.test(String(e.message)) && MAT_LINE_FIELDS.some((f) => String(e.message).includes(f));
+export const stripMats = (records) => records.map((r) => { const f = Object.assign({}, r.fields); for (const k of MAT_LINE_FIELDS) delete f[k]; return Object.assign({}, r, { fields: f }); });
+export const hasMats = (records) => records.some((r) => MAT_LINE_FIELDS.some((k) => k in (r.fields || {})));
+// like pick() for a Line Item, but an empty material array means "same as the Tækifæri": not sent at creation
+const pickLine = (li) => { const f = pick(li, LINE_FIELDS); for (const k of MAT_LINE_FIELDS) if (Array.isArray(f[k]) && !f[k].length) delete f[k]; return f; };
 // "Tegund innskúffu fronts" (Line Item) / "Innskúffufrontar [Handvalið]" (Tækifæri) choices — anything else is dropped,
 // so typecast can never invent a new select option from a request.
 export const INNER_FRONTS = ["Skrokkaefni", "Frontaefni", "Frontaefni 2", "Ál", "Ál og gler"];
@@ -217,6 +226,10 @@ export function validateLineItems(lineItems) {
       const v = li[f];
       if (v != null && !(Array.isArray(v) && v.length <= 5 && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
     }
+    for (const f of MAT_LINE_FIELDS) {
+      const v = li[f];
+      if (v != null && !(Array.isArray(v) && v.length <= 1 && v.every((x) => REC_RE.test(x)))) return "Ógild tenging";
+    }
     const sm = li["Smíðagögn (JSON) 🔧"];
     if (sm != null && !(typeof sm === "string" && sm.length <= 20000 && /^\{"v":1[,}]/.test(sm))) return "Ógild Smíðagögn";
   }
@@ -275,10 +288,11 @@ export async function submit(at, body) {
   let have = new Set();
   if (resumed) have = new Set((await linesOfProject(at, opp.id, ["🔑"])).map((r) => r.fields["🔑"]));
   const todo = body.lineItems.filter((li) => !have.has(li["🔑"]));
+  const matState = { matsSkipped: false };
   for (let i = 0; i < todo.length; i += 10) {
     await createLines(at, todo.slice(i, i + 10).map((li) => ({
-      fields: Object.assign(pick(li, LINE_FIELDS), li["Rými 🏡"] != null ? { "Rými 🏡": shortLabel(li["Rými 🏡"]) } : {}, { [LINK_TO_PROJECT]: [opp.id] }),
-    })));
+      fields: Object.assign(pickLine(li), li["Rými 🏡"] != null ? { "Rými 🏡": shortLabel(li["Rými 🏡"]) } : {}, { [LINK_TO_PROJECT]: [opp.id] }),
+    })), matState);
   }
   // New Studio submission: tell the office (Virkni line + chat). Fresh creates only; never fails the submit.
   if (!resumed) {
@@ -287,7 +301,7 @@ export async function submit(at, body) {
       await addLine({ texti: "Ný innsending úr Studio", tegund: "annað", til: "Skrifstofa", t: opp.id, tengill: "/crm", hver: [body.contact && body.contact.fornafn, body.contact && body.contact.eftirnafn].filter(Boolean).join(" ").slice(0, 60), chat: true, projectName: name });
     } catch (e) { /* notification only */ }
   }
-  return { recordId: opp.id, created: todo.length, skipped: body.lineItems.length - todo.length, resumed };
+  return Object.assign({ recordId: opp.id, created: todo.length, skipped: body.lineItems.length - todo.length, resumed }, matState.matsSkipped ? { matsSkipped: true } : {});
 }
 
 // A batch of Line Items. If Airtable refuses it with a 422 — almost always a linked product (Vöru reitur) that was
@@ -313,9 +327,15 @@ export async function linesOfProject(at, oppId, fields) {
   }
   return out;
 }
-export async function createLines(at, records) {
+export async function createLines(at, records, state) {
   try { return await at("POST", LINE_ITEMS, { typecast: true, records }); }
-  catch (e) { if (e.status !== 422) throw e; }
+  catch (e) {
+    if (e.status !== 422) throw e;
+    if (isMatErr(e) && hasMats(records)) { // the material link fields don't exist yet: same lines without them
+      if (state) state.matsSkipped = true;
+      return createLines(at, stripMats(records), state);
+    }
+  }
   for (const r of records) {
     try { await at("POST", LINE_ITEMS, { typecast: true, records: [r] }); continue; }
     catch (e) { if (e.status !== 422) throw e; }
