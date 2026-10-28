@@ -20,15 +20,17 @@
      Airtable's own grid/kanban view. Same Apple-minimal CSS as /skrifstofa, /yfirferd,
      /pontun — this is a new page, not an extension of an old dark-themed one. */
   :root {
-    --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
-    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
+    --bg:#f5f5f7; --surface:#ffffff; --line:#e6e6ea; --sidebar:#1b2430;
+    --text:#1d1d1f; --muted:#6e6e73; --dim:#a1a1a6;
     --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bad-bg:#fbe4e1; --acc-bg:#e6f0fa;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   :root[data-theme="dark"] {
-    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
-    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
+    --bg:#101216; --surface:#1a1d23; --line:#2a2e37;
+    --text:#f2f2f5; --muted:#9a9aa3; --dim:#6b6b73;
     --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
+    --bad-bg:#3a1a17; --acc-bg:#14283d;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.4; }
@@ -296,6 +298,46 @@
   /* the generic picker can be opened from inside any of the three self-serve modals above (same
      z-index as them otherwise, and later in DOM order, so it would paint UNDER them) — always on top */
   #lpModalBg { z-index:260; }
+
+  /* ---- Apple pass (2026-10-28): quiet panels, one primary action, rare things under "Meira" ---- */
+  .wrap { padding:44px 48px 80px; }
+  .hd { margin-bottom:28px; }
+  .title { font-size:2rem; font-weight:700; letter-spacing:-.02em; }
+  .searchBox { background:var(--surface); border:none; width:230px; padding:8px 16px; }
+  .searchBox:focus { outline:2px solid var(--accent); }
+  .toggleClosed { border:none; background:var(--surface); }
+  .newProjectBtn { padding:8px 18px; font-size:.85rem; }
+  .moreWrap { position:relative; }
+  .moreMenu { display:none; position:absolute; right:0; top:calc(100% + 8px); min-width:230px; background:var(--surface); border-radius:14px; box-shadow:0 10px 36px rgba(0,0,0,.18); padding:6px; z-index:120; }
+  .moreMenu.open { display:block; }
+  .moreMenu button, .moreMenu a { all:unset; box-sizing:border-box; display:block; width:100%; padding:9px 14px; border-radius:9px; font-size:.88rem; color:var(--text); cursor:pointer; font-family:var(--font); }
+  .moreMenu button:hover, .moreMenu a:hover { background:var(--bg); }
+  .moreMenu hr { border:none; border-top:1px solid var(--line); margin:5px 8px; }
+  .kpi { box-shadow:none; }
+  /* 12 columns instead of 6 (S=2, M=3, L=6, XL=12): the four default tiles now fit one row */
+  .kpiRow { grid-template-columns:repeat(12,minmax(0,1fr)); margin-bottom:22px; }
+  .kpiRow > [data-size="S"] { grid-column:span 2; }
+  .kpiRow > [data-size="M"] { grid-column:span 3; }
+  .kpiRow > [data-size="L"] { grid-column:span 6; }
+  .kpiRow > [data-size="XL"] { grid-column:span 12; }
+  .panel { border:none; border-radius:14px; margin-bottom:22px; }
+  .panel h2 { font-size:.8rem; font-weight:600; text-transform:none; letter-spacing:.01em; padding:14px 18px; gap:10px; }
+  .panel h2.pipeHead, .panel h2.toReviewHead, .panel h2.nextStepsHead { background:var(--surface); color:var(--text); border-bottom:1px solid var(--line); justify-content:flex-start; }
+  .panel h2 .cnt { color:var(--muted); font-weight:500; }
+  .panel h2.toReviewHead .cnt { background:var(--bad-bg); color:var(--bad); padding:1px 9px; border-radius:999px; font-weight:600; }
+  .panel h2.nextStepsHead .cnt { background:var(--acc-bg); color:var(--accent); padding:1px 9px; border-radius:999px; font-weight:600; }
+  /* the three "needs me" lists stay short: scroll inside, header stays put */
+  #toReview, #inquiries, #nextSteps { max-height:240px; overflow:auto; }
+  #toReview h2, #inquiries h2, #nextSteps h2 { position:sticky; top:0; z-index:1; }
+  .reviewTable th { background:transparent; text-transform:none; font-size:.74rem; font-weight:500; }
+  .reviewTable td { border-top:1px solid var(--line); }
+  .card { background:var(--bg); box-shadow:none; }
+  .pipelineReport { margin-top:6px; }
+  .pipelineReport h2 { font-size:.8rem; font-weight:600; text-transform:none; }
+  .prCell, .lossStats { box-shadow:none; }
+  .detail { border-radius:18px; padding:22px; }
+  .detail .dTitle { font-size:1.2rem; margin-bottom:14px; }
+  @media (max-width:760px) { .wrap { padding:28px 16px 60px; } .title { font-size:1.6rem; } .searchBox { width:100%; } }
 </style>
 </head>
 <body>
@@ -309,17 +351,25 @@
   <div class="hd">
     <div class="title">CRM</div>
     <div class="hdRight">
-      <div class="quickLinks">
-        <a href="https://www.bjorninninnrettingar.is/" target="_blank" rel="noopener" title="Heimasíðan">🌐</a>
-        <a href="https://konto.is/stjornbord" target="_blank" rel="noopener" title="Konto">📊</a>
-        <a href="https://calendar.google.com/calendar/u/0/r" target="_blank" rel="noopener" title="Google Calendar">📅</a>
-        <a href="https://chat.google.com/app/chat/AAQA4w6yK6o" target="_blank" rel="noopener" title="Google Chat">💬</a>
-      </div>
+      <input class="searchBox" id="search" type="text" placeholder="Leita að tækifæri…" />
       <button class="toggleClosed" id="toggleMine" type="button">Mínar sölur</button>
-      <button class="toggleClosed" id="contactsBtn" type="button">👤 Tengiliðir</button>
-      <button class="toggleClosed" id="newUtfBtn" type="button">🎨 Ný útfærsla</button>
-      <button class="toggleClosed" id="newEfniBtn" type="button">🧱 Nýtt efni</button>
       <button class="newProjectBtn" id="newProjectBtn" type="button">+ Nýtt verkefni</button>
+      <div class="moreWrap">
+        <button class="toggleClosed" id="moreBtn" type="button" aria-haspopup="true" aria-expanded="false">Meira</button>
+        <div class="moreMenu" id="moreMenu" role="menu">
+          <button type="button" id="contactsBtn">Tengiliðir</button>
+          <button type="button" id="newUtfBtn">Ný útfærsla</button>
+          <button type="button" id="newEfniBtn">Nýtt efni</button>
+          <hr />
+          <button type="button" id="toggleClosed">Sýna líka unnin/töpuð</button>
+          <button type="button" id="statsBtn">Tölfræði söluferlis</button>
+          <hr />
+          <a href="https://www.bjorninninnrettingar.is/" target="_blank" rel="noopener">Heimasíðan</a>
+          <a href="https://konto.is/stjornbord" target="_blank" rel="noopener">Konto</a>
+          <a href="https://calendar.google.com/calendar/u/0/r" target="_blank" rel="noopener">Google Calendar</a>
+          <a href="https://chat.google.com/app/chat/AAQA4w6yK6o" target="_blank" rel="noopener">Google Chat</a>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -330,17 +380,8 @@
     <div class="kpi" id="kpiTransfersBox" data-size="M"><div class="lbl">Millifærslur þennan mánuð</div><div class="val" id="kpiTransfers">—</div><div class="sub">Staðfestingargjöld + eftirstöðvar</div></div>
   </div>
 
-  <div class="pipelineReport" id="pipelineReport">
-    <h2>Söluferli — tölfræði (allur tími)</h2>
-    <div class="prRow" id="prRow"></div>
-    <div class="lossStats" id="lossStats" style="display:none;">
-      <h3>🥀 Af hverju töpum við? <span class="cnt" id="lossStatsCnt"></span></h3>
-      <div id="lossStatsRows"></div>
-    </div>
-  </div>
-
   <div class="panel" id="toReview" style="display:none;">
-    <h2 class="toReviewHead">📝 Til yfirferðar — sjálfsafgreiðsla <span class="cnt" id="toReviewCnt"></span></h2>
+    <h2 class="toReviewHead">Til yfirferðar — sjálfsafgreiðsla <span class="cnt" id="toReviewCnt"></span></h2>
     <table class="reviewTable">
       <thead><tr><th>Verkefni</th><th>Staða</th><th class="num">Dagar síðan sent</th><th class="num">Tilboð</th><th></th></tr></thead>
       <tbody id="toReviewRow"></tbody>
@@ -348,12 +389,12 @@
   </div>
 
   <div class="panel" id="inquiries" style="display:none;">
-    <h2 class="toReviewHead">💬 Fyrirspurnir af vefnum <span class="cnt" id="inqCnt"></span></h2>
+    <h2 class="toReviewHead">Fyrirspurnir af vefnum <span class="cnt" id="inqCnt"></span></h2>
     <div id="inqRows"></div>
   </div>
 
   <div class="panel" id="nextSteps" style="display:none;">
-    <h2 class="nextStepsHead">📅 Næstu skref <span class="cnt" id="nsCnt"></span></h2>
+    <h2 class="nextStepsHead">Næstu skref <span class="cnt" id="nsCnt"></span></h2>
     <table class="reviewTable">
       <thead><tr><th>Verkefni</th><th>Næsta skref</th><th class="num">Dags.</th></tr></thead>
       <tbody id="nsRow"></tbody>
@@ -362,21 +403,26 @@
 
   <div class="panel pipelinePanel" id="pipelinePanelBox">
     <h2 class="pipeHead">
-      <span>📈 Söluferli <span class="cnt" id="boardCnt"></span></span>
-      <span class="pipeHeadControls">
-        <input class="searchBox" id="search" type="text" placeholder="Leita að tækifæri…" />
-        <button class="toggleClosed" id="toggleClosed">Sýna líka unnin/töpuð</button>
-      </span>
+      <span>Söluferli</span><span class="cnt" id="boardCnt"></span>
     </h2>
     <div id="loading" class="loading">Sæki verkefni…</div>
     <div class="board" id="board" style="display:none;"></div>
+  </div>
+
+  <div class="pipelineReport" id="pipelineReport" style="display:none;">
+    <h2>Söluferli — tölfræði, allur tími</h2>
+    <div class="prRow" id="prRow"></div>
+    <div class="lossStats" id="lossStats" style="display:none;">
+      <h3>Af hverju töpum við? <span class="cnt" id="lossStatsCnt"></span></h3>
+      <div id="lossStatsRows"></div>
+    </div>
   </div>
 
   <div class="detailModalBg" id="detailModalBg">
   <div class="detail" id="detail">
     <div class="dTitle" id="dName"></div>
     <div class="row"><label>Staða í söluferli</label><select id="dStage"></select></div>
-    <div class="row" id="dUndoRow" style="display:none"><label>Unnið</label><button type="button" id="dUndoBtn" class="printBtn">↩️ Afturkalla Unnið</button><span id="dUndoMsg" style="font-size:12px;margin-left:8px"></span></div>
+    <div class="row" id="dUndoRow" style="display:none"><label>Unnið</label><button type="button" id="dUndoBtn" class="printBtn">↩ Afturkalla Unnið</button><span id="dUndoMsg" style="font-size:12px;margin-left:8px"></span></div>
     <div class="row"><label>Sölumaður</label><select id="dOwner"></select></div>
     <div class="row"><label>Næsta skref</label><select id="dStep"></select></div>
     <div class="row"><label>Næsta skref dags.</label><input type="date" id="dStepDate" /></div>
@@ -384,7 +430,7 @@
     <div class="row"><label>Eftirfylgni</label><span id="dFollow"></span></div>
     <div class="row"><label>Skrá eftirfylgni</label><span class="fuBtns">
       <select id="dFuWho" title="Hver fylgdi eftir"><option value="RH">RH</option><option value="JK">JK</option></select>
-      <button type="button" data-fu="call">☎️ Hringdi</button><button type="button" data-fu="mail">📤 Sendi póst</button><button type="button" data-fu="talk" title="Í samskiptum (líkleg)">💬 Í samskiptum</button>
+      <button type="button" data-fu="call">Hringdi</button><button type="button" data-fu="mail">Sendi póst</button><button type="button" data-fu="talk" title="Í samskiptum (líkleg)">Í samskiptum</button>
     </span></div>
     <div class="row"><label>Svar v. eftirfylgni</label><select id="dAnswer"></select></div>
     <div class="row"><label>Líkur á sölu</label><select id="dLikur"></select></div>
@@ -393,10 +439,10 @@
     <div class="row"><label>Tengiliðir</label><span class="ctWrap"><span id="dContacts"></span> <button type="button" class="ctAdd" id="dCtAdd">+ Tengja</button></span></div>
     <div id="dCtPick" style="display:none;"><input class="lpSearch" id="dCtSearch" type="text" placeholder="Leita að tengilið (nafn, netfang, sími)…" /><div class="lpResults" id="dCtResults"></div></div>
 
-    <button class="liToggle" id="hxToggleBtn" type="button">🕘 Saga ▾</button>
+    <button class="liToggle" id="hxToggleBtn" type="button">Saga ▾</button>
     <div id="hxBody" class="liBody"></div>
 
-    <button class="liToggle" id="vsToggleBtn" type="button">⚙️ Verðstillingar ▾</button>
+    <button class="liToggle" id="vsToggleBtn" type="button">Verðstillingar ▾</button>
     <div id="vsBody" class="liBody">
       <div class="row"><label>Ósýnilegur afsláttur %</label><input type="number" id="vsOsyn" min="0" max="50" step="1" placeholder="0" style="width:80px" /></div>
       <div class="row"><label>Uppsetning Bjarnarins</label><input type="checkbox" id="vsUpps" /></div>
@@ -407,7 +453,7 @@
     </div>
 
     <div id="liWrap" style="display:none;">
-      <button class="liToggle" id="liToggleBtn" type="button">📦 Vörulínur ▾</button>
+      <button class="liToggle" id="liToggleBtn" type="button">Vörulínur ▾</button>
       <div id="liBody" class="liBody">
         <div class="liGridWrap"><table class="liGrid" id="liGrid"><thead><tr>
           <th>Rými</th><th>V1</th><th>V2</th><th>V3</th><th>Magn</th><th>Afsl. %</th><th>Ein.verð</th><th>Verð</th><th></th>
@@ -425,14 +471,14 @@
 
     <!-- Greiðslur & tilboð (2026-10-26) — shared with /skrifstofa, see office-money.js. Loaded on first
          expand only, so opening a deal stays as cheap as before. -->
-    <button class="liToggle" id="omToggleBtn" type="button">💳 Greiðslur &amp; tilboð ▾</button>
+    <button class="liToggle" id="omToggleBtn" type="button">Greiðslur &amp; tilboð ▾</button>
     <div id="omBody" class="liBody"></div>
 
     <div class="actions">
       <a id="dOpenPro" href="#" target="_blank" rel="noopener">Opna í PRO →</a>
       <a id="dOpenSmida" href="#" target="_blank" rel="noopener" style="display:none" title="Lamir, hillur og ofn skáp fyrir skáp — og Skrifa á USB">Smíða &amp; CNC →</a>
-      <button class="printBtn" id="dPrintBtn" type="button">🖨️ Prenta tilboð</button>
-      <button class="printBtn" id="dSentBtn" type="button" title="Færir í Tilboð sent og setur Næsta skref = Bíða eftir svari eftir 3 daga">📤 Merkja tilboð sent</button>
+      <button class="printBtn" id="dPrintBtn" type="button">Prenta tilboð</button>
+      <button class="printBtn" id="dSentBtn" type="button" title="Færir í Tilboð sent og setur Næsta skref = Bíða eftir svari eftir 3 daga">Merkja tilboð sent</button>
       <button class="close" id="dClose">Loka</button>
     </div>
     <div class="printMsg" id="dPrintMsg"></div>
@@ -442,8 +488,8 @@
 
 <div class="lpModalBg" id="lossModalBg">
   <div class="lpModal">
-    <button class="lpClose" id="lossClose" type="button">✕</button>
-    <div class="lpTitle">Tækifæri tapað 🥀</div>
+    <button class="lpClose" id="lossClose" type="button"></button>
+    <div class="lpTitle">Tækifæri tapað </div>
     <div class="lpSub" id="lossName" style="font-size:.82rem;color:var(--muted);margin-top:4px;"></div>
     <div style="font-size:.82rem;margin-top:12px;">Af hverju? <span style="color:var(--muted)">(má sleppa)</span></div>
     <div class="lossReasons" id="lossReasons"></div>
@@ -455,7 +501,7 @@
 
 <div class="lpModalBg" id="npModalBg">
   <div class="lpModal">
-    <button class="lpClose" id="npClose" type="button">✕</button>
+    <button class="lpClose" id="npClose" type="button"></button>
     <div class="lpTitle">Nýtt verkefni</div>
 
     <div id="npStep1">
@@ -473,8 +519,8 @@
 
     <div id="npStep2" style="display:none;">
       <div class="npChosen" id="npChosenName"></div>
-      <button class="npPrimary" id="npDesignBtn" type="button">🎨 Teikna í hönnuði</button>
-      <button class="npPrimary npSecondary" id="npQuickBtn" type="button">📦 Fljótleg lína (engin teikning)</button>
+      <button class="npPrimary" id="npDesignBtn" type="button">Teikna í hönnuði</button>
+      <button class="npPrimary npSecondary" id="npQuickBtn" type="button">Fljótleg lína (engin teikning)</button>
       <button class="npBack" id="npBackBtn" type="button">← Til baka</button>
     </div>
 
@@ -484,7 +530,7 @@
 
 <div class="lpModalBg" id="lpModalBg">
   <div class="lpModal">
-    <button class="lpClose" id="lpClose" type="button">✕</button>
+    <button class="lpClose" id="lpClose" type="button"></button>
     <div class="lpTitle" id="lpTitle">Veldu</div>
     <input class="lpSearch" id="lpSearch" type="text" placeholder="Leita…" />
     <div class="lpResults" id="lpResults"></div>
@@ -492,11 +538,11 @@
 </div>
 
 <!-- Tengiliðir+Fyrirtæki (2026-10-18) — search/edit/create, scoped: customers and suppliers, writes
-     only the plain "Fyrirtæki🏢" company link (the other two Tengiliðir "Fyrirtæki" fields are Airtable's
+     only the plain "Fyrirtæki" company link (the other two Tengiliðir "Fyrirtæki" fields are Airtable's
      own reverse links for "Aðal tengiliður"/"Aðrir tengiliðir", set from the Fyrirtæki side). -->
 <div class="lpModalBg" id="contactsModalBg">
   <div class="lpModal wideModal">
-    <button class="lpClose" id="contactsClose" type="button">✕</button>
+    <button class="lpClose" id="contactsClose" type="button"></button>
     <div class="lpTitle">Tengiliðir</div>
     <div class="modalTabs">
       <button class="modalTab active" id="cTabPerson" type="button">Fólk</button>
@@ -523,7 +569,7 @@
      never the "Skipulag →" planner-integration fields (CRM/quoting-only, stays out of /skipuleggja). -->
 <div class="lpModalBg" id="utfModalBg">
   <div class="lpModal wideModal">
-    <button class="lpClose" id="utfClose" type="button">✕</button>
+    <button class="lpClose" id="utfClose" type="button"></button>
     <div class="lpTitle" id="utfTitle">Ný útfærsla</div>
     <div class="formGrid">
       <div><label>Lýsing á útfærslu *</label><input id="utfLysing" type="text" /></div>
@@ -540,10 +586,10 @@
 
 <!-- Nýtt efni (2026-10-18) — descriptive fields only. Purchase cost + the production-time-minutes
      fields are NOT in this form on purpose: they feed every downstream sale price and stay an owner-
-     only edit in Airtable until the line is reviewed (see "Óyfirfarið — Rakel ⚠️"). -->
+     only edit in Airtable until the line is reviewed (see "Óyfirfarið — Rakel "). -->
 <div class="lpModalBg" id="efniModalBg">
   <div class="lpModal wideModal">
-    <button class="lpClose" id="efniClose" type="button">✕</button>
+    <button class="lpClose" id="efniClose" type="button"></button>
     <div class="lpTitle">Nýtt efni</div>
     <div class="formGrid">
       <div><label>Heiti efnis *</label><input id="efHeiti" type="text" /></div>
@@ -900,7 +946,7 @@
         // Bíða e. svari) — a real, already-public field that had no UI anywhere in crm.html until now.
         (f["Svar við eftirfylgni"] ? '<span class="pill answer">' + esc(f["Svar við eftirfylgni"]) + '</span>' : '') +
         (f["Líkur á sölu"] ? '<span class="pill follow" title="Líkur á sölu">' + esc(f["Líkur á sölu"]) + '</span>' : '') +
-        (f["Prufuverk 🧪"] ? '<span class="pill prufa" title="Telst ekki í KPI">🧪 Prufa</span>' : '') +
+        (f["Prufuverk 🧪"] ? '<span class="pill prufa" title="Telst ekki í KPI">Prufa</span>' : '') +
       '</div>';
     el.addEventListener("click", function () { openDetail(r); });
     el.addEventListener("dragstart", function (e) {
@@ -1009,7 +1055,7 @@
       tr.innerHTML =
         '<td class="nm">' + esc(f["Heiti tækifæris / verkefnis"] || "(ónefnt)") + '</td>' +
         '<td>' + esc(f["Næsta skref"] || "—") + '</td>' +
-        '<td class="num">' + (d < today ? "⚠️ " : "") + esc(d) + '</td>';
+        '<td class="num">' + (d < today ? "Seint · " : "") + esc(d) + '</td>';
       tr.addEventListener("click", function () { openDetail(r); });
       row.appendChild(tr);
     });
@@ -1249,8 +1295,8 @@
     var f = r.fields, body = document.getElementById("vsBody"), btn = document.getElementById("vsToggleBtn"), msg = document.getElementById("vsMsg");
     var locked = f["Staða í söluferli"] === "🏆 Tækifæri unnið";
     btn.style.display = locked ? "none" : "";
-    body.classList.remove("open"); btn.textContent = "⚙️ Verðstillingar ▾"; msg.textContent = "";
-    btn.onclick = function () { var o = body.classList.toggle("open"); btn.textContent = "⚙️ Verðstillingar " + (o ? "▴" : "▾"); };
+    body.classList.remove("open"); btn.textContent = "Verðstillingar ▾"; msg.textContent = "";
+    btn.onclick = function () { var o = body.classList.toggle("open"); btn.textContent = "Verðstillingar " + (o ? "▴" : "▾"); };
     var pct = function (v) { return v == null ? "" : Math.round(v * 100); };
     var osyn = document.getElementById("vsOsyn"), upps = document.getElementById("vsUpps"), au = document.getElementById("vsAfslUpps");
     var fe = document.getElementById("vsFerdir"), sk = document.getElementById("vsSkipting");
@@ -1320,12 +1366,12 @@
   function setupHistory(r) {
     var body = document.getElementById("hxBody"), btn = document.getElementById("hxToggleBtn");
     var name = String(r.fields["Heiti tækifæris / verkefnis"] || ""), tNo = (name.match(/^(T-\d+)/) || [])[1];
-    body.classList.remove("open"); body.innerHTML = ""; btn.textContent = "🕘 Saga ▾";
+    body.classList.remove("open"); body.innerHTML = ""; btn.textContent = "Saga ▾";
     btn.style.display = tNo ? "" : "none";
     var loaded = false;
     btn.onclick = function () {
       var o = body.classList.toggle("open");
-      btn.textContent = "🕘 Saga " + (o ? "▴" : "▾");
+      btn.textContent = "Saga " + (o ? "▴" : "▾");
       if (!o || loaded) return;
       loaded = true;
       body.innerHTML = '<div class="empty">Sæki…</div>';
@@ -1396,12 +1442,12 @@
     setupLineItems(r);
     var omBody = document.getElementById("omBody"), omBtn = document.getElementById("omToggleBtn");
     omBody.classList.remove("open"); omBody.innerHTML = "";
-    omBtn.textContent = "💳 Greiðslur & tilboð ▾";
+    omBtn.textContent = "Greiðslur & tilboð ▾";
     omBtn.dataset.rec = r.id;
     if (window.OfficeMoney && OfficeMoney.badge) OfficeMoney.badge(omBtn, r.id, k);
     omBtn.onclick = function () {
       var open = omBody.classList.toggle("open");
-      omBtn.textContent = "💳 Greiðslur & tilboð " + (open ? "▴" : "▾");
+      omBtn.textContent = "Greiðslur & tilboð " + (open ? "▴" : "▾");
       if (!open && window.OfficeMoney && OfficeMoney.badge) OfficeMoney.badge(omBtn, r.id, k);
       if (open) OfficeMoney.mount(omBody, r.id, k);
     };
@@ -1470,10 +1516,10 @@
     var isOpen = CLOSED_STAGES.indexOf(r.fields["Staða í söluferli"]) === -1;
     wrap.style.display = isOpen ? "block" : "none";
     body.classList.remove("open");
-    btn.textContent = "📦 Vörulínur ▾";
+    btn.textContent = "Vörulínur ▾";
     btn.onclick = function () {
       var open = body.classList.toggle("open");
-      btn.textContent = "📦 Vörulínur " + (open ? "▴" : "▾");
+      btn.textContent = "Vörulínur " + (open ? "▴" : "▾");
       if (open && !liLoaded) { liLoaded = true; loadAndRenderLi(); renderMatSections(); }
     };
   }
@@ -2164,6 +2210,24 @@
   if (openParam) openProjectById(openParam, false);
 
   load();
+})();
+</script>
+<script>
+// "Meira" menu + stats toggle (2026-10-28). The buttons inside keep their own handlers (bound by id in the main script).
+(function () {
+  var btn = document.getElementById("moreBtn"), menu = document.getElementById("moreMenu");
+  if (!btn || !menu) return;
+  function close() { menu.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); }
+  btn.addEventListener("click", function (e) { e.stopPropagation(); var o = menu.classList.toggle("open"); btn.setAttribute("aria-expanded", o ? "true" : "false"); });
+  menu.addEventListener("click", close);
+  document.addEventListener("click", function (e) { if (!menu.contains(e.target)) close(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
+  document.getElementById("statsBtn").addEventListener("click", function () {
+    var el = document.getElementById("pipelineReport"), show = el.style.display === "none";
+    el.style.display = show ? "" : "none";
+    this.textContent = show ? "Fela tölfræði" : "Tölfræði söluferlis";
+    if (show) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 })();
 </script>
 </body>
