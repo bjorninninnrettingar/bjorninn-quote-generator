@@ -6519,7 +6519,7 @@
         // camera on the outer side of this wall (opposite its room-facing normal)?
         var cp = (THREE_STATE.fadeCam || camera).position;
         wallVec.set(cp.x - cx, 0, cp.z - cz);
-        var behind = wallVec.x * w.geom.normal.x + wallVec.z * w.geom.normal.z < 0;
+        var behind = wallVec.x * w.geom.normal.x + wallVec.z * w.geom.normal.z < (opts.fadeMargin || 0); // fadeMargin: the welcome kitchen starts fading a wall before the camera reaches its plane, so it is already gone when the camera sweeps past a corner (no flash)
         var target = behind ? (opts.clean ? 0 : 0.1) : 1; // export shots drop a wall in the way completely
         w.mat.opacity += (target - w.mat.opacity) * 0.2;
         w.mat.depthWrite = w.mat.opacity > 0.6;
