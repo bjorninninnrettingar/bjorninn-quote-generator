@@ -548,11 +548,17 @@ const VERK_ONLY_FIELDS = {
 // Vefspjall means every site visitor's email + full conversation transcript
 // at once. Require the caller to filter to a single lookup instead of
 // listing the whole table.
-const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK", "tbltD1UNpqj05WtMx", "tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK"]);
+const REQUIRE_FILTER = new Set(["tblhglpjQkczdG1AY", "tbl3e5o0Klv9RcNQ4", "tblzkw70E2xoX9RmK", "tbltD1UNpqj05WtMx", "tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", STIMPLANIR_TABLE, VERKTIMAR_TABLE]);
 // "A filter is required" alone was not a guard: filterByFormula=TRUE() matched every row (2026-10-01 —
 // employee PINs and customer contacts were listable). These tables only accept the exact query shape
 // their own pages send.
+// Stimplanir / Verktímar (2026-10-28): per-employee attendance and per-project labour. Every caller
+// (stimpilklukka.html, app.html Mínar stundir, laun.html) leads with one employee: either
+// AND({Starfsmaður}="NAME", ...) or laun's AND(FIND("NAME",ARRAYJOIN({Starfsmaður}))>0, ...).
+const EMPLOYEE_FILTER = /^AND\((?:\{Starfsmaður\}\s*=\s*"(?:[^"\\]|\\.)+"|FIND\("(?:[^"\\]|\\.)+",\s*ARRAYJOIN\(\{Starfsmaður\}\)\)\s*>\s*0),/;
 const STRICT_FILTERS = {
+  [STIMPLANIR_TABLE]: EMPLOYEE_FILTER,
+  [VERKTIMAR_TABLE]: EMPLOYEE_FILTER,
   // stimpilklukka.html + app.html: one active employee by PIN
   // (a PIN of all zeros is refused: a blank PIN field equals 0 in an Airtable formula, so "0000" used to log in
   // as any active employee who had no PIN set)
@@ -688,6 +694,11 @@ const CREATE_REQUIRES_KEY = new Set(["tblFcsUoGxsuUwNEH", "tblQ8zeUanriESWvL", "
 // 3 specific fields (discount/review-flag/pipeline-stage), not the whole table — needs either field-
 // level PATCH gating (new mechanism) or giving the floor app a key (worsens finding #1's key-sprawl
 // problem). Flagged back to the user rather than shipped either way unilaterally.
+// Tækifæri PATCH is gated BY FIELD (2026-10-28): only these keyless-writable fields (dagatal.html's drag-to-
+// reschedule) may be sent without ?k=; any other field in the request needs the VERK_KEY.
+const PATCH_KEYLESS_FIELDS = {
+  "tbl4LMXlQjp66RFKI": ["Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Viðskiptavinur sækir þann:"],
+};
 const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU", "tbl3e5o0Klv9RcNQ4"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -1071,6 +1082,13 @@ export default async function handler(req, res) {
     }
     if (Object.keys(fields).length === 0) {
       return res.status(400).json({ error: "No writable fields in request" });
+    }
+    if (PATCH_KEYLESS_FIELDS[tableId]) {
+      const verkKey = process.env.VERK_KEY;
+      const keyOk = !!verkKey && req.query.k === verkKey;
+      if (!keyOk && Object.keys(fields).some((k) => !PATCH_KEYLESS_FIELDS[tableId].includes(k))) {
+        return res.status(403).json({ error: "Invalid key" });
+      }
     }
 
     if (tableId === "tbl3e5o0Klv9RcNQ4" && !["Samþykkt", "Hafnað"].includes(fields["Staða"])) {

@@ -172,8 +172,9 @@ test("Tækifæri: the two new Dagatal fields stay behind ?k=VERK_KEY on read, li
   assert.equal(priv.body.records[0].fields["Áætlaðir Dagar í vinnu (samkvæmt tilboðsblaði)"], 10);
 });
 
-test("Tækifæri: 'Áætlaðir dagar í vinnudögum Björninn (internal)' is writable from the Dagatal section", async () => {
-  const res = await patch("tbl4LMXlQjp66RFKI/recAAAAAAAAAAAAAA", { "Áætlaðir dagar í vinnudögum Björninn (internal)": 14 });
+test("Tækifæri: 'Áætlaðir dagar í vinnudögum Björninn (internal)' is writable from the Dagatal section (with the key, 2026-10-28)", async () => {
+  assert.equal((await patch("tbl4LMXlQjp66RFKI/recAAAAAAAAAAAAAA", { "Áætlaðir dagar í vinnudögum Björninn (internal)": 14 })).statusCode, 403);
+  const res = await patch("tbl4LMXlQjp66RFKI/recAAAAAAAAAAAAAA", { "Áætlaðir dagar í vinnudögum Björninn (internal)": 14 }, "verk-secret");
   assert.equal(res.statusCode, 200);
   assert.equal(f.calls.at(-1).body.fields["Áætlaðir dagar í vinnudögum Björninn (internal)"], 14);
 });
