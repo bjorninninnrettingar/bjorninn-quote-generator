@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Starfsmenn — Björninn</title>
+<link rel="icon" href="/icons/icon-192.png" />
+<script>
+(function () {
+  try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+})();
+</script>
+<style>
+  /* starfsmenn.html (2026-10-28) — replaces /laun. One quiet page: what needs the owner now (vacation
+     requests), who is in the shop, and one row per person that opens a detail drawer (hours, absences,
+     shifts; pay figures stay hidden until asked for). Same data and same proxy rules as /laun did:
+     Launatímabil (names, periods, figures), Stimplanir (per-employee filter), Fjarvistir (key-gated
+     Orlof list + Staða PATCH). Starfsmenn itself stays unreadable through the proxy. */
+  :root {
+    --bg:#f5f5f7; --surface:#ffffff; --line:#e6e6ea; --sidebar:#1b2430;
+    --text:#1d1d1f; --muted:#6e6e73; --dim:#a1a1a6;
+    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --warn-bg:#fdf2d9; --good-bg:#e5f6ea; --bad-bg:#fbe4e1;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root[data-theme="dark"] {
+    --bg:#101216; --surface:#1a1d23; --line:#2a2e37;
+    --text:#f2f2f5; --muted:#9a9aa3; --dim:#6b6b73;
+    --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
+    --warn-bg:#332a10; --good-bg:#102414; --bad-bg:#3a1a17;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.45; }
+  button { font:inherit; color:inherit; }
+
+  #shell { display:flex; min-height:100vh; }
+  .sidebar { width:224px; flex:none; background:var(--sidebar); color:#cfd5dd; display:flex; flex-direction:column; padding:18px 0; height:100vh; position:sticky; top:0; overflow-y:auto; }
+  .sidebar nav { display:flex; flex-direction:column; gap:1px; flex:1; }
+  .sidebar nav a { display:flex; align-items:center; gap:10px; padding:9px 18px; text-decoration:none; color:#cfd5dd; font-size:.88rem; }
+  .sidebar nav a:hover { background:#242e3b; }
+  .sidebar nav a.active { background:var(--accent); color:#fff; }
+
+  .main { flex:1; min-width:0; padding:44px 48px 80px; max-width:880px; }
+  .head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:36px; }
+  h1 { font-size:2rem; font-weight:700; letter-spacing:-.02em; }
+  .periodSel { font:inherit; font-size:.9rem; background:transparent; border:none; color:var(--muted); cursor:pointer; padding:6px 4px; text-align:right; }
+  .periodSel:hover { color:var(--text); }
+
+  .sec { margin-bottom:40px; }
+  .secTitle { font-size:.78rem; font-weight:600; color:var(--muted); letter-spacing:.02em; margin-bottom:10px; padding:0 4px; }
+  .list { background:var(--surface); border-radius:14px; overflow:hidden; }
+  .row { display:flex; align-items:center; gap:14px; padding:14px 18px; border-bottom:1px solid var(--line); width:100%; background:none; border-left:none; border-right:none; border-top:none; text-align:left; }
+  .row:last-child { border-bottom:none; }
+  button.row { cursor:pointer; }
+  button.row:hover { background:var(--bg); }
+  button.row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .av { width:36px; height:36px; border-radius:50%; background:var(--bg); color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:.78rem; font-weight:600; flex:none; }
+  .who { flex:1; min-width:0; }
+  .nm { font-weight:600; font-size:.98rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .st { font-size:.82rem; color:var(--muted); display:flex; align-items:center; gap:6px; margin-top:1px; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--dim); flex:none; }
+  .dot.in { background:var(--good); }
+  .dot.warn { background:var(--warn); }
+  .st.warn { color:var(--warn); }
+  .hrs { font-size:.95rem; font-variant-numeric:tabular-nums; text-align:right; }
+  .hrs small { display:block; font-size:.72rem; color:var(--muted); }
+  .chev { color:var(--dim); flex:none; }
+
+  .req { flex-wrap:wrap; }
+  .req .when { font-size:.84rem; color:var(--muted); margin-top:1px; }
+  .acts { display:flex; gap:8px; align-items:center; margin-left:auto; }
+  .btn { border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:7px 16px; font-size:.85rem; font-weight:600; cursor:pointer; }
+  .btn:hover { background:var(--bg); }
+  .btn.pri { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.pri:hover { opacity:.9; background:var(--accent); }
+  .btn.danger { background:var(--bad); border-color:var(--bad); color:#fff; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .ask { font-size:.85rem; color:var(--muted); }
+  .link { background:none; border:none; color:var(--accent); cursor:pointer; font-size:.85rem; padding:4px; }
+  .link:hover { text-decoration:underline; }
+  .pill { font-size:.72rem; font-weight:600; padding:2px 10px; border-radius:999px; }
+  .pill.ok { background:var(--good-bg); color:var(--good); }
+  .pill.no { background:var(--bad-bg); color:var(--bad); }
+  .pill.wait { background:var(--warn-bg); color:var(--warn); }
+
+  .note { color:var(--muted); font-size:.9rem; padding:18px; }
+  .note.err { color:var(--bad); }
+  .skel { height:60px; border-bottom:1px solid var(--line); background:linear-gradient(90deg,var(--surface),var(--bg),var(--surface)); background-size:200% 100%; animation:sh 1.4s infinite; }
+  @keyframes sh { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+  /* drawer */
+  .scrim { position:fixed; inset:0; background:rgba(0,0,0,.28); opacity:0; pointer-events:none; transition:opacity .2s; z-index:50; }
+  .scrim.open { opacity:1; pointer-events:auto; }
+  .drawer { position:fixed; top:0; right:0; bottom:0; width:min(520px,100vw); background:var(--bg); z-index:60; transform:translateX(102%); transition:transform .25s ease; overflow-y:auto; padding:28px 28px 60px; box-shadow:-8px 0 30px rgba(0,0,0,.12); }
+  .drawer.open { transform:none; }
+  .dHead { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px; }
+  .dHead h2 { font-size:1.5rem; font-weight:700; letter-spacing:-.01em; }
+  .x { background:none; border:none; font-size:1.6rem; line-height:1; color:var(--muted); cursor:pointer; padding:2px 8px; border-radius:8px; }
+  .x:hover { background:var(--line); }
+  .dSub { color:var(--muted); font-size:.88rem; margin-bottom:22px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:12px; }
+  .kpi { background:var(--surface); border-radius:12px; padding:14px; }
+  .kpi .l { font-size:.74rem; color:var(--muted); }
+  .kpi .v { font-size:1.35rem; font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .abs { color:var(--muted); font-size:.88rem; margin:0 4px 22px; }
+  .pay { margin-bottom:22px; }
+  .payBox { background:var(--surface); border-radius:12px; padding:14px 16px; margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  table { width:100%; border-collapse:collapse; font-size:.86rem; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:500; font-size:.74rem; }
+  tr:last-child td { border-bottom:none; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  td.open { color:var(--warn); }
+  tfoot td { font-weight:600; }
+
+  @media (max-width:760px) {
+    #shell { display:block; }
+    .sidebar { display:none; }
+    .main { padding:28px 16px 60px; }
+    h1 { font-size:1.6rem; }
+    .row { padding:12px 14px; }
+    .acts { width:100%; margin-left:50px; }
+  }
+</style>
+</head>
+<body>
+<div id="shell">
+  <div class="sidebar">
+    <div id="officeSidebarTop"></div>
+    <nav id="officeNav"></nav>
+    <div id="officeSidebarBottom"></div>
+  </div>
+  <div class="main">
+    <div class="head">
+      <h1>Starfsmenn</h1>
+      <select class="periodSel" id="periodSel" aria-label="Launatímabil" hidden></select>
+    </div>
+
+    <div class="sec" id="reqSec" hidden>
+      <div class="secTitle">Bíður þín</div>
+      <div class="list" id="reqList"></div>
+    </div>
+
+    <div class="sec">
+      <div class="secTitle" id="peopleTitle">Fólk</div>
+      <div class="list" id="people"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+    </div>
+
+    <div class="sec">
+      <button class="link" id="histBtn" type="button">Fyrri orlofsbeiðnir</button>
+      <div class="list" id="histList" hidden style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-label="Starfsmaður"></aside>
+
+<script src="/office-shell.js"></script>
+<script>
+(function () {
+  "use strict";
+  var STIMPLANIR = "tblnFIO8RB6HcelXF";
+  var LAUNATIMABIL = "tblSQ0FfGQeBttaH2";
+  var FJARVISTIR = "tbl3e5o0Klv9RcNQ4";
+  var STALE_HOURS = 14; // an open shift older than this is almost certainly a forgotten clock-out
+
+  var shellInfo = window.OfficeShell.boot("starfsmenn");
+  if (!shellInfo) return;
+  // Payroll data: real page-level check, not just a hidden nav item.
+  if ((shellInfo.record.roles || []).indexOf("eigandi") === -1) { location.href = "/skrifstofa"; return; }
+  var k = shellInfo.k;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function isk(n) { return Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " kr."; }
+  function num(n) { var v = Math.round((Number(n) || 0) * 10) / 10; return String(v).replace(".", ","); }
+  function initials(n) { var w = String(n || "").trim().split(/\s+/).filter(Boolean); return ((w[0] || "").charAt(0) + (w.length > 1 ? w[w.length - 1].charAt(0) : "")).toUpperCase(); }
+  function fmtTime(iso) { try { return new Date(iso).toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit", timeZone: "Atlantic/Reykjavik" }); } catch (e) { return ""; } }
+  function fmtDate(d) { if (!d) return ""; var p = String(d).slice(0, 10).split("-"); return p.length === 3 ? (+p[2]) + "." + (+p[1]) + "." + p[0] : d; }
+  function dq(s) { return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"'); }
+  var CHEV = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+
+  function api(path, extra) {
+    var u = "/api/airtable?path=" + encodeURIComponent(path) + (k ? "&k=" + encodeURIComponent(k) : "") + (extra ? "&" + extra : "");
+    return fetch(u).then(function (r) { return r.json().then(function (d) { if (!r.ok || d.error) throw new Error((d.error && (d.error.message || d.error)) || ("HTTP " + r.status)); return d; }); });
+  }
+  function patch(path, fields) {
+    var u = "/api/airtable?path=" + encodeURIComponent(path) + (k ? "&k=" + encodeURIComponent(k) : "");
+    return fetch(u, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields }) })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok || d.error) throw new Error((d.error && (d.error.message || d.error)) || ("HTTP " + r.status)); return d; }); });
+  }
+  function fetchAll(table, extra, acc, offset) {
+    acc = acc || [];
+    return api(table, extra + (offset ? "&offset=" + encodeURIComponent(offset) : "")).then(function (d) {
+      acc = acc.concat(d.records || []);
+      return d.offset ? fetchAll(table, extra, acc, d.offset) : acc;
+    });
+  }
+  function retryNote(msg, fn) {
+    var id = "r" + Math.random().toString(36).slice(2);
+    setTimeout(function () { var b = $(id); if (b) b.addEventListener("click", fn); }, 0);
+    return '<div class="note err">' + esc(msg) + ' <button class="link" id="' + id + '" type="button">Reyna aftur</button></div>';
+  }
+
+  // ── State ──
+  var emps = {};        // id -> {id, name, periods: {tb: fields}}
+  var empList = [];     // sorted
+  var periodList = [];  // newest first
+  var period = "";
+  var openShift = {};   // id -> {inn} | null
+  var shiftsLoaded = false;
+
+  // ── Load people + periods (Launatímabil is the only readable source of names) ──
+  function loadPeople() {
+    $("people").innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+    return fetchAll(LAUNATIMABIL, "pageSize=100").then(function (records) {
+      emps = {}; var ps = {};
+      records.forEach(function (r) {
+        var f = r.fields || {}, id = (f["Starfsmaður"] || [])[0], nm = (f["Nafn"] || [])[0];
+        if (!id) return;
+        var e = emps[id] || (emps[id] = { id: id, name: nm || id, periods: {} });
+        if (nm) e.name = nm;
+        var tb = f["Tímabil 🗓️"]; // singleSelect: plain string over the REST API
+        if (tb) { e.periods[tb] = f; ps[tb] = true; }
+      });
+      empList = Object.keys(emps).map(function (i) { return emps[i]; }).sort(function (a, b) { return a.name.localeCompare(b.name, "is"); });
+      periodList = Object.keys(ps).sort().reverse();
+      if (!period || periodList.indexOf(period) === -1) period = periodList[0] || "";
+      var sel = $("periodSel");
+      sel.hidden = periodList.length < 2;
+      sel.innerHTML = periodList.map(function (p) { return '<option value="' + esc(p) + '"' + (p === period ? " selected" : "") + ">Tímabil " + esc(p) + "</option>"; }).join("");
+      renderPeople();
+      loadOpenShifts();
+    }).catch(function () {
+      $("people").innerHTML = retryNote("Tókst ekki að sækja starfsmenn.", loadPeople);
+    });
+  }
+
+  // Who is in the shop now: an open shift = Út blank. The proxy needs one employee per query, so one
+  // small request each; a failure just leaves that person's status blank instead of breaking the page.
+  function loadOpenShifts() {
+    shiftsLoaded = false;
+    Promise.all(empList.map(function (e) {
+      var fml = 'AND(FIND("' + dq(e.name) + '",ARRAYJOIN({Starfsmaður}))>0,{Út}=BLANK())';
+      return api(STIMPLANIR, "filterByFormula=" + encodeURIComponent(fml) + "&pageSize=3")
+        .then(function (d) {
+          var rs = (d.records || []).filter(function (r) { return r.fields && r.fields["Inn"]; });
+          openShift[e.id] = rs.length ? { inn: rs.map(function (r) { return r.fields["Inn"]; }).sort().pop() } : null;
+        }).catch(function () { openShift[e.id] = undefined; });
+    })).then(function () { shiftsLoaded = true; renderPeople(); });
+  }
+
+  function statusHtml(e) {
+    if (!shiftsLoaded) return '<span class="dot"></span>&nbsp;';
+    var s = openShift[e.id];
+    if (s === undefined) return "";
+    if (!s) return '<span class="dot"></span>Úti';
+    var hrs = (Date.now() - new Date(s.inn).getTime()) / 3600000;
+    if (hrs > STALE_HOURS) return '<span class="dot warn"></span>Stimplaður inn ' + esc(fmtDate(s.inn)) + " kl. " + esc(fmtTime(s.inn)) + " — gleymdist að stimpla út?";
+    return '<span class="dot in"></span>Inni síðan ' + esc(fmtTime(s.inn));
+  }
+
+  function renderPeople() {
+    var inCount = empList.filter(function (e) { return openShift[e.id] && (Date.now() - new Date(openShift[e.id].inn).getTime()) / 3600000 <= STALE_HOURS; }).length;
+    $("peopleTitle").textContent = shiftsLoaded ? "Fólk · " + inCount + " inni núna" : "Fólk";
+    if (!empList.length) { $("people").innerHTML = '<div class="note">Engir starfsmenn fundust.</div>'; return; }
+    $("people").innerHTML = empList.map(function (e) {
+      var f = e.periods[period];
+      var stale = openShift[e.id] && (Date.now() - new Date(openShift[e.id].inn).getTime()) / 3600000 > STALE_HOURS;
+      return '<button class="row" type="button" data-id="' + esc(e.id) + '">' +
+        '<span class="av">' + esc(initials(e.name)) + "</span>" +
+        '<span class="who"><div class="nm">' + esc(e.name) + '</div><div class="st' + (stale ? " warn" : "") + '">' + statusHtml(e) + "</div></span>" +
+        '<span class="hrs">' + (f ? num(f["Greiddar klst"]) + "<small>klst</small>" : '<span style="color:var(--dim)">—</span>') + "</span>" + CHEV + "</button>";
+    }).join("");
+  }
+  $("people").addEventListener("click", function (ev) { var b = ev.target.closest("button.row"); if (b) openDrawer(b.dataset.id); });
+  $("periodSel").addEventListener("change", function () { period = this.value; renderPeople(); if (curEmp) renderDrawer(); });
+
+  // ── Vacation requests ──
+  function reqRow(r, withActions) {
+    var f = r.fields || {}, emp = emps[(f["Starfsmaður"] || [])[0]];
+    var st = (f["Staða"] && f["Staða"].name) || f["Staða"] || "Í bið";
+    var when = fmtDate(f["Dagsetning"]) + (f["Til"] ? " – " + fmtDate(f["Til"]) : "") + (f["Dagar (virkir)"] != null ? " · " + f["Dagar (virkir)"] + " virkir dagar" : "");
+    var name = emp ? emp.name : "Starfsmaður";
+    return '<div class="row req" data-id="' + esc(r.id) + '" data-name="' + esc(name) + '" data-when="' + esc(when) + '">' +
+      '<span class="av">' + esc(initials(name)) + "</span>" +
+      '<span class="who"><div class="nm">' + esc(name) + '</div><div class="when">Orlof ' + esc(when) + "</div></span>" +
+      (withActions
+        ? '<span class="acts"><button class="btn" data-act="Hafnað" type="button">Hafna</button><button class="btn pri" data-act="Samþykkt" type="button">Samþykkja</button></span>'
+        : '<span class="pill ' + (st === "Samþykkt" ? "ok" : st === "Hafnað" ? "no" : "wait") + '">' + esc(st) + "</span>") +
+      "</div>";
+  }
+  function loadRequests() {
+    var fml = 'AND({Tegund}="Orlof",{Staða}="Í bið")';
+    return fetchAll(FJARVISTIR, "filterByFormula=" + encodeURIComponent(fml) + "&pageSize=100").then(function (rs) {
+      rs.sort(function (a, b) { return new Date(a.fields["Dagsetning"]) - new Date(b.fields["Dagsetning"]); });
+      $("reqSec").hidden = !rs.length; // nothing waiting = nothing shown
+      $("reqList").innerHTML = rs.map(function (r) { return reqRow(r, true); }).join("");
+    }).catch(function () {
+      $("reqSec").hidden = false;
+      $("reqList").innerHTML = retryNote("Tókst ekki að sækja orlofsbeiðnir.", loadRequests);
+    });
+  }
+  // Approving/rejecting can't be undone from here (the daily automation spreads approved days into
+  // Fjarvistir), so every action is a two-step: the row turns into "Samþykkja orlof 3.–7. nóv.? Já / Hætta við".
+  $("reqList").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button"); if (!b) return;
+    var row = b.closest(".row"); if (!row) return;
+    var acts = row.querySelector(".acts");
+    if (b.dataset.act) {
+      var approve = b.dataset.act === "Samþykkt";
+      acts.dataset.prev = acts.innerHTML;
+      acts.innerHTML = '<span class="ask">' + (approve ? "Samþykkja" : "Hafna") + " orlof " + esc(row.dataset.when.split(" · ")[0]) + '?</span>' +
+        '<button class="btn" data-cancel="1" type="button">Hætta við</button>' +
+        '<button class="btn ' + (approve ? "pri" : "danger") + '" data-go="' + b.dataset.act + '" type="button">' + (approve ? "Já, samþykkja" : "Já, hafna") + "</button>";
+    } else if (b.dataset.cancel) {
+      acts.innerHTML = acts.dataset.prev;
+    } else if (b.dataset.go) {
+      acts.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
+      patch(FJARVISTIR + "/" + row.dataset.id, { "Staða": b.dataset.go }).then(function () {
+        row.style.opacity = ".4";
+        return loadRequests();
+      }).catch(function (e) {
+        acts.innerHTML = '<span class="ask" style="color:var(--bad)">Tókst ekki: ' + esc(e.message) + '</span><button class="btn" data-cancel="1" type="button">Loka</button>';
+        acts.dataset.prev = '<span class="ask">Reyndu aftur síðar.</span>';
+      });
+    }
+  });
+
+  var histShown = false;
+  $("histBtn").addEventListener("click", function () {
+    histShown = !histShown;
+    $("histList").hidden = !histShown;
+    $("histBtn").textContent = histShown ? "Fela fyrri orlofsbeiðnir" : "Fyrri orlofsbeiðnir";
+    if (!histShown) return;
+    $("histList").innerHTML = '<div class="skel"></div>';
+    fetchAll(FJARVISTIR, "filterByFormula=" + encodeURIComponent('AND({Tegund}="Orlof",{Staða}!="")') + "&pageSize=100").then(function (rs) {
+      rs = rs.filter(function (r) { var s = r.fields["Staða"]; s = (s && s.name) || s; return s && s !== "Í bið"; })
+        .sort(function (a, b) { return new Date(b.fields["Dagsetning"]) - new Date(a.fields["Dagsetning"]); }).slice(0, 40);
+      $("histList").innerHTML = rs.length ? rs.map(function (r) { return reqRow(r, false); }).join("") : '<div class="note">Engar fyrri beiðnir.</div>';
+    }).catch(function () { $("histList").innerHTML = retryNote("Tókst ekki að sækja.", function () { histShown = false; $("histBtn").click(); }); });
+  });
+
+  // ── Drawer ──
+  var curEmp = null, drawerTok = 0, showPay = false, shiftCache = {};
+  function openDrawer(id) {
+    curEmp = emps[id]; if (!curEmp) return;
+    showPay = false;
+    $("drawer").classList.add("open"); $("scrim").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false");
+    try { history.replaceState(null, "", "#e=" + id); } catch (e) {}
+    renderDrawer();
+  }
+  function closeDrawer() {
+    curEmp = null; drawerTok++;
+    $("drawer").classList.remove("open"); $("scrim").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true");
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  }
+  $("scrim").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && curEmp) closeDrawer(); });
+
+  function renderDrawer() {
+    var e = curEmp, f = e.periods[period], tok = ++drawerTok;
+    var head = '<div class="dHead"><h2>' + esc(e.name) + '</h2><button class="x" id="dx" type="button" aria-label="Loka">&times;</button></div>' +
+      '<div class="dSub"><span>Tímabil ' + esc(period || "—") + "</span>" + (f && f["Læst"] ? '<span class="pill ok">Læst</span>' : (f ? '<span class="pill wait">Ólæst</span>' : "")) + "</div>";
+    var body = "";
+    if (f) {
+      body += '<div class="kpis">' +
+        '<div class="kpi"><div class="l">Greiddar klst</div><div class="v">' + num(f["Greiddar klst"]) + "</div></div>" +
+        '<div class="kpi"><div class="l">Dagvinna</div><div class="v">' + num(f["Dagvinna alls (klst)"]) + "</div></div>" +
+        '<div class="kpi"><div class="l">Veikindadagar</div><div class="v">' + (f["Veikindadagar"] || 0) + "</div></div></div>";
+      var bits = [];
+      if (f["Orlofsdagar teknir"]) bits.push("Orlofsdagar teknir: " + f["Orlofsdagar teknir"]);
+      if (f["Aðrar fjarvistir (dagar)"]) bits.push("Aðrar fjarvistir: " + f["Aðrar fjarvistir (dagar)"]);
+      if (f["Greiddir frídagar"]) bits.push("Greiddir frídagar: " + f["Greiddir frídagar"]);
+      if (f["Athugasemd"]) bits.push(esc(f["Athugasemd"]));
+      body += bits.length ? '<div class="abs">' + bits.join(" · ") + "</div>" : "";
+      body += '<div class="pay">' + (showPay
+        ? '<button class="link" id="payBtn" type="button">Fela laun</button><div class="payBox"><div class="kpi" style="padding:0;background:none"><div class="l">Heildarlaun f. skatt</div><div class="v">' + isk(f["Heildarlaun f. skatt"]) + '</div></div><div class="kpi" style="padding:0;background:none"><div class="l">Orlofsinneign</div><div class="v">' + isk(f["Orlofsinneign (kr)"]) + "</div></div></div>"
+        : '<button class="link" id="payBtn" type="button">Sýna laun</button>') + "</div>";
+    } else {
+      body += '<div class="note" style="padding:0 0 18px">Ekkert launatímabil fannst fyrir þetta tímabil enn.</div>';
+    }
+    body += '<div class="secTitle">Stimplanir</div><div class="list" id="shifts"><div class="skel"></div></div>';
+    $("drawer").innerHTML = head + body;
+    $("dx").addEventListener("click", closeDrawer);
+    var pb = $("payBtn"); if (pb) pb.addEventListener("click", function () { showPay = !showPay; renderDrawer(); });
+    if (!period) { $("shifts").innerHTML = '<div class="note">Veldu tímabil.</div>'; return; }
+
+    var key = e.id + "|" + period;
+    var done = function (shifts) { if (tok === drawerTok) renderShifts(shifts); };
+    if (shiftCache[key]) return done(shiftCache[key]);
+    var fml = 'AND(FIND("' + dq(e.name) + '",ARRAYJOIN({Starfsmaður}))>0,{Tímabil 🗓️}="' + dq(period) + '")';
+    fetchAll(STIMPLANIR, "filterByFormula=" + encodeURIComponent(fml) + "&pageSize=100").then(function (rs) {
+      rs.sort(function (a, b) { return new Date(a.fields["Inn"]) - new Date(b.fields["Inn"]); });
+      shiftCache[key] = rs; done(rs);
+    }).catch(function () { if (tok === drawerTok) $("shifts").innerHTML = retryNote("Tókst ekki að sækja stimplanir.", renderDrawer); });
+  }
+  function renderShifts(rs) {
+    if (!rs.length) { $("shifts").innerHTML = '<div class="note">Engar stimplanir á þessu tímabili.</div>'; return; }
+    var d = 0, y = 0, t = 0;
+    var rows = rs.map(function (r) {
+      var f = r.fields || {}; d += +f["Dagvinna (klst)"] || 0; y += +f["Yfirvinna (klst)"] || 0; t += +f["Samtals (klst)"] || 0;
+      return "<tr><td>" + esc(f["Vikudagur"] || "") + " " + esc(f["Dagur"] || "") + "</td><td>" + esc(f["Inn kl."] || "") + " – " + (f["Út kl."] ? esc(f["Út kl."]) : '<span class="open">opið</span>') + '</td><td class="num">' + num(f["Dagvinna (klst)"]) + '</td><td class="num">' + num(f["Yfirvinna (klst)"]) + '</td><td class="num">' + num(f["Samtals (klst)"]) + "</td></tr>";
+    }).join("");
+    $("shifts").innerHTML = '<table><thead><tr><th>Dagur</th><th>Tími</th><th class="num">Dagv.</th><th class="num">Yfirv.</th><th class="num">Alls</th></tr></thead><tbody>' + rows +
+      '</tbody><tfoot><tr><td colspan="2">Samtals</td><td class="num">' + num(d) + '</td><td class="num">' + num(y) + '</td><td class="num">' + num(t) + "</td></tr></tfoot></table>";
+  }
+
+  // ── Boot ──
+  // Names come from Launatímabil, so requests render after people are known.
+  loadPeople().then(function () {
+    loadRequests();
+    var m = /[#&]e=(rec[A-Za-z0-9]+)/.exec(location.hash);
+    if (m && emps[m[1]]) openDrawer(m[1]);
+  });
+})();
+</script>
+</body>
+</html>

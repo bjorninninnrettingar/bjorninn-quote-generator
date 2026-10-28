@@ -35,7 +35,7 @@
     ".vbWrap{position:relative;display:inline-flex;}" +
     ".vbBtn{all:unset;box-sizing:border-box;position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;border-radius:8px;padding:8px 10px;font:inherit;font-size:.82rem;color:inherit;}" +
     ".vbBtn:hover{background:rgba(127,127,127,.18);}" +
-    ".vbIc{font-size:1.05rem;line-height:1;}" +
+    ".vbIc{display:inline-flex;line-height:1;}" +
     ".vbBadge{position:absolute;top:2px;left:20px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#d93025;color:#fff;font-size:.66rem;font-weight:700;line-height:16px;text-align:center;box-sizing:border-box;}" +
     ".vbBadge[hidden]{display:none;}" +
     ".vbPanel{position:fixed;z-index:1000;width:min(380px,calc(100vw - 24px));max-height:min(70vh,560px);overflow:auto;background:#fff;color:#1c2430;border:1px solid #d9dee5;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.22);font-size:.86rem;}" +
@@ -64,7 +64,7 @@
     var wrap = document.createElement("div");
     wrap.className = "vbWrap";
     wrap.innerHTML =
-      '<button type="button" class="vbBtn" title="Tilkynningar"><span class="vbIc">🔔</span>' +
+      '<button type="button" class="vbBtn" title="Tilkynningar"><span class="vbIc"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 17V11a6 6 0 0112 0v6l1.5 2h-15z"/><path d="M10 21h4"/></svg></span>' +
       (opts.label ? '<span class="osLabel">' + esc(opts.label) + '</span>' : "") +
       '<span class="vbBadge" hidden></span></button>';
     var panel = document.createElement("div");

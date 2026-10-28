@@ -32,23 +32,45 @@
   // (Jóel is Eigandi-typed too but shouldn't see this). Laun (2026-10-19) is "eigandi" —
   // broader than Bakendi on purpose, Jóel/Anton should both see payroll review too.
   var NAV = [
-    { id: "home",    icon: "🏠", label: "Yfirlit",         roles: ["eigandi"], href: "/skrifstofa" },
-    { id: "ferli",   icon: "📐", label: "Skipulagsferli",  roles: ["allt"], href: "/ferli" },
-    { id: "verkst",  icon: "🛠️", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
-    { id: "crm",     icon: "📇", label: "CRM",             roles: ["allt"], href: "/crm" },
+    { id: "home",    icon: "home", label: "Yfirlit",         roles: ["eigandi"], href: "/skrifstofa" },
+    { id: "ferli",   icon: "plan", label: "Skipulagsferli",  roles: ["allt"], href: "/ferli" },
+    { id: "verkst",  icon: "shop", label: "Verkstæði",       roles: ["allt"], href: "/framleidsla" },
+    { id: "crm",     icon: "people", label: "CRM",             roles: ["allt"], href: "/crm" },
     // PRO home (2026-10-23) — a landing screen in kitchen-planner.html (?pro=home) so staff can start or
     // find a project without first going through CRM/Ferli's own per-project "Opna í hönnuðinum" link.
     // Routed through pro.html (not straight to /skipuleggja), which iframes that same screen inside
     // the office shell — asked for explicitly: PRO hönnuður shouldn't navigate away from skrifstofa,
     // the sidebar should stay up the whole time.
-    { id: "pro",     icon: "🎨", label: "PRO hönnuður",    roles: ["allt"], href: "/pro" },
-    { id: "laun",    icon: "💰", label: "Laun",            roles: ["eigandi"], href: "/laun" },
-    { id: "bakendi", icon: "🧰", label: "Bakendi",         roles: ["admin"], href: "/bakendi" },
+    { id: "pro",     icon: "pencil", label: "PRO hönnuður",    roles: ["allt"], href: "/pro" },
+    { id: "starfsmenn", icon: "team", label: "Starfsmenn",   roles: ["eigandi"], href: "/starfsmenn" },
+    { id: "bakendi", icon: "wrench", label: "Bakendi",     roles: ["admin"], href: "/bakendi", more: true },
     // Para tæki (2026-10-28) — per-device floor keys; owner-only (api/floor-token.js re-checks Eigandi server-side).
-    { id: "para",    icon: "📲", label: "Para tæki",       roles: ["eigandi"], href: "/para-taeki" },
+    { id: "para",    icon: "phone", label: "Para tæki",   roles: ["eigandi"], href: "/para-taeki", more: true },
   ];
 
   var ROLE_LABELS = { allt: "Allt", eigandi: "Eigandi", admin: "Admin" };
+
+  // Line icons (2026-10-28) — one stroke style (currentColor, 1.6 wide) instead of emoji, so the
+  // sidebar reads as one quiet system and follows the link colour in light/dark/active states.
+  var ICON_PATHS = {
+    home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+    plan: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    shop: '<path d="M14 6l4 4-9 9H5v-4z"/><path d="M12 8l4 4"/>',
+    people: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 5.2a3.2 3.2 0 010 5.6M18 14.4c1.8.8 3 2.6 3 5.6"/>',
+    pencil: '<path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/>',
+    team: '<circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/>',
+    wrench: '<path d="M14.5 6.5a4 4 0 00-5 5L4 17l3 3 5.5-5.5a4 4 0 005-5l-2.5 2.5-2-2z"/>',
+    phone: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>',
+    more: '<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/>',
+    out: '<path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4M18 12H9"/>',
+    fold: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+    chev: '<path d="M9 6l6 6-6 6"/>'
+  };
+  function svgIcon(name, size) {
+    var sz = size || 18;
+    return '<svg class="osSvg" width="' + sz + '" height="' + sz + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON_PATHS[name] || "") + '</svg>';
+  }
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   // Collapsed-sidebar initials (2026-10-18) — shown under the 🐻 instead of the full name once
@@ -110,6 +132,13 @@
     return out;
   }
 
+  // Items marked `more` (rarely used: Bakendi, Para tæki) live under a quiet "Meira" row instead of
+  // crowding the day-to-day list; they are never part of the drag order.
+  function splitNav(roles) {
+    var all = orderedNav(roles);
+    return { main: all.filter(function (a) { return !a.more; }), more: all.filter(function (a) { return a.more; }) };
+  }
+
   // ---- injected chrome styling (sidebar header/footer/nav drag state + settings modal) —
   // self-contained so no consuming page needs its own copy, unlike the pre-existing page-local
   // .sidebar/.nav CSS (width/background) those still own ----
@@ -160,13 +189,22 @@
       // every text label, leaving icon-only nav + a fold button to expand again.
       'html[data-os-collapsed="1"] .sidebar{width:72px !important;}' +
       'html[data-os-collapsed="1"] .osLogo{display:none;}' +
-      'html[data-os-collapsed="1"] .osBrand::before{content:"🐻";display:block;font-size:1.6rem;text-align:center;}' +
+      'html[data-os-collapsed="1"] .osBrand::before{content:"B";display:block;font-family:"Kumbh Sans",sans-serif;font-weight:700;font-size:1.5rem;text-align:center;color:#fff;}' +
+      '.osSvg{flex:none;opacity:.9;}' +
+      '.osIcon{display:inline-flex;align-items:center;}' +
+      '.osMoreBtn{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;padding:9px 18px;color:#8aa4c7;font-size:.82rem;cursor:pointer;font-family:inherit;}' +
+      '.osMoreBtn:hover{background:#242e3b;color:#fff;}' +
+      '.osMoreBtn .osChev{margin-left:auto;transition:transform .15s;}' +
+      '.osMore.open .osMoreBtn .osChev{transform:rotate(90deg);}' +
+      '.osMoreList{display:none;}.osMore.open .osMoreList{display:block;}' +
+      'html[data-os-collapsed="1"] .osMoreBtn{justify-content:center;padding:9px 0;}' +
+      'html[data-os-collapsed="1"] .osChev{display:none;}' +
       '.osInitials{display:none;}' +
       // Collapsed-only: the signed-in person's initials, right under the 🐻 — see initialsOf().
       'html[data-os-collapsed="1"] .osInitials{display:block;margin-top:4px;font-size:.62rem;font-weight:700;letter-spacing:.04em;text-align:center;color:#8aa4c7;}' +
       'html[data-os-collapsed="1"] .osUser,html[data-os-collapsed="1"] .osLabel,html[data-os-collapsed="1"] .searchWrap,html[data-os-collapsed="1"] .searchResults{display:none !important;}' +
       'html[data-os-collapsed="1"] .sidebar nav a{justify-content:center;padding:9px 0 !important;}' +
-      'html[data-os-collapsed="1"] .osBottomRow{justify-content:center;}' +
+      'html[data-os-collapsed="1"] .osBottomRow{justify-content:center;flex-direction:column;}' +
       'html[data-os-collapsed="1"] .osSettingsBtn,html[data-os-collapsed="1"] .osLogoutBtn{flex:none;justify-content:center;padding:8px;}' +
       '.osModalBg{display:none;position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:200;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}' +
       '.osModalBg.open{display:flex;}' +
@@ -210,14 +248,14 @@
     var theme = getTheme();
     bg.innerHTML =
       '<div class="osModal">' +
-        '<button class="osModalClose" id="osModalClose" type="button">✕</button>' +
+        '<button class="osModalClose" id="osModalClose" type="button" aria-label="Loka">&times;</button>' +
         '<h2>Stillingar</h2>' +
         '<div class="osSection"><h3>Þú</h3><div class="osWhoName">' + esc(record.name || "") + '</div><div class="osBadges">' + badges + '</div></div>' +
         '<div class="osSection"><h3>Útlit</h3>' +
           '<div class="osMuted" style="margin-bottom:8px;">Þema</div>' +
           '<div class="osSeg" id="osThemeSeg">' +
-            '<button class="osSegBtn' + (theme === "light" ? " active" : "") + '" data-v="light" type="button">☀️ Ljóst</button>' +
-            '<button class="osSegBtn' + (theme === "dark" ? " active" : "") + '" data-v="dark" type="button">🌙 Dökkt</button>' +
+            '<button class="osSegBtn' + (theme === "light" ? " active" : "") + '" data-v="light" type="button">Ljóst</button>' +
+            '<button class="osSegBtn' + (theme === "dark" ? " active" : "") + '" data-v="dark" type="button">Dökkt</button>' +
           '</div>' +
           '<div class="osMuted" style="margin:14px 0 8px;">Þéttleiki hliðarslár</div>' +
           '<div class="osSeg" id="osDensitySeg">' +
@@ -309,19 +347,33 @@
     var navEl = document.getElementById("officeNav");
     if (navEl) {
       navEl.innerHTML = "";
-      orderedNav(roles).forEach(function (a) {
+      var parts = splitNav(roles);
+      function linkFor(a, draggable) {
         var el = document.createElement("a");
         // a.href is normally a bare path ("/crm"), but PRO's href already carries its own "?pro=home" —
         // join with "&" when a query string is already present instead of a second, malformed "?".
         el.href = a.href + (k ? (a.href.indexOf("?") === -1 ? "?" : "&") + "k=" + encodeURIComponent(k) : "");
-        el.draggable = true;
+        el.draggable = !!draggable;
         el.dataset.navId = a.id;
         el.title = a.label;
-        el.innerHTML = '<span class="osIcon">' + esc(a.icon) + '</span><span class="osLabel">' + esc(a.label) + '</span>';
+        el.innerHTML = '<span class="osIcon">' + svgIcon(a.icon) + '</span><span class="osLabel">' + esc(a.label) + '</span>';
         if (a.id === activeId) el.className = "active";
-        navEl.appendChild(el);
-      });
-      wireNavDrag(navEl);
+        return el;
+      }
+      var mainEl = document.createElement("div");
+      mainEl.id = "osNavMain";
+      parts.main.forEach(function (a) { mainEl.appendChild(linkFor(a, true)); });
+      navEl.appendChild(mainEl);
+      if (parts.more.length) {
+        var moreEl = document.createElement("div");
+        moreEl.className = "osMore" + (parts.more.some(function (a) { return a.id === activeId; }) ? " open" : "");
+        moreEl.innerHTML = '<button class="osMoreBtn" type="button" title="Meira"><span class="osIcon">' + svgIcon("more") + '</span><span class="osLabel">Meira</span><span class="osChev">' + svgIcon("chev", 14) + '</span></button><div class="osMoreList"></div>';
+        var listEl = moreEl.querySelector(".osMoreList");
+        parts.more.forEach(function (a) { listEl.appendChild(linkFor(a, false)); });
+        moreEl.querySelector(".osMoreBtn").addEventListener("click", function () { moreEl.classList.toggle("open"); });
+        navEl.appendChild(moreEl);
+      }
+      wireNavDrag(mainEl);
     }
 
     var bottomEl = document.getElementById("officeSidebarBottom");
@@ -330,14 +382,14 @@
       bottomEl.innerHTML =
         '<div class="osBellRow" id="officeBellHost"></div>' +
         '<div class="osBottomRow">' +
-          '<button class="osSettingsBtn" id="officeSettingsBtn" type="button">⚙️ <span class="osLabel">Stillingar</span></button>' +
+          '<button class="osSettingsBtn" id="officeSettingsBtn" type="button">' + svgIcon("gear", 17) + '<span class="osLabel">Stillingar</span></button>' +
           '<button class="osFoldBtn" id="officeFoldBtn" type="button" title="Fela/sýna valmynd"></button>' +
         '</div>' +
-        '<button class="osLogoutBtn" id="officeLogoutBtn" type="button">↩ <span class="osLabel">Útskrá</span></button>';
+        '<button class="osLogoutBtn" id="officeLogoutBtn" type="button">' + svgIcon("out", 17) + '<span class="osLabel">Útskrá</span></button>';
       document.getElementById("officeSettingsBtn").addEventListener("click", function () { openSettingsModal(record); });
       document.getElementById("officeLogoutBtn").addEventListener("click", function () { clearSession(); location.href = "/skrifstofa"; });
       var foldBtn = document.getElementById("officeFoldBtn");
-      function paintFoldIcon() { foldBtn.textContent = getCollapsed() ? "⇥" : "⇤"; }
+      function paintFoldIcon() { foldBtn.innerHTML = svgIcon("fold", 17); }
       paintFoldIcon();
       foldBtn.addEventListener("click", function () { setCollapsed(!getCollapsed()); paintFoldIcon(); });
       mountBell(document.getElementById("officeBellHost"), k);
