@@ -13,6 +13,8 @@
 // the Virkni line is still written. Chat text is built server-side from validated fields,
 // the link is always a relative app path on our own origin, and chat posts are rate limited.
 
+import { checkFloorOrFullKey } from "./_auth.js";
+
 const BASE = "https://api.airtable.com/v0/app91U15z9K704Okd";
 const VIRKNI = "tblPPMTlFhW0snk24";
 const PROJECTS = "tbl4LMXlQjp66RFKI";
@@ -170,7 +172,7 @@ async function create(req, res) {
 
 export default async function handler(req, res) {
   const k = req.method === "GET" ? (req.query || {}).k : (req.body || {}).k;
-  if (!process.env.VERK_KEY || k !== process.env.VERK_KEY) return res.status(403).json({ error: "Ógildur lykill" });
+  if (!checkFloorOrFullKey(k)) return res.status(403).json({ error: "Ógildur lykill" });
   try {
     if (req.method === "GET") return await list(req, res);
     if (req.method === "POST") return await create(req, res);

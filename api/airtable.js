@@ -1,6 +1,7 @@
 // api/airtable.js
 import crypto from "node:crypto";
 import { applyCors } from "./_cors.js";
+import { keyLevel, isFullKey } from "./_auth.js";
 // Airtable proxy — keeps the Personal Access Token server-side only, so it
 // never sits in committed code or page source (GitHub's push protection
 // blocks any commit containing an Airtable PAT). Used by cutlist.html,
@@ -699,6 +700,40 @@ const CREATE_REQUIRES_KEY = new Set(["tblFcsUoGxsuUwNEH", "tblQ8zeUanriESWvL", "
 const PATCH_KEYLESS_FIELDS = {
   "tbl4LMXlQjp66RFKI": ["Upphafs framleiðsludagur verks", "Áætlaður afhendingardagur Björninn (internal)", "Viðskiptavinur sækir þann:"],
 };
+// ── Floor scope (2026-10-28) ────────────────────────────────────────────────────────────────────
+// A per-device floor token (api/_auth.js, paired via /para-taeki) travels in the same ?k= as the shared
+// VERK_KEY but is READ-ONLY and limited to what the workshop pages (app, cutlist, fraesing, labels, grain,
+// velja, verk, eining) actually fetch with a key: production notes, drawings, progress and unit/hardware
+// detail. It never unlocks contact details, pricing, CRM/sales fields, payroll or any Tengiliðir/Fyrirtæki/
+// Line Items/Virkni data, and it never satisfies a *_REQUIRES_KEY write gate (the floor's own writes —
+// Sögunarlisti, Æðaplan, Quick Fix, Fjarvistir — were never key-gated). Any other table with a floor token
+// behaves exactly as with no key at all (public field set), so a page that appends k everywhere still works.
+const FLOOR_VERK_FIELDS = {
+  "tbl4LMXlQjp66RFKI": [
+    "Forgangur framleiðslu 🥇", "Upphafs framleiðsludagur verks", "🎯 Markmið:", "🚀 Pepp verksins:",
+    "🧠📌Það sem þarf að hafa í huga", "🔬📌 Það sem Fræsari þarf að hafa í huga",
+    "🪵📌 Það sem spónlagning þarf að hafa í huga", "🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗",
+    "Ýtarleg verklýsing teiknara📝", "Skúffusamantekt", "Verkfundar glósur",
+    "Skrokka efni 🔲 viðskiptavinar", "Fronta efni viðskiptavinar 🖼️", "Fronta efni 2.0 Viðskiptavinar 🖼️",
+    "Borðplata viðskiptavinar 🍽️", "Hurðaefni viðskiptavinar 🚪", "Hurðaefni viðskiptavinar 🚪 2.0",
+    "Höldur Viðskiptavinar ✊", "Höldur Viðskiptavinar ✊2.0", "Litur á höldum 🎨", "Litur á höldum 2.0 🎨",
+    "Innskúffufrontar [Handvalið]",
+    "Loka teikningar verkefnis 📋", "Sér fræsi teikningar", "Málsettar myndir af rými 🖼️", "Teikningar af tækifæri ✍️",
+    "Áætlaðir dagar í vinnudögum Björninn (internal)", "Áætlaðir Dagar í vinnu (samkvæmt tilboðsblaði)",
+    "Heimilistæki verkefnis", "Framvinda sögunar", "Fjöldi hluta til að fræsa 🔬", "Fjöldi hluta fræstir 🔬",
+    "Fjöldi varahluta til að saga", "Fjöldi varahluta sagaðir", "Staða á efnispöntun",
+    "Kantlíming skrokka", "Tegund fronta 1", "Tegund fronta 2", "Litur á skúffum [Handvalið]",
+    "Samsetningarlisti [flatp. eða rastex]",
+  ],
+};
+// Tables whose whole VERK_ONLY set is floor-safe (unit build detail, Quick Fix drawings, material codes).
+const FLOOR_FULL_VERK_TABLES = new Set(["tbl0WcyHhz63pSzZX", "tblDQWuf4OSjUv2XI", "tbl8CrVWKF8CuI7HD"]);
+export function floorVerkFields(tableId) {
+  if (FLOOR_VERK_FIELDS[tableId]) return FLOOR_VERK_FIELDS[tableId];
+  if (FLOOR_FULL_VERK_TABLES.has(tableId)) return VERK_ONLY_FIELDS[tableId] || [];
+  return [];
+}
+
 const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU", "tbl3e5o0Klv9RcNQ4"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
@@ -963,7 +998,8 @@ export default async function handler(req, res) {
     if (recordId && BLOCK_RECORD_ID.has(tableId)) {
       return res.status(403).json({ error: "Query not allowed for this table" });
     }
-    const keyValid = params.k != null && !!process.env.VERK_KEY && params.k === process.env.VERK_KEY;
+    const kLevel = params.k != null ? keyLevel(String(params.k)) : null; // "full" | "floor" | null
+    const keyValid = kLevel === "full";
     const fml = String(params.filterByFormula || "");
     if (!recordId && STRICT_FILTERS[tableId] && !STRICT_FILTERS[tableId].test(fml) &&
         !(keyValid && KEYED_STRICT_FILTERS[tableId] && KEYED_STRICT_FILTERS[tableId].test(fml))) {
@@ -976,12 +1012,13 @@ export default async function handler(req, res) {
     // gets the normal public field set. Never forwarded to Airtable.
     let allowedFields = baseFields;
     if (params.k != null) {
-      const verkKey = process.env.VERK_KEY;
-      if (!verkKey || params.k !== verkKey) {
+      if (!kLevel) {
         return res.status(403).json({ error: "Invalid key" });
       }
-      if (VERK_ONLY_FIELDS[tableId]) {
-        allowedFields = baseFields.concat(VERK_ONLY_FIELDS[tableId]);
+      if (kLevel === "full") {
+        if (VERK_ONLY_FIELDS[tableId]) allowedFields = baseFields.concat(VERK_ONLY_FIELDS[tableId]);
+      } else {
+        allowedFields = baseFields.concat(floorVerkFields(tableId));
       }
       delete params.k;
     }
@@ -1026,8 +1063,7 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "DEVICE_NOT_PAIRED" });
     }
     if (CREATE_REQUIRES_KEY.has(tableId)) {
-      const verkKey = process.env.VERK_KEY;
-      if (!verkKey || req.query.k !== verkKey) return res.status(403).json({ error: "Invalid key" });
+      if (!isFullKey(req.query.k)) return res.status(403).json({ error: "Invalid key" });
     }
 
     const requestedFields = req.body?.fields || {};
@@ -1071,8 +1107,7 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "DEVICE_NOT_PAIRED" });
     }
     if (PATCH_REQUIRES_KEY.has(tableId)) {
-      const verkKey = process.env.VERK_KEY;
-      if (!verkKey || req.query.k !== verkKey) return res.status(403).json({ error: "Invalid key" });
+      if (!isFullKey(req.query.k)) return res.status(403).json({ error: "Invalid key" });
     }
 
     const requestedFields = req.body?.fields || {};
@@ -1084,8 +1119,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "No writable fields in request" });
     }
     if (PATCH_KEYLESS_FIELDS[tableId]) {
-      const verkKey = process.env.VERK_KEY;
-      const keyOk = !!verkKey && req.query.k === verkKey;
+      const keyOk = isFullKey(req.query.k);
       if (!keyOk && Object.keys(fields).some((k) => !PATCH_KEYLESS_FIELDS[tableId].includes(k))) {
         return res.status(403).json({ error: "Invalid key" });
       }
