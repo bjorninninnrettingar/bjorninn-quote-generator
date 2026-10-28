@@ -19,6 +19,8 @@
 // GET  ?id=<rec>&k=…                          → summary (see summarize())
 // POST ?k=… { recordId, action, mode?, expect? } → { ok, … }
 
+import { LEDGER_FIELD, G1_PAID_FIELD, mergedLedger, paymentRows, kontoErrors } from "./_konto-ledger.js";
+
 const BASE = "https://api.airtable.com/v0/app91U15z9K704Okd";
 const PROJECTS = "tbl4LMXlQjp66RFKI";
 
@@ -47,8 +49,15 @@ const files = (v) => (Array.isArray(v) ? v : []).map((a) => ({ filename: a.filen
 // konto-invoice.js logs every created draft as "… · G1 · drög <guid>"; a "❌" line is a failed try.
 export const g1Drafted = (log) => /·\s*G1\s*·\s*drög/.test(String(log || ""));
 
-export function summarize(f, g1Ready) {
+// `extra` = { ledgerText, g1Paid, today } read by field NAME (the new Konto paid-sync fields have no
+// known ids and may not exist yet — see readExtra); absent = payments [] and no paid info.
+export function summarize(f, g1Ready, extra = {}) {
+  const today = extra.today || new Date().toISOString().slice(0, 10);
+  const payments = paymentRows(mergedLedger(extra.ledgerText, f[F.log]), today, !!extra.g1Paid);
   return {
+    payments,
+    overdue: payments.filter((p) => p.overdue).map((p) => p.key),
+    kontoErrors: kontoErrors(f[F.log]),
     name: f[F.name] || "",
     split: f[F.split] || "",
     g1: f[F.g1] || "",
@@ -106,6 +115,15 @@ async function g1FieldExists(token, id) {
   return r.ok;
 }
 
+// New fields (docs/owner-airtable-steps-2026-10-28.md): read by name, tolerate "not created yet" (422).
+async function readExtra(token, id) {
+  const r = await fetch(`${byId(id)}&fields%5B%5D=${encodeURIComponent(LEDGER_FIELD)}&fields%5B%5D=${encodeURIComponent(G1_PAID_FIELD)}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) return {};
+  const d = await r.json().catch(() => ({}));
+  const f = ((d.records || [])[0] || {}).fields || {};
+  return { ledgerText: f[LEDGER_FIELD], g1Paid: !!f[G1_PAID_FIELD] };
+}
+
 async function patch(token, id, fields) {
   const r = await fetch(`${BASE}/${PROJECTS}/${id}`, {
     method: "PATCH",
@@ -128,9 +146,9 @@ export default async function handler(req, res) {
   if (!/^rec[A-Za-z0-9]{14}$/.test(id)) return res.status(400).json({ error: "Ógilt recordId" });
 
   if (req.method === "GET") {
-    const [rec, g1Ready] = await Promise.all([readRecord(token, id), g1FieldExists(token, id)]);
+    const [rec, g1Ready, extra] = await Promise.all([readRecord(token, id), g1FieldExists(token, id), readExtra(token, id)]);
     if (!rec.ok) return res.status(rec.status).json({ error: "Fann ekki verkið" });
-    return res.status(200).json(summarize(rec.fields, g1Ready));
+    return res.status(200).json(summarize(rec.fields, g1Ready, extra));
   }
   if (req.method !== "POST") return res.status(405).json({ error: "GET eða POST" });
 

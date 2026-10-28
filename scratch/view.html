@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#eee}#i{position:fixed;left:8px;top:8px;font:12px monospace;background:#fff;padding:6px;white-space:pre}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script></head><body><div id="i"></div>
+<script type="module">
+import * as THREE from "three"; import {ColladaLoader} from "three/addons/loaders/ColladaLoader.js"; import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js"; import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+const f=decodeURIComponent(location.hash.slice(1));
+const r=new THREE.WebGLRenderer({antialias:true}); r.setSize(innerWidth,innerHeight); document.body.appendChild(r.domElement);
+const s=new THREE.Scene(); s.background=new THREE.Color(0xeeeeee); s.add(new THREE.HemisphereLight(0xffffff,0x888888,2.2)); const dl=new THREE.DirectionalLight(0xffffff,1.5); dl.position.set(2,3,4); s.add(dl);
+const cam=new THREE.PerspectiveCamera(35,innerWidth/innerHeight,0.01,100); const oc=new OrbitControls(cam,r.domElement); window.S=s; window.THREE=THREE; window.CAM=cam; window.OC=oc;
+const L=/\.glb$/.test(f)?new GLTFLoader():new ColladaLoader();
+L.load(f,res=>{ const m=res.scene; s.add(m); window.M=m; m.updateMatrixWorld(true);
+ const bb=new THREE.Box3().setFromObject(m,true), c=bb.getCenter(new THREE.Vector3()), z=bb.getSize(new THREE.Vector3()); oc.target.copy(c); cam.position.set(c.x+z.x*0.6,c.y+z.y*0.3,c.z+Math.max(z.x,z.y)*2.2); oc.update();
+ let n=0; m.traverse(o=>{if(o.isMesh)n++;});
+ window.LIST=function(){ const out=[]; function walk(o,d){ o.children.forEach(ch=>{ let n=0; ch.traverse(x=>{if(x.isMesh)n++;}); if(!n) return; const b=new THREE.Box3().setFromObject(ch,true); const s2=b.getSize(new THREE.Vector3()), c2=b.getCenter(new THREE.Vector3()); out.push(" ".repeat(d)+(ch.name||ch.type)+" n"+n+" size "+[s2.x,s2.y,s2.z].map(v=>Math.round(v*1000)).join("x")+" c "+[c2.x,c2.y,c2.z].map(v=>Math.round(v*1000)).join(",")); if(d<1 && ch.children.length>1) walk(ch,d+1); }); } walk(m,0); return out.slice(0,30).join("\n"); };
+ document.getElementById("i").textContent=f+"\nsize mm: "+z.toArray().map(v=>Math.round(v*1000)).join(" x ")+"\nmeshes "+n; window.READY=1; });
+(function loop(){ requestAnimationFrame(loop); r.render(s,cam); })();
+</script></body></html>

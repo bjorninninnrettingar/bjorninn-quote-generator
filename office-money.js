@@ -32,6 +32,8 @@
       '.omFiles a{color:var(--accent);text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
       '.omFiles a:hover{text-decoration:underline;}' +
       '.omLog{font-size:.74rem;color:var(--muted);white-space:pre-wrap;background:var(--bg);border-radius:8px;padding:6px 9px;margin:4px 0 2px;}' +
+      '.omChip{display:inline-block;border-radius:999px;padding:1px 8px;font-size:.72rem;font-weight:700;background:var(--bad,#c4291c);color:#fff;white-space:nowrap;}' +
+      '.omErr{background:rgba(196,41,28,.08);border:1px solid var(--bad,#c4291c);border-radius:8px;padding:7px 10px;margin:0 0 10px;font-size:.8rem;color:var(--bad,#c4291c);}' +
       '.omNote{font-size:.74rem;color:var(--dim,#9aa3ad);}' +
       '.omMsg{font-size:.8rem;color:var(--muted);min-height:1.1em;margin-top:6px;}' +
       '.omMsg.bad{color:var(--bad,#c4291c);}' +
@@ -94,6 +96,13 @@
       var three = split === "40% - 30% - 30%", none = split === "100%";
       var html = "";
 
+      // F7: failed Konto drafts, visible here and not only in the Airtable log
+      if (s.kontoErrors && s.kontoErrors.length) {
+        html += '<div class="omErr"><b>Konto drög mistókust</b>' + s.kontoErrors.map(function (e) {
+          return '<div>' + esc(e.payment) + ' · ' + esc(e.date) + ' — ' + esc(e.message) + '</div>';
+        }).join("") + '</div>';
+      }
+
       // Greiðslur
       html += '<div class="omGroup"><div class="omGroupHd">Greiðslur</div>' +
         '<div class="omRow"><span class="k">Skipting</span><span class="v">' + esc(split || "—") + '</span></div>' +
@@ -101,6 +110,16 @@
       if (!none) html += payRow(three ? "Greiðsla 2 (30%)" : "Greiðsla 2", s.g2, "g2");
       if (three || !split) html += payRow("Greiðsla 3 (30%)", s.g3, "g3");
       html += '</div>';
+
+      // Konto reikningar: paid / unpaid / overdue per payment (api/konto-paid-sync.js keeps it current)
+      if (s.payments && s.payments.length) {
+        html += '<div class="omGroup"><div class="omGroupHd">Konto reikningar</div>' + s.payments.map(function (p) {
+          var st = p.paid ? '<span class="omOk">✓ Greidd' + (p.paid.length === 10 ? " " + esc(day(p.paid)) : "") + '</span>'
+            : p.overdue ? '<span class="omChip">Komin fram yfir gjalddaga ' + esc(day(p.due)) + '</span>'
+            : '<span class="omNote">' + (/^draft|^drög/i.test(p.status || "") || !p.status ? "Drög — ekki send" : "Ógreidd") + (p.due ? " · gjalddagi " + esc(day(p.due)) : "") + '</span>';
+          return '<div class="omRow"><span class="k">' + esc(p.label) + (p.amount ? " · " + kr(p.amount) : "") + '</span><span class="v">' + st + '</span></div>';
+        }).join("") + '</div>';
+      }
 
       // Viðbætur
       var canApprove = s.confirmed != null && s.vidbaetur > 0;
@@ -198,5 +217,22 @@
     load();
   }
 
-  root.OfficeMoney = { mount: mount };
+  // Red chip on a collapsed panel's toggle button when something needs attention (failed draft / overdue).
+  function badge(btn, recordId, k) {
+    if (!btn || !k) return;
+    var old = btn.querySelector(".omChip"); if (old) old.remove();
+    fetch("/api/greidslur?k=" + encodeURIComponent(k) + "&id=" + encodeURIComponent(recordId))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (s) {
+        if (!s || btn.dataset.rec !== recordId) return;
+        var n = (s.kontoErrors || []).length, o = (s.overdue || []).length;
+        if (!n && !o) return;
+        var c = document.createElement("span");
+        c.className = "omChip"; c.style.marginLeft = "8px";
+        c.textContent = n ? "Konto villa" : "Komin fram yfir gjalddaga";
+        btn.appendChild(c);
+      }).catch(function () {});
+  }
+
+  root.OfficeMoney = { mount: mount, badge: badge };
 })(window);

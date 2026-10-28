@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#eee}#i{position:fixed;left:8px;top:8px;font:12px monospace;background:#fff;padding:6px;max-height:95vh;overflow:auto;white-space:pre}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script></head><body><div id="i"></div>
+<script type="module">
+import * as THREE from "three"; import {ColladaLoader} from "three/addons/loaders/ColladaLoader.js"; import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+const r=new THREE.WebGLRenderer({antialias:true}); r.setSize(innerWidth,innerHeight); document.body.appendChild(r.domElement);
+const s=new THREE.Scene(); s.background=new THREE.Color(0xeeeeee); s.add(new THREE.HemisphereLight(0xffffff,0x888888,2)); const dl=new THREE.DirectionalLight(0xffffff,1.5); dl.position.set(2,3,2); s.add(dl);
+const cam=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,0.01,100); const oc=new OrbitControls(cam,r.domElement);
+window.S=s; window.THREE=THREE; window.CAM=cam; window.OC=oc;
+new ColladaLoader().load("../models/lemans/lemans-ii-r.dae",res=>{ const m=res.scene; s.add(m); window.M=m; m.updateMatrixWorld(true);
+ const bb=new THREE.Box3().setFromObject(m), c=bb.getCenter(new THREE.Vector3()), z=bb.getSize(new THREE.Vector3()); oc.target.copy(c); cam.position.set(c.x+z.x*1.2,c.y+z.y*1.2,c.z+z.z*1.6); oc.update();
+ let out="size m: "+z.toArray().map(v=>v.toFixed(3)).join(" x ")+"\n"; m.children.forEach(ch=>{ (ch.children.length?ch.children:[ch]).forEach(g=>{ const b=new THREE.Box3().setFromObject(g); if(b.isEmpty())return; const q=b.getSize(new THREE.Vector3()), cc=b.getCenter(new THREE.Vector3()); out+=g.name+"  size "+q.toArray().map(v=>(v*1000).toFixed(0)).join("x")+"  c "+cc.toArray().map(v=>(v*1000).toFixed(0)).join(",")+"\n"; }); });
+ document.getElementById("i").textContent=out; });
+(function loop(){ requestAnimationFrame(loop); r.render(s,cam); })();
+</script></body></html>

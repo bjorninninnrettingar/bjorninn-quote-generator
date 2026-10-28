@@ -1,0 +1,56 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>Björninn Studio Intro</title>
+<!-- Owner's intro animation (from his artifact claude.ai/artifact/LzQU2toyX5vhDiayAYbiA6, 2026-10-27).
+     White screen → BJÖRNINN (gold, blur-in) → STUDIO (black) extrudes into 3D and sways. Kumbh Sans. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;700&display=swap">
+<style>
+  :root {
+    --bg: #ffffff; --gold-a: #ceb163; --gold-b: #ceb163; --ink: #0c0c0d; --muted: #9a9a9e;
+    --font: "Kumbh Sans", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    --t-brand: 0.9s; --d-brand: 2.8s; --t-studio: 4.4s; --d-studio: 2.4s; --t-3d: 7.2s; --d-3d: 3s;
+    --ease: cubic-bezier(0.16, 1, 0.3, 1); --ease-io: cubic-bezier(0.65, 0, 0.35, 1);
+  }
+  @property --step { syntax: "<length>"; inherits: true; initial-value: 0px; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); overflow: hidden; cursor: pointer; }
+  .stage { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.35em;
+    font-size: clamp(30px, 8.6vw, 128px); font-weight: 700; letter-spacing: 0.03em; line-height: 1; text-align: center; user-select: none; }
+  .brand { padding: 0.25em 0.1em 0.3em 0.13em; margin: -0.25em -0.1em -0.3em -0.13em;
+    background: linear-gradient(100deg, var(--gold-a) 10%, var(--gold-b) 48%, var(--gold-a) 90%);
+    -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; opacity: 0; }
+  .play .brand { animation: brand-in var(--d-brand) var(--ease) var(--t-brand) both; }
+  @keyframes brand-in { from { opacity: 0; transform: translateY(0.18em); filter: blur(14px); } to { opacity: 1; transform: translateY(0); filter: none; } }
+  .persp { perspective: 1100px; perspective-origin: 50% 40%; font-size: 0.78em; font-weight: 400; letter-spacing: 0.16em; margin-top: 0.1em; }
+  .reveal { transform-style: preserve-3d; opacity: 0; }
+  .play .reveal { animation: studio-in var(--d-studio) var(--ease) var(--t-studio) both; }
+  @keyframes studio-in { from { opacity: 0; transform: translateY(0.3em); } to { opacity: 1; transform: translateY(0); } }
+  .studio { --step: 0px; position: relative; transform-style: preserve-3d; padding-left: 0.16em; transform: rotateX(0deg) rotateY(0deg); }
+  .play .studio { animation: extrude var(--d-3d) var(--ease-io) var(--t-3d) both, turn var(--d-3d) var(--ease-io) var(--t-3d) both,
+    sway 9s ease-in-out calc(var(--t-3d) + var(--d-3d)) infinite alternate; }
+  @keyframes extrude { from { --step: 0px; } to { --step: 0.0115em; } }
+  @keyframes turn { from { transform: rotateX(0deg) rotateY(0deg); } to { transform: rotateX(9deg) rotateY(-26deg); } }
+  @keyframes sway { from { transform: rotateX(9deg) rotateY(-26deg); } to { transform: rotateX(6deg) rotateY(-12deg); } }
+  .layer { position: absolute; left: 0; top: 0; padding-left: 0.16em; transform: translateZ(calc(var(--i) * var(--step) * -1)); pointer-events: none; }
+  .front { position: relative; color: var(--ink); display: block; }
+  @media (prefers-reduced-motion: reduce) {
+    .play .brand, .play .reveal { animation: none; opacity: 1; } .brand { filter: none; }
+    .play .studio { animation: none; --step: 0.0115em; transform: rotateX(9deg) rotateY(-20deg); }
+  }
+</style></head><body>
+<div class="stage" id="stage" aria-label="Björninn Studio">
+  <div class="brand">BJÖRNINN</div>
+  <div class="persp"><div class="reveal"><div class="studio" id="studio" aria-hidden="true"><span class="front">STUDIO</span></div></div></div>
+</div>
+<script>
+(function () {
+  var studio = document.getElementById('studio'), LAYERS = 30;
+  for (var i = LAYERS; i >= 1; i--) {
+    var s = document.createElement('span'); s.className = 'layer'; s.textContent = 'STUDIO'; s.style.setProperty('--i', i);
+    var g = Math.round(32 + (i / LAYERS) * 70); s.style.color = 'rgb(' + g + ',' + g + ',' + (g + 2) + ')';
+    studio.insertBefore(s, studio.firstChild);
+  }
+  function play() { document.body.classList.remove('play'); void document.body.offsetWidth; document.body.classList.add('play'); }
+  document.body.addEventListener('click', play); play();
+})();
+</script>
+</body></html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<title>BJÖRNINN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* bjorninn.html — the front door. One URL (bjorninn.vercel.app/)
+     that links out to every tool, grouped by who uses it / when in the
+     project's life. Doesn't replace the /skipulag and /verkstaedi hubs — it's
+     the level above them, plus the tools that don't fit either phase (tv,
+     klukka, leiðbeiningar…). Same visual language as velja.html/skipulag.html;
+     rows instead of full-bleed choice cards since there are ~10 destinations,
+     not 2. No live data, no auth — this page never calls the Airtable proxy. */
+  :root {
+    --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
+    --text:#f2f2f3; --muted:#a9a9b0; --dim:#6b6b72;
+    --blue:#0a84ff; --amber:#ffd60a; --green:#30d158; --pink:#ff375f;
+    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
+  .wrap { max-width:640px; margin:0 auto; padding:28px 18px 48px; }
+
+  header { margin-bottom:30px; }
+  .word { font-size:1.5rem; font-weight:800; letter-spacing:.04em; }
+  .word span { color:var(--amber); }
+  .tag { color:var(--muted); font-size:.92rem; margin-top:4px; }
+
+  .section { margin-top:30px; }
+  .section .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--dim); margin-bottom:10px; }
+
+  .card {
+    display:block; text-decoration:none; color:var(--text);
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; margin-bottom:10px;
+  }
+  .card:active { background:var(--surface2); }
+  .card .row { display:flex; align-items:center; gap:14px; }
+  .card .ic { font-size:1.6rem; flex:none; width:1.7em; text-align:center; }
+  .card .t { font-size:1.05rem; font-weight:700; }
+  .card .d { font-size:.85rem; color:var(--muted); margin-top:2px; }
+  .card .arrow { margin-left:auto; color:var(--dim); font-size:1.2rem; flex:none; }
+  .card.accent { border-left:3px solid var(--accent, var(--blue)); }
+
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 2px 0; padding-left:calc(1.7em + 14px); }
+  .chip {
+    text-decoration:none; color:var(--muted); background:var(--bg); border:1px solid var(--line);
+    border-radius:999px; padding:5px 12px; font-size:.8rem; font-weight:600;
+  }
+  .chip:active { color:var(--text); border-color:var(--dim); }
+
+  .footnote { margin-top:34px; padding:16px 18px; background:transparent; border:1px dashed var(--line); border-radius:14px; }
+  .footnote .kicker { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--dim); margin-bottom:8px; }
+  .footnote .item { font-size:.85rem; color:var(--muted); margin-top:8px; }
+  .footnote .item b { color:var(--text); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="word">BJÖRNIN<span>N</span></div>
+    <div class="tag">Innri verkfæri — veldu hvert þú ert að fara.</div>
+  </header>
+
+  <div class="section">
+    <div class="kicker">Skipulag</div>
+    <a class="card accent" style="--accent:var(--blue);" href="/skipulag">
+      <div class="row">
+        <div class="ic">📐</div>
+        <div style="flex:1;">
+          <div class="t">Saga — Skipulag</div>
+          <div class="d">Veldu Cutty eða Æðar fyrir verkefnið</div>
+        </div>
+        <div class="arrow">›</div>
+      </div>
+    </a>
+    <div class="chips">
+      <a class="chip" href="/cutlist">Cutty beint</a>
+      <a class="chip" href="/aedar">Æðar beint</a>
+    </div>
+    <a class="card" href="/leidbeiningar">
+      <div class="row">
+        <div class="ic">📋</div>
+        <div style="flex:1;"><div class="t">Leiðbeiningar</div><div class="d">Röðin á Cutty + Merkingar vinnuflæðinu</div></div>
+        <div class="arrow">›</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="section">
+    <div class="kicker">Verkstæði</div>
+    <a class="card accent" style="--accent:var(--amber);" href="/verkstaedi">
+      <div class="row">
+        <div class="ic">🪚</div>
+        <div style="flex:1;">
+          <div class="t">Saga — Verkstæði</div>
+          <div class="d">Veldu Merkingar eða Saga með leiðsögn</div>
+        </div>
+        <div class="arrow">›</div>
+      </div>
+    </a>
+    <div class="chips">
+      <a class="chip" href="/labels">Merkingar beint</a>
+      <a class="chip" href="/saga">Saga beint</a>
+    </div>
+    <a class="card" href="/fraesing">
+      <div class="row">
+        <div class="ic">🔬</div>
+        <div style="flex:1;"><div class="t">Yfirfræsarasíða</div><div class="d">Fræsing eininga</div></div>
+        <div class="arrow">›</div>
+      </div>
+    </a>
+    <a class="card" href="/klukka">
+      <div class="row">
+        <div class="ic">⏱️</div>
+        <div style="flex:1;"><div class="t">Stimpilklukka</div><div class="d">Inn / út, veikindi, orlofsbeiðnir</div></div>
+        <div class="arrow">›</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="section">
+    <div class="kicker">Stjórnun</div>
+    <a class="card accent" style="--accent:var(--green);" href="/tv">
+      <div class="row">
+        <div class="ic">📺</div>
+        <div style="flex:1;"><div class="t">Framleiðsluyfirlit</div><div class="d">TV-skjár — staða verkefna í framleiðslu</div></div>
+        <div class="arrow">›</div>
+      </div>
+    </a>
+    <a class="card" href="/eigandi">
+      <div class="row">
+        <div class="ic">👨🏻‍💼</div>
+        <div style="flex:1;"><div class="t">Stimpilklukka — eigendur</div><div class="d">Símastimplun, engin tækjapörun</div></div>
+        <div class="arrow">›</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="footnote">
+    <div class="kicker">Opnast með tengli annars staðar frá — ekki hér</div>
+    <div class="item"><b>Verkefnasíða viðskiptavina</b> (/verkefni) — sett inn (iframe) á Wix-síðuna með verkefnis-hlekk, ekki opnuð hrá.</div>
+    <div class="item"><b>Gólf-QR kerfi</b> (/v → /velja → /eining eða /verk) — opnast með því að skanna QR-kóða á Zebra-miða af sagaðri einingu; hlekkurinn ber undirritaðan lykil sem þessi síða getur ekki búið til.</div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><title>handles</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<style>body{margin:0;font:12px sans-serif;background:#eee}#g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:6px}.c{background:#fff;height:300px;position:relative}.c b{position:absolute;left:4px;top:2px;font-size:11px}canvas{width:100%;height:100%}</style>
+<div id="g"></div>
+<script type="module">
+import * as THREE from "three";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
+import {RoomEnvironment} from "three/addons/environments/RoomEnvironment.js";
+const files=["sense-big","crossing","graf-big","angle","vann"];
+const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+for(const f of files){
+  const cell=document.createElement("div");cell.className="c";cell.innerHTML="<b>"+f+"</b>";document.getElementById("g").appendChild(cell);
+  const cv=document.createElement("canvas");cv.width=520;cv.height=500;cell.appendChild(cv);
+  const g=await new Promise((res,rej)=>new GLTFLoader().load("../models/handles/"+f+".glb",res,undefined,rej));
+  const sc=new THREE.Scene();sc.background=new THREE.Color(0xf4f1ea);
+  const pm=new THREE.PMREMGenerator(r);sc.environment=pm.fromScene(new RoomEnvironment(r),0.04).texture;
+  sc.add(new THREE.HemisphereLight(0xffffff,0x888888,0.8));
+  const root=g.scene;
+  root.traverse(o=>{if(o.isMesh){o.material=new THREE.MeshStandardMaterial({color:o.material.color||0xcccccc,metalness:0.4,roughness:0.4,side:THREE.DoubleSide});}});
+  sc.add(root);
+  if(f==="sense-big"){ const dead=[]; root.traverse(o=>{if(o.isMesh && o.geometry.attributes.position.count>1500) dead.push(o)}); dead.forEach(o=>o.visible=false); }
+  if(f==="vann"){ let k=0; root.traverse(o=>{ if(o.isMesh){ o.visible = k<2; k++; } }); }
+  root.updateMatrixWorld(true);
+  const b=new THREE.Box3(); root.traverse(o=>{ if(o.isMesh&&o.visible){ b.union(new THREE.Box3().setFromObject(o)); } });
+  const c=b.getCenter(new THREE.Vector3()),s=b.getSize(new THREE.Vector3()),d=Math.max(s.x,s.y,s.z);
+  const cam=new THREE.PerspectiveCamera(30,1,d/100,d*10);cam.position.copy(c).add(new THREE.Vector3(d*1.3,d*0.9,d*1.6));cam.lookAt(c);
+  r.setSize(520,500,false);r.render(sc,cam);
+  cv.getContext("2d").drawImage(r.domElement,0,0);
+}
+</script>

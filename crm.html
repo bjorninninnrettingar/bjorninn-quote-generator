@@ -1397,9 +1397,12 @@
     var omBody = document.getElementById("omBody"), omBtn = document.getElementById("omToggleBtn");
     omBody.classList.remove("open"); omBody.innerHTML = "";
     omBtn.textContent = "💳 Greiðslur & tilboð ▾";
+    omBtn.dataset.rec = r.id;
+    if (window.OfficeMoney && OfficeMoney.badge) OfficeMoney.badge(omBtn, r.id, k);
     omBtn.onclick = function () {
       var open = omBody.classList.toggle("open");
       omBtn.textContent = "💳 Greiðslur & tilboð " + (open ? "▴" : "▾");
+      if (!open && window.OfficeMoney && OfficeMoney.badge) OfficeMoney.badge(omBtn, r.id, k);
       if (open) OfficeMoney.mount(omBody, r.id, k);
     };
 
