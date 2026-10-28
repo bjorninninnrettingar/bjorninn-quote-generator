@@ -70,6 +70,7 @@
 <script src="cnc-sides.js"></script>
 <script src="kitchen-planner-workdraw.js"></script>
 <script src="kitchen-planner-worktop.js"></script>
+<script src="kitchen-planner-package.js"></script>
 <script src="kitchen-planner-help.js"></script>
 <script src="kitchen-planner-plan.js"></script>
 <script src="kitchen-planner-home.js"></script>
@@ -1425,6 +1426,23 @@
   #proDlg { position:fixed; inset:0; z-index:400; background:rgba(15,18,24,.6); display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
   #proDlg .pd-card { width:min(500px,100%); box-sizing:border-box; padding:22px 24px 18px; border-radius:16px; background:var(--panel); color:var(--ink); border:1px solid var(--line); box-shadow:0 20px 60px rgba(0,0,0,.4); }
   #proDlg h3 { margin:0 0 10px; font-size:18px; }
+  /* "Senda drög til viðskiptavinar" (2026-10-28) */
+  #proDlg.pkg { overflow:auto; align-items:flex-start; }
+  #proDlg.pkg .pd-card { width:min(640px,100%); margin:auto; }
+  #proDlg.pkg label { display:block; margin:10px 0 3px; font-size:13px; color:var(--ink-soft); }
+  #proDlg.pkg input, #proDlg.pkg textarea { width:100%; box-sizing:border-box; font:14px/1.45 inherit; font-family:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); }
+  #proDlg.pkg textarea { resize:vertical; }
+  #proDlg .pkg-list { list-style:none; margin:0 0 6px; padding:0; font-size:14px; }
+  #proDlg .pkg-list li { display:flex; gap:8px; align-items:flex-start; padding:5px 0; border-bottom:1px solid var(--line); }
+  #proDlg .pkg-list li > span:nth-child(2) { flex:1; }
+  #proDlg .pkg-list small { display:block; color:var(--ink-soft); }
+  #proDlg .pkg-list .pkg-mark { width:16px; font-weight:700; }
+  #proDlg .pkg-list .ok .pkg-mark { color:#30d158; } #proDlg .pkg-list .bad .pkg-mark { color:#ff453a; } #proDlg .pkg-list .wait .pkg-mark { color:var(--ink-soft); }
+  #proDlg .pkg-list button, #proDlg .pkg-ask button { font:inherit; font-size:13px; border:1px solid var(--line); border-radius:8px; padding:4px 10px; cursor:pointer; background:transparent; color:var(--ink); }
+  #proDlg .pkg-ask { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:12px; padding:10px 12px; border-radius:10px; border:1px solid var(--blue); }
+  #proDlg .pkg-ask span { display:flex; gap:8px; }
+  #proDlg .pkg-sent { margin:0 0 8px; font-size:14px; font-weight:700; color:#30d158; }
+  #proDlg .pkg-msg { min-height:18px; margin-top:8px; font-size:13px; color:var(--ink-soft); }
   #proDlg p { margin:0 0 10px; font-size:14px; line-height:1.5; color:var(--ink-soft); }
   #proDlg ol { margin:0 0 12px; padding-left:22px; font-size:14px; line-height:1.55; }
   #proDlg ol small { color:var(--ink-soft); }
@@ -2181,7 +2199,7 @@
         <label for="tpInstallDiscount">Afsláttur í uppsetningu %</label><input id="tpInstallDiscount" type="number" min="0" max="100" step="1" />
         <label for="tpMarkupInstall">Smáverka álagning [uppsetning]</label><select id="tpMarkupInstall"><option value="">—</option></select>
       </div></details>
-      <div class="tp-actions"><span class="tp-msg" id="tpMsg"></span><span class="tp-btns"><button type="button" id="tpPrint" class="tp-ghost">Prenta tilboð</button><button type="button" id="tpSend">Senda tilboð</button></span></div>
+      <div class="tp-actions"><span class="tp-msg" id="tpMsg"></span><span class="tp-btns"><button type="button" id="tpPrint" class="tp-ghost">Prenta tilboð</button><button type="button" id="tpSend">Senda drög til viðskiptavinar</button></span></div>
     </div>
   </aside>
 
@@ -19379,7 +19397,6 @@
   document.addEventListener("click", function(e){
     if (e.target && e.target.id === "tpPrint") proTilbodPrint();
     if (e.target && e.target.id === "tpSend") proTilbodSend();
-    if (e.target && e.target.id === "tpMarkSent") proTilbodMarkSent(e.target);
     if (e.target && e.target.id === "tpClose") proTilbodToggle(false);
     if (e.target && e.target.id === "tpAlertGo"){
       var rowsC = document.querySelectorAll("#tilbodPanel tr.tp-chg");
@@ -19408,26 +19425,31 @@
     if (win) try{ win.document.write('<title>Björninn</title><p style="font:15px system-ui,sans-serif;padding:32px;color:#555">' + text + '</p>'); }catch(e){}
     return win;
   }
-  async function tpPrintNow(win){ // → generate-quote's answer + { files, link, to }, or null (message already shown)
+  async function tpPrintNow(win, opts){ // → generate-quote's answer + { files, link, to }, or null (message already shown)
     var msg = document.getElementById("tpMsg");
     function fail(t){ msg.textContent = t; if (win) try{ win.close(); }catch(e){} return null; }
+    tp.drawWhy = ""; // why the drawings were left out of the PDF (the draft dialog shows it — never silent)
     if (proDirty() && !proReadOnly()){
       msg.textContent = "Vista teikninguna fyrst…";
       if (!(await proSave())) return fail("Vistaðist ekki — tilboðið var ekki prentað (það hefði sýnt gamla verðið).");
     }
     // the drawing as it is now (same PDF a customer submission makes) → the Tækifæri → appended to the quote (G3)
     var withDrawings = false;
-    if (state.closed) try{
+    if (opts && opts.noDrawings) tp.drawWhy = "Valið að senda án teikninga.";
+    else if (!state.closed) tp.drawWhy = "Rýmið er ekki lokað.";
+    else try{
       msg.textContent = "Útbý teikningar fyrir tilboðið…";
       var dpdf = await KPI18N.asISAsync(function(){ return buildDrawingsPdf(String(PRO.name || "").split("|").slice(1).join("|").trim()); });
       var up = await postBlobRetry("/api/kp-drawings?recordId=" + encodeURIComponent(PRO.id) + "&k=" + encodeURIComponent(PRO.k), dpdf);
       withDrawings = up.ok;
-    }catch(e){ withDrawings = false; }
+      if (!up.ok) tp.drawWhy = "Teikningarnar hlóðust ekki upp.";
+    }catch(e){ withDrawings = false; tp.drawWhy = "Gat ekki búið til teikningarnar (" + ((e && e.message) || "villa") + ")."; }
     msg.textContent = "Prenta…";
     try{
       var r = await fetch("/api/tilbod-print", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ recordId:PRO.id, k:PRO.k, withDrawings:withDrawings }) });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+      if (withDrawings && !d.drawingsAdded) tp.drawWhy = "Teikningarnar komust ekki inn í PDF-ið.";
       return d;
     }catch(e){ return fail("Tókst ekki: " + e.message); }
   }
@@ -19446,33 +19468,166 @@
     }
     btns.forEach(function(x){ x.disabled = false; });
   }
-  // G4 (2026-10-27): "Senda tilboð" = print (save first) → a Gmail DRAFT to the project's contact with the customer's
-  // lasting link to the PDF (api/tilbod-pdf.js) — nothing is ever sent from here; Rakel reads it and presses Send in
-  // Gmail. Then "Merkja sent" sets Staða í söluferli = 📤 Tilboð sent through /api/sala (its Airtable automations:
-  // Tilboð sent þann, the 3- and 13-day follow-up nudges in Chat, the Virkni log — nothing goes to the customer).
-  async function proTilbodSend(){
-    var btns = document.querySelectorAll("#tpPrint, #tpSend"), msg = document.getElementById("tpMsg"), win = tpWin("Bý til tilboðið og opna drög í Gmail…");
-    btns.forEach(function(x){ x.disabled = true; });
-    var d = await tpPrintNow(win);
-    btns.forEach(function(x){ x.disabled = false; });
-    if (!d) return;
-    var to = d.to || {}, nm = String(PRO.name || "").split("|")[0].trim();
-    var body = (to.first ? "Hæ " + to.first + "," : "Hæ,") + "\n\nTakk fyrir síðast. Hér er tilboðið frá okkur:\n" + d.link +
-      "\n\nEf eitthvað er óljóst eða þú vilt breyta einhverju er velkomið að svara þessum pósti eða hringja.\n\nKær kveðja,"; // Gmail adds the sender's own signature
-    var url = "https://mail.google.com/mail/?view=cm&fs=1&to=" + encodeURIComponent(to.email || "") + "&su=" + encodeURIComponent("Tilboð frá Birninum" + (nm ? " — " + nm : "")) + "&body=" + encodeURIComponent(body);
-    if (win) win.location.href = url; else window.open(url, "_blank");
-    msg.innerHTML = "✓ Drög opin í Gmail" + (to.email ? "" : " — <b>ekkert netfang á tengiliðnum</b>, settu það inn sjálf") + ". Sendirðu? <button type=\"button\" id=\"tpMarkSent\">Merkja tilboð sent</button>" +
-      (d.files && d.files.length ? '<br>PDF: ' + tpFileLinks(d.files) : "");
+  // "Senda drög til viðskiptavinar" (2026-10-28) — replaces "Senda tilboð". One dialog: readiness checklist (each row green or
+  // with its fix) → short report (editable) → e-mail (editable, persisted per project) → ONE button that saves, makes the
+  // drawings + quote PDF, puts the signed link in the text and opens Gmail compose; then "Sendirðu póstinn?" Já/Nei
+  // (Já = /api/sala "sent": Staða 📤 Tilboð sent + Næsta skref, as before). Nothing is ever sent from here. The pure
+  // logic (report, e-mail, readiness) is kitchen-planner-package.js (KPPACKAGE, tests/kp-package.test.js).
+  var pkgRun = { quote:null, sig:null, busy:false };
+  function pkgKey(){ return "bjorninn:pkg:" + PRO.id; }
+  function pkgLoad(){ try{ return JSON.parse(localStorage.getItem(pkgKey()) || "{}") || {}; }catch(e){ return {}; } }
+  function pkgSave(o){ try{ localStorage.setItem(pkgKey(), JSON.stringify(o)); }catch(e){} }
+  function pkgField(v){ return Array.isArray(v) ? (v[0] == null ? "" : String(v[0])) : (v == null ? "" : String(v)); }
+  // what the planner knows, per room, for the pure functions
+  function pkgFacts(){
+    var rooms = [], anyHandle = false;
+    withEachCategory(function(cat){
+      var cd = categoryDef(cat), plain = !!(cd && cd.plain), units = cabinetTotal() > 0 ? unitCounts().cab : 0;
+      if (!units && !plain) return;
+      var own = state.home && state.home.names && state.home.names[cat], label = (state.intake && state.intake.room) || (cd && cd.label) || "Rými";
+      var name = own || RYMI_LABELS[label] || label;
+      var lk = state.look && LOOKS[state.look], ca = state.carcass && CARCASS[state.carcass], tpR = TOPS[state.top || "steinn"], hd = state.handle && HANDLES[state.handle];
+      var wantsTop = !!(cd && cd.worktop), missing = [];
+      if (units){ if (!lk) missing.push("framhlið"); if (!ca) missing.push("skrokkur"); } // (a top left on its default is a choice, not "óákveðið")
+      if (hd) anyHandle = true;
+      rooms.push({ name:name, units:units, closed:!!state.closed, plain:plain, missing:missing, look:lk ? lk.label : "", carcass:ca ? ca.label : "",
+        top:wantsTop && tpR && !tpR.none ? tpR.label : "", handle:hd ? hd.label : "" });
+    });
+    return { rooms:rooms, noHandles:!anyHandle };
   }
-  async function proTilbodMarkSent(btn){
-    var msg = document.getElementById("tpMsg");
-    btn.disabled = true;
-    try{
-      var r = await fetch("/api/sala", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ k:PRO.k, action:"sent", recordId:PRO.id }) });
-      var d = await r.json().catch(function(){ return {}; });
-      if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
-      msg.textContent = "✓ Staða: 📤 Tilboð sent · eftirfylgni eftir 3 daga";
-    }catch(e){ btn.disabled = false; msg.insertAdjacentText("beforeend", " — tókst ekki: " + e.message); }
+  function pkgTotal(){
+    var d = tp.data; if (!d) return 0;
+    var wti = wtTilbodInfo(), sum = d.total;
+    d.lines.forEach(function(l){ var w = wti[l.key]; if (w && w.stone) sum += w.price; });
+    return sum;
+  }
+  function pkgCopy(text){
+    try{ if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(function(){ return true; }, function(){ return pkgCopyOld(text); }); }catch(e){}
+    return Promise.resolve(pkgCopyOld(text));
+  }
+  function pkgCopyOld(text){
+    var ta = document.createElement("textarea"); ta.value = text; ta.style.cssText = "position:fixed;left:-9999px"; document.body.appendChild(ta); ta.select();
+    var ok = false; try{ ok = document.execCommand("copy"); }catch(e){} ta.remove(); return ok;
+  }
+  async function proTilbodSend(){
+    if (!PRO) return;
+    try{ await proTilbodFetch(); }catch(e){}
+    var P = window.KPPACKAGE, esc = escapeHtmlPro, st = pkgLoad(), f = (PRO.rec && PRO.rec.fields) || {};
+    var facts = pkgFacts(), nm = String(PRO.name || "");
+    var first = P.firstName(pkgField(f["Fornafn ⬅️"]) || pkgField(f["Fullt nafn 👤"]));
+    var report = st.report != null ? st.report : P.buildReport({ rooms:facts.rooms, total:pkgTotal(), hasDrawings:true, noHandles:facts.noHandles }).text;
+    var mail = P.buildEmail({ first:first, report:report, link:st.link || "", projectName:nm });
+    var cur = { to: st.to != null ? st.to : pkgField(f["Netfang 📧"]), subject: st.subject != null ? st.subject : mail.subject, report:report,
+      body: st.body != null ? st.body : mail.body, bodyTouched: !!st.bodyTouched, skip: !!st.skip, stage: st.stage || "", link: st.link || "", sentAt: st.sentAt || "" };
+    if (!cur.sentAt && pkgField(f["Tilboð sent þann"])) cur.sentAt = pkgField(f["Tilboð sent þann"]);
+    var studioN = Array.isArray(f["Studio myndir 📸"]) ? f["Studio myndir 📸"].length : 0;
+    var old = document.getElementById("proDlg"); if (old) old.remove();
+    var el = document.createElement("div"); el.id = "proDlg"; el.className = "pkg"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
+    el.innerHTML = '<div class="pd-card"><h3>Senda drög til viðskiptavinar</h3>' +
+      '<div class="pkg-sent" id="pkgSent"></div><ul class="pkg-list" id="pkgList"></ul>' +
+      '<label for="pkgTo">Til</label><input type="email" id="pkgTo" autocomplete="off">' +
+      '<label for="pkgReport">Stutt samantekt <small>(fer í póstinn)</small></label><textarea id="pkgReport" rows="7"></textarea>' +
+      '<label for="pkgSubject">Efni</label><input type="text" id="pkgSubject">' +
+      '<label for="pkgBody">Póstur</label><textarea id="pkgBody" rows="9"></textarea>' +
+      '<div class="pkg-ask" id="pkgAsk" hidden><b>Sendirðu póstinn?</b><span><button type="button" data-pkg="yes">Já</button><button type="button" data-pkg="no">Nei</button></span></div>' +
+      '<div class="pkg-msg" id="pkgMsg" aria-live="polite"></div>' +
+      '<div class="pd-foot"><button type="button" data-pkg="close">Loka</button><button type="button" data-pkg="copy">Afrita texta</button>' +
+      '<button type="button" class="pd-ok" data-pkg="go">Opna í Gmail</button></div></div>';
+    document.body.appendChild(el);
+    var $ = function(id){ return document.getElementById(id); };
+    $("pkgTo").value = cur.to; $("pkgReport").value = cur.report; $("pkgSubject").value = cur.subject; $("pkgBody").value = cur.body;
+    function persist(){ pkgSave({ to:cur.to, subject:cur.subject, report:cur.report, body:cur.body, bodyTouched:cur.bodyTouched, skip:cur.skip, stage:cur.stage, link:cur.link, sentAt:cur.sentAt }); }
+    function fmtDate(v){ var d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleDateString("is-IS"); }
+    function refresh(){
+      var q = pkgRun.quote && pkgRun.sig === tp.last && !proDirty() ? pkgRun.quote : null;
+      var rd = P.readiness({ dirty:proDirty(), rooms:facts.rooms, skipDrawings:cur.skip, email:cur.to, quote:q, studioKnown:studioN,
+        drawingsSkippedWhy: q && !cur.skip && tp.drawWhy ? tp.drawWhy : "" });
+      $("pkgList").innerHTML = rd.items.map(function(i){
+        return '<li class="' + (i.ok ? "ok" : i.pending || i.optional ? "wait" : "bad") + '"><span class="pkg-mark">' + (i.ok ? "✓" : i.pending || i.optional ? "–" : "✗") + '</span><span>' + esc(i.label) +
+          (i.detail ? '<small>' + esc(i.detail) + '</small>' : '') + '</span>' + (i.fix ? '<button type="button" data-pkg="fix" data-fix="' + esc(i.fix.id) + '">' + esc(i.fix.label) + '</button>' : '') + '</li>';
+      }).join("");
+      $("pkgSent").textContent = cur.sentAt ? "Sent " + fmtDate(cur.sentAt) : "";
+      $("pkgSent").hidden = !cur.sentAt;
+      $("pkgAsk").hidden = cur.stage !== "opened";
+      el._rd = rd;
+    }
+    function status(t){ $("pkgMsg").textContent = t || ""; }
+    function fillBodyFromReport(){
+      if (cur.bodyTouched) return;
+      var m = P.buildEmail({ first:first, report:cur.report, link:cur.link, projectName:nm });
+      cur.body = m.body; $("pkgBody").value = m.body;
+    }
+    refresh();
+    el.addEventListener("input", function(e){
+      var id = e.target.id;
+      if (id === "pkgTo") cur.to = e.target.value.trim();
+      else if (id === "pkgSubject") cur.subject = e.target.value;
+      else if (id === "pkgReport"){ cur.report = e.target.value; fillBodyFromReport(); }
+      else if (id === "pkgBody"){ cur.body = e.target.value; cur.bodyTouched = true; }
+      else return;
+      persist(); refresh();
+    });
+    function close(){ window.removeEventListener("keydown", key, true); clearInterval(pkgRun.poll); el.remove(); }
+    function key(e){ if (e.key === "Escape" && !pkgRun.busy){ e.preventDefault(); e.stopImmediatePropagation(); close(); } }
+    window.addEventListener("keydown", key, true);
+    function setBusy(b){ pkgRun.busy = b; el.querySelectorAll("button").forEach(function(x){ if (x.dataset.pkg !== "close") x.disabled = b; }); }
+    async function go(){
+      refresh();
+      if (!el._rd.canSend){ status("Laga rauðu atriðin hér að ofan fyrst."); return; }
+      var win = tpWin("Bý til tilboðið og opna Gmail…");
+      setBusy(true); status("Bý til tilboð og teikningar…");
+      pkgRun.poll = setInterval(function(){ var m = $("tpMsg"); if (m && pkgRun.busy) status(m.textContent); }, 300);
+      var d = null;
+      try{
+        var q = pkgRun.quote && pkgRun.sig === tp.last && !proDirty() ? pkgRun.quote : null;
+        if (!q){
+          d = await tpPrintNow(win, { noDrawings:cur.skip });
+          if (!d){ status($("tpMsg").textContent || "Tókst ekki."); return; }
+          pkgRun.quote = { ok:true, link:d.link, files:(d.files || []).length }; pkgRun.sig = tp.last;
+          if (!cur.to && d.to && d.to.email){ cur.to = d.to.email; $("pkgTo").value = cur.to; }
+        }
+        var link = (d && d.link) || (pkgRun.quote && pkgRun.quote.link) || "";
+        cur.link = link;
+        cur.body = P.withLink(cur.body, link); $("pkgBody").value = cur.body;
+        refresh();
+        if (!pkgRun.quote.files || (!cur.skip && tp.drawWhy && d)){ if (win) try{ win.close(); }catch(e){} status(!pkgRun.quote.files ? "PDF-ið kom ekki á Tækifærið." : "Teikningar fylgdu ekki: " + tp.drawWhy + " Lagaðu það eða veldu „Senda án teikninga“."); persist(); return; }
+        if (!P.isEmail(cur.to)){ if (win) try{ win.close(); }catch(e){} return; }
+        var url = P.gmailUrl(cur.to, cur.subject, cur.body);
+        if (win) win.location.href = url; else window.open(url, "_blank");
+        cur.stage = "opened"; persist(); refresh(); status("Gmail er opið. Ýttu á Senda þar og svaraðu svo hér.");
+      }finally{ clearInterval(pkgRun.poll); setBusy(false); }
+    }
+    async function markSent(btn){
+      btn.disabled = true; status("Merki sem sent…");
+      try{
+        var r = await fetch("/api/sala", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ k:PRO.k, action:"sent", recordId:PRO.id }) });
+        var d = await r.json().catch(function(){ return {}; });
+        if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+        cur.stage = "sent"; cur.sentAt = new Date().toISOString(); persist(); refresh();
+        status("Staða: Tilboð sent · eftirfylgni eftir 3 daga");
+      }catch(e){ btn.disabled = false; status("Tókst ekki að merkja sent: " + e.message); }
+    }
+    el.addEventListener("click", async function(e){
+      var b = e.target.closest && e.target.closest("[data-pkg]");
+      if (e.target === el){ if (!pkgRun.busy) close(); return; }
+      if (!b) return;
+      var a = b.dataset.pkg;
+      if (a === "close") close();
+      else if (a === "go") go();
+      else if (a === "copy"){ var ok = await pkgCopy("Til: " + cur.to + "\nEfni: " + cur.subject + "\n\n" + cur.body); status(ok ? "Texti afritaður." : "Gat ekki afritað — merktu textann og afritaðu sjálf."); }
+      else if (a === "yes") markSent(b);
+      else if (a === "no"){ cur.stage = ""; persist(); refresh(); status("Í lagi — ýttu á „Opna í Gmail“ þegar þú ert tilbúin."); }
+      else if (a === "fix"){
+        var fx = b.dataset.fix;
+        if (fx === "save"){ b.disabled = true; status("Vista…"); await proSave(); status(""); refresh(); }
+        else if (fx === "skipDrawings"){ cur.skip = true; persist(); refresh(); }
+        else if (fx === "focusEmail"){ $("pkgTo").focus(); }
+        else if (fx === "retry"){ pkgRun.quote = null; cur.skip = cur.skip; refresh(); go(); }
+        else if (fx === "materials"){ close(); toast("Veldu efni í rýminu sem vantar (Efni)."); }
+      }
+    });
+    $("pkgTo").focus();
+    if (cur.stage === "opened") status("Þú opnaðir Gmail áðan — sendirðu póstinn?");
   }
   // Meðvituð leið út úr skoðunarhamnum (sama session — sækir aftur = spyr á ný). Flaggar að
   // Sögunarlisti/Pöntunarlisti/CNC eru byggð á gömlu teikningunni og þurfa að keyra aftur eftir þessa breytingu.
