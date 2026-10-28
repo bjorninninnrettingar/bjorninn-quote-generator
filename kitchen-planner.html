@@ -1944,9 +1944,11 @@
   #wdOverlay .wd-pages { flex:1; overflow:auto; padding:6px 16px 30px; display:flex; flex-direction:column; align-items:center; gap:18px; }
   #wdOverlay .wd-pages > svg { width:min(1500px, 96vw); height:auto; aspect-ratio:420 / 297; flex:0 0 auto; background:#fff; box-shadow:0 10px 30px rgba(0,0,0,.4); border-radius:2px; }
   /* ── Live tilboðsblað (PRO, 2026-10-23): slides in from the right and pushes the editor over ── */
-  :root{ --tp-w:clamp(320px, 25vw, 420px); }
+  /* owner 2026-10-28: a sheet of paper — A4 proportions (a little wider than before), white, dark ink */
+  :root{ --tp-w:clamp(420px, 62vh, 640px); }
   #tilbodPanel { position:fixed; top:0; right:0; bottom:0; width:var(--tp-w); max-width:92vw; z-index:60; display:flex; flex-direction:column;
-    background:var(--panel); color:var(--ink); border-left:1px solid var(--line); box-shadow:none; visibility:hidden;
+    --panel:#ffffff; --card:#f4f5f7; --ink:#1b1f24; --ink-soft:#6b7480; --line:#e3e6ea; --blue:#0a6cf0; --blue-soft:#e8f0fe;
+    background:#fff; color:var(--ink); border-left:1px solid var(--line); box-shadow:none; visibility:hidden;
     transform:translateX(102%); transition:transform .34s cubic-bezier(.2,.8,.2,1), box-shadow .34s, visibility 0s .34s; font-size:13px; }
   #tilbodPanel.open { transform:none; visibility:visible; box-shadow:-18px 0 40px rgba(0,0,0,.22); transition:transform .34s cubic-bezier(.2,.8,.2,1), box-shadow .34s, visibility 0s; }
   body.tp-open #mainWrap { padding-right:var(--tp-w); }
@@ -1973,7 +1975,13 @@
   #tilbodPanel .tp-i:hover, #tilbodPanel .tp-i:focus { color:var(--ink); }
   #tilbodPanel .tp-i:hover::after, #tilbodPanel .tp-i:focus::after { content:attr(data-tip); position:absolute; left:0; bottom:calc(100% + 6px); width:270px; max-width:calc(var(--tp-w, 420px) - 40px); padding:8px 10px; border-radius:8px;
     background:var(--card); color:var(--ink); border:1px solid var(--line); box-shadow:0 8px 24px rgba(0,0,0,.35); font-size:12px; line-height:1.4; font-weight:400; white-space:normal; z-index:5; }
-  #tilbodPanel .tp-warn { margin-top:8px; font-size:12px; line-height:1.4; color:#ffd60a; }
+  #tilbodPanel .tp-warn { margin-top:8px; font-size:12px; line-height:1.4; color:#8a5a00; }
+  #tilbodPanel .tp-alert button, #tilbodPanel .tp-was, #tilbodPanel .tp-nm.none { color:#c4281c; }
+  #tilbodPanel .tp-alert { background:#fdecea; }
+  #tilbodPanel .tp-acts { display:flex; gap:6px; margin-top:4px; }
+  #tilbodPanel .tp-acts button { font:inherit; font-size:11.5px; border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px; padding:2px 10px; cursor:pointer; }
+  #tilbodPanel .tp-acts button:hover { background:var(--card); }
+  #tilbodPanel .tp-acts button.del { color:#c4281c; border-color:#e9b8b3; }
   #tilbodPanel .tp-body { flex:1; overflow:auto; }
   #tilbodPanel table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
   #tilbodPanel th { position:sticky; top:0; background:var(--panel); text-align:left; font-size:11px; font-weight:600; color:var(--ink-soft); padding:8px 6px; border-bottom:1px solid var(--line); }
@@ -19817,12 +19825,12 @@
     var big = base > 0 && Math.abs(diff) >= 2 && Math.abs(diff) / base > 0.1;
     var ad = Math.abs(diff), amt = ad >= 1e6 ? (ad / 1e6).toLocaleString("is-IS", { minimumFractionDigits:2, maximumFractionDigits:2 }) + " m.kr." : tpKr(ad);
     document.getElementById("tpAlertText").textContent = "Tilboðið " + (diff < 0 ? "lækkar" : "hækkar") + " um " + amt + (base > 0 ? " (" + Math.round(ad / base * 100) + " %)" : "") + " þegar þú vistar"; // nothing priced in Airtable yet: no "Infinity %"
-    document.getElementById("tpAlert").hidden = !big;
+    document.getElementById("tpAlert").hidden = !(big && ad >= 2); // nothing to compare against (empty / 0) or no real change: no alert
     function chg(total, was){ return big && Math.abs((total || 0) - (was || 0)) >= 2; }
     function wasTxt(was){ return '<span class="tp-was">' + (was ? "var " + tpKr(was) : "ný lína") + '</span>'; }
-    document.getElementById("tpSub").innerHTML = "m/vsk · línur og höldur · " + (Math.abs(diff) < 2
+    document.getElementById("tpSub").innerHTML = "m/vsk · línur og höldur" + (!(base >= 2) ? "" : " · " + (Math.abs(diff) < 2
       ? "sama og í Airtable ✓"
-      : "í Airtable núna: <b>" + tpKr(base) + "</b> (" + (diff > 0 ? "+" : "−") + tpKr(Math.abs(diff)) + " þegar þú vistar)") +
+      : "í Airtable núna: <b>" + tpKr(base) + "</b> (" + (diff > 0 ? "+" : "−") + tpKr(Math.abs(diff)) + " þegar þú vistar)")) +
       (d.airtableLinesTotal != null && Math.abs(d.airtableTotal - base) >= 2 ? '<br><span title="Tilboðsupphæðin á Tækifærinu tekur líka með það sem eru ekki línur (t.d. læst staðfest tilboð, viðbætur)">Tilboðsupphæð á Tækifærinu: ' + tpKr(d.airtableTotal) + '</span>' : "");
     var warn = [];
     var MAT_NAMES = { carcass:"skrokkur", front:"framhlið", front2:"framhlið 2", top:"borðplata" };
@@ -19830,14 +19838,12 @@
       " í teikningunni er annað en á Tækifærinu — allar línur reiknaðar á teikningunni, Tækifærið uppfærist þegar þú vistar.");
     if (d.handles.changed){ // with the amount: a big jump here is usually the whole difference above (T-32: 765 → 20, D3)
       var hd = d.handles.total - (d.handles.airtableTotal || 0);
-      warn.push("● Höldur: " + (d.handles.airtableCount != null ? d.handles.airtableCount + " stk í Airtable → " : "") + d.handles.count + " stk í teikningunni" +
+      warn.push("● Höldur: " + (d.handles.airtableCount > 0 ? d.handles.airtableCount + " stk í Airtable → " : "") + d.handles.count + " stk í teikningunni" +
         (d.handles.airtableTotal != null && Math.abs(hd) >= 2 ? " (" + (hd > 0 ? "+" : "−") + tpKr(Math.abs(hd)) + ")" : "") + " — Tækifærið uppfærist þegar þú vistar.");
     }
     var unmapped = d.lines.filter(function(l){ return !l.mapped; }).length;
     if (unmapped) warn.push("" + unmapped + " " + plural(unmapped, "lína er", "línur eru") + " án vöru (0 kr.) — veldu Útfærslu í Airtable.");
     if (d.drift) warn.push("Útreikningurinn víkur frá Airtable á " + d.drift + " " + plural(d.drift, "línu", "línum") + " — verðformúlan hefur breyst, láttu vita.");
-    var stale = d.other.filter(function(l){ return l.stale; }).length;
-    if (stale) warn.push("" + stale + " " + plural(stale, "lína", "línur") + " í Airtable " + plural(stale, "er", "eru") + " ekki lengur í teikningunni en " + plural(stale, "telst", "teljast") + " enn með.");
     var w = document.getElementById("tpWarn"); w.hidden = !warn.length; w.innerHTML = warn.map(escapeHtmlPro).join("<br>");
     var esc = escapeHtmlPro, rows = "";
     function line(l, other){
@@ -19859,11 +19865,30 @@
       rows += '<tr class="tp-group"><td colspan="3">' + esc(g.room) + '</td><td class="r">' + tpKr(g.sum) + '</td></tr>' + g.lines.map(function(l){ return line(l, false); }).join("");
     });
     else rows += d.lines.map(function(l){ return line(l, false); }).join("");
-    if (d.other.length) rows += '<tr class="tp-group"><td colspan="4">Aðrar línur úr Airtable</td></tr>' + d.other.map(function(l){ return line(l, true); }).join("");
+    var gone = d.other.filter(function(l){ return l.stale; }), rest = d.other.filter(function(l){ return !l.stale; });
+    // lines Airtable still has but the drawing no longer does (owner 2026-10-28): each can be deleted, or drawn in again
+    if (gone.length) rows += '<tr class="tp-group"><td colspan="4">Ekki lengur á teikningu — enn í tilboðinu</td></tr>' + gone.map(function(l){
+      return line(l, true).replace(/<\/td>/, '<div class="tp-acts"><button type="button" class="del" data-tp-del="' + esc(l.key || "") + '">Eyða línu</button><button type="button" data-tp-redraw="' + esc(l.key || "") + '" data-tp-name="' + esc(l.name || "") + '">Teikna inn aftur</button></div></td>'); }).join("");
+    if (rest.length) rows += '<tr class="tp-group"><td colspan="4">Aðrar línur úr Airtable</td></tr>' + rest.map(function(l){ return line(l, true); }).join("");
     var hch = chg(d.handles.total, d.handles.airtableTotal);
-    rows += '<tr class="tp-other' + (hch ? " tp-chg" : "") + '"><td><div class="tp-nm">Höldur</div><div class="tp-ex">' + d.handles.count + ' stk' + (d.handles.changed ? '<span class="tp-dot" title="Breytt í teikningunni — ekki vistað enn"></span>' : "") + '</div></td><td class="r">' + (hch && d.handles.airtableCount != null ? '<span class="tp-was">var ' + d.handles.airtableCount + '</span>' : "") + '</td><td></td><td class="r">' + tpKr(d.handles.total) + (hch ? '<span class="tp-was">var ' + tpKr(d.handles.airtableTotal) + '</span>' : "") + '</td></tr>';
+    rows += '<tr class="tp-other' + (hch ? " tp-chg" : "") + '"><td><div class="tp-nm">Höldur' + (tpHandleNames().types.length ? ' — ' + esc(tpHandleNames().types.join(" + ")) : '') + '</div><div class="tp-ex">' + (tpHandleNames().detail.length ? esc(tpHandleNames().detail.join(" · ")) + ' · ' : '') + d.handles.count + ' stk' + (d.handles.changed ? '<span class="tp-dot" title="Breytt í teikningunni — ekki vistað enn"></span>' : "") + '</div></td><td class="r">' + (hch && d.handles.airtableCount != null ? '<span class="tp-was">var ' + d.handles.airtableCount + '</span>' : "") + '</td><td></td><td class="r">' + tpKr(d.handles.total) + (hch ? '<span class="tp-was">var ' + tpKr(d.handles.airtableTotal) + '</span>' : "") + '</td></tr>';
     document.getElementById("tpBody").innerHTML = '<table><thead><tr><th>Vara</th><th class="r">Magn</th><th class="r">Afsl.%</th><th class="r">Samtals</th></tr></thead><tbody>' + rows + '</tbody></table>';
     document.getElementById("tpMsg").textContent = "";
+  }
+  // which handle(s) the drawing uses: every type by name (Höldur is one sheet line but a project can mix types per room), with lengths
+  function tpHandleNames(){
+    var types = [], by = {};
+    try{ withEachCategory(function(){
+      var hcfg = handleCfgNow(); if (!hcfg || !HANDLES[state.handle]) return;
+      var nm = HANDLES[state.handle].label + (handleColorLabel() ? ", " + handleColorLabel().toLowerCase() : "");
+      var any = false;
+      surfaces().forEach(function(w){ w.floor.concat(w.wall).forEach(function(b){ blockHandleSkus(b, CATALOG[b.type], hcfg).forEach(function(x){
+        if (!x.id) return; any = true; var k = nm + "|" + x.mm; by[k] = by[k] || { nm:nm, mm:x.mm, n:0 }; by[k].n += x.n; }); }); });
+      if (any && types.indexOf(nm) < 0) types.push(nm);
+    }); }catch(e){}
+    var detail = Object.keys(by).map(function(k){ return by[k]; }).sort(function(a, z){ return a.nm.localeCompare(z.nm) || a.mm - z.mm; })
+      .map(function(g){ return (types.length > 1 ? g.nm + " " : "") + g.mm + " mm × " + g.n; });
+    return { types:types, detail:detail };
   }
   function tpRoomOf(){ var m = {}; try{ collectAllLineItems().forEach(function(li){ m[li["🔑"]] = li["Rými 🏡"] || "Annað"; }); }catch(e){} return m; }
   function selectedBlockKey(){
@@ -19894,6 +19919,15 @@
     if (e.target && e.target.id === "tpPrint") proTilbodPrint();
     if (e.target && e.target.id === "tpSend") proTilbodSend();
     if (e.target && e.target.id === "tpClose") proTilbodToggle(false);
+    var tdel = e.target && e.target.closest && e.target.closest("[data-tp-del]"), tre = e.target && e.target.closest && e.target.closest("[data-tp-redraw]");
+    if (tdel){
+      var dk = tdel.dataset.tpDel; tdel.disabled = true;
+      proOrphCall("retire", { keys:[dk] }).then(function(r){
+        toast(r.deleted.length ? dk + " eytt úr Airtable og tilboðinu." : dk + " hefur Eyðublað — eyddu því í Airtable fyrst.");
+        pc.orph = r.orphans || pc.orph; tp.last = null; proTilbodRefresh(true);
+      }).catch(function(err){ tdel.disabled = false; toast("Tókst ekki að eyða: " + err.message); });
+    }
+    if (tre){ toast("Teiknaðu " + tre.dataset.tpName + " (" + tre.dataset.tpRedraw + ") inn aftur — eldri línan helst þar til þú eyðir henni."); if (!proReadOnly()) openUnitWizard(); }
     if (e.target && e.target.id === "tpAlertGo"){
       var rowsC = document.querySelectorAll("#tilbodPanel tr.tp-chg");
       if (rowsC.length){ rowsC[0].scrollIntoView({ block:"center", behavior:"smooth" }); rowsC.forEach(function(r){ r.classList.remove("tp-blink"); void r.offsetWidth; r.classList.add("tp-blink"); }); }
