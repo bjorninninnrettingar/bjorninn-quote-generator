@@ -376,6 +376,7 @@
   <div class="detail" id="detail">
     <div class="dTitle" id="dName"></div>
     <div class="row"><label>Staða í söluferli</label><select id="dStage"></select></div>
+    <div class="row" id="dUndoRow" style="display:none"><label>Unnið</label><button type="button" id="dUndoBtn" class="printBtn">↩️ Afturkalla Unnið</button><span id="dUndoMsg" style="font-size:12px;margin-left:8px"></span></div>
     <div class="row"><label>Sölumaður</label><select id="dOwner"></select></div>
     <div class="row"><label>Næsta skref</label><select id="dStep"></select></div>
     <div class="row"><label>Næsta skref dags.</label><input type="date" id="dStepDate" /></div>
@@ -954,7 +955,7 @@
   function closeDeal(r, next) {
     var f = r.fields, won = next === "🏆 Tækifæri unnið";
     var ask = won
-      ? Promise.resolve(confirm('Merkja "' + (f["Heiti tækifæris / verkefnis"] || "") + '" sem UNNIÐ? 🏆\n\nÞetta frystir tilboðið, læsir verðum, setur verkið í For-skipulag og sendir tilkynningu á SKRIF-CHAT. Það gengur ekki til baka.') ? {} : null)
+      ? Promise.resolve(confirm('Merkja "' + (f["Heiti tækifæris / verkefnis"] || "") + '" sem UNNIÐ? 🏆\n\nÞetta frystir tilboðið, læsir verðum, setur verkið í For-skipulag og sendir tilkynningu á SKRIF-CHAT. Krefst tilboðs-PDF, Skiptingar greiðslu og kennitölu tengiliðs. Eigandi getur afturkallað (↩️) en frysta PDF-ið og Konto-drög ganga ekki til baka.') ? {} : null)
       : askLoss(r);
     return ask.then(function (extra) {
       if (!extra) return false;
@@ -1347,6 +1348,21 @@
     document.getElementById("dName").textContent = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
 
     var stageSel = document.getElementById("dStage");
+    // Afturkalla Unnið (api/sala.js "afturkalla", owner only): checkbox + stage + amount back; the frozen PDF, Konto drafts and Line Item locks stay.
+    var undoRow = document.getElementById("dUndoRow"), undoBtn = document.getElementById("dUndoBtn"), undoMsg = document.getElementById("dUndoMsg");
+    undoRow.style.display = f["Staða í söluferli"] === "🏆 Tækifæri unnið" ? "" : "none";
+    undoMsg.textContent = ""; undoBtn.disabled = false;
+    undoBtn.onclick = function () {
+      if (!confirm('Afturkalla UNNIÐ á "' + (f["Heiti tækifæris / verkefnis"] || "") + '"?\n\nVerkið fer aftur í "Tilboð sent" og Staða í skipulagi og staðfest upphæð eru hreinsuð.\n\nEKKI afturkallað: frysta PDF-afritið, Konto-drög sem þegar eru til, og læsingar á Line Items (opnaðu þær í Airtable). Aðeins eigandi má þetta.')) return;
+      var sess = (window.OfficeShell && window.OfficeShell.getSession()) || {};
+      undoBtn.disabled = true;
+      sala("afturkalla", { recordId: r.id, me: sess.record && sess.record.id, t: sess.token }).then(function (d) {
+        f["Staða í söluferli"] = "📤 Tilboð sent";
+        undoRow.style.display = "none";
+        alert("Unnið afturkallað.\n\nEkki afturkallað:\n- " + (d.notReverted || []).join("\n- "));
+        load();
+      }, function (err) { undoBtn.disabled = false; undoMsg.textContent = err.message; undoMsg.style.color = "#c0392b"; });
+    };
     stageSel.innerHTML = STAGES.concat(CLOSED_STAGES.map(function (s) { return { name: s }; })).map(function (s) {
       return '<option value="' + esc(s.name) + '"' + (s.name === f["Staða í söluferli"] ? " selected" : "") + '>' + esc(s.short || s.name) + '</option>';
     }).join("");

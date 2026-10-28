@@ -174,3 +174,27 @@ test("a drawing too big for Airtable's long text still submits: a minimal JSON (
   assert.ok(opp["Sjálfsafgreiðsla skipulag (JSON) 📐"].length < 1000);
   assert.match(opp["Skilaboð til skipulags"], /of stór/);
 });
+
+test("a fresh submission tells the office (Virkni line + chat); a resume does not; no webhook env never fails it", async () => {
+  Object.assign(process.env, { AIRTABLE_TOKEN: "t" });
+  const real = global.fetch, seen = [];
+  global.fetch = async (url, o = {}) => { seen.push({ url: String(url), body: o.body ? JSON.parse(o.body) : null }); return { ok: true, status: 200, json: async () => ({ id: "recVIRKNI" }) }; };
+  try {
+    const mk = () => fakeFetch((c) => {
+      if (c.method === "POST" && c.url.endsWith("tblQ8zeUanriESWvL")) return { status: 200, body: { id: "recCONTACT0000000" } };
+      if (c.method === "POST" && c.url.endsWith("tbl4LMXlQjp66RFKI")) return { status: 200, body: { id: "recOPP00000000000", fields: { "Heiti tækifæris / verkefnis": "T-9 | Anna" } } };
+      if (c.method === "POST") return { status: 200, body: { records: c.body.records.map((_, i) => ({ id: "rec" + i })) } };
+    });
+    delete process.env.GOOGLE_CHAT_WEBHOOK_SKRIFSTOFA;
+    const out = await submit(makeAirtable("t", { fetchImpl: mk(), ...NO_WAIT }), body(2));
+    assert.equal(out.recordId, "recOPP00000000000");
+    const line = seen.find((s) => s.url.includes("tblPPMTlFhW0snk24"));
+    assert.match(line.body.fields.Texti, /Ný innsending/);
+    assert.deepEqual(line.body.fields["Tækifæri"], ["recOPP00000000000"]);
+    assert.equal(seen.filter((s) => s.url.includes("chat.googleapis")).length, 0);
+    process.env.GOOGLE_CHAT_WEBHOOK_SKRIFSTOFA = "https://chat.googleapis.com/v1/spaces/X/messages?key=fake";
+    seen.length = 0;
+    await submit(makeAirtable("t", { fetchImpl: mk(), ...NO_WAIT }), body(2));
+    assert.equal(seen.filter((s) => s.url.includes("chat.googleapis")).length, 1);
+  } finally { global.fetch = real; delete process.env.GOOGLE_CHAT_WEBHOOK_SKRIFSTOFA; delete process.env.AIRTABLE_TOKEN; }
+});

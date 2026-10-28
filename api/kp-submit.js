@@ -19,6 +19,7 @@
 //
 // The proxy (/api/airtable) no longer allows creating these three tables at all — this is the only path.
 
+import { addLine } from "./virkni.js";
 const AIRTABLE_BASE = "app91U15z9K704Okd";
 const CONTACTS = "tblQ8zeUanriESWvL";          // Tengiliðir
 const PROJECTS = "tbl4LMXlQjp66RFKI";          // Tækifæri 📣 (projects)
@@ -278,6 +279,13 @@ export async function submit(at, body) {
     await createLines(at, todo.slice(i, i + 10).map((li) => ({
       fields: Object.assign(pick(li, LINE_FIELDS), li["Rými 🏡"] != null ? { "Rými 🏡": shortLabel(li["Rými 🏡"]) } : {}, { [LINK_TO_PROJECT]: [opp.id] }),
     })));
+  }
+  // New Studio submission: tell the office (Virkni line + chat). Fresh creates only; never fails the submit.
+  if (!resumed) {
+    try {
+      const name = String((opp.fields && opp.fields[PROJECT_NAME]) || "").trim();
+      await addLine({ texti: "Ný innsending úr Studio", tegund: "annað", til: "Skrifstofa", t: opp.id, tengill: "/crm", hver: [body.contact && body.contact.fornafn, body.contact && body.contact.eftirnafn].filter(Boolean).join(" ").slice(0, 60), chat: true, projectName: name });
+    } catch (e) { /* notification only */ }
   }
   return { recordId: opp.id, created: todo.length, skipped: body.lineItems.length - todo.length, resumed };
 }
