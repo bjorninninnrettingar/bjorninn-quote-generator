@@ -12,11 +12,10 @@
 })();
 </script>
 <style>
-  /* bakendi.html (2026-10-19) — admin-only ("admin" role = Starfsheiti Rekstrarstjóri
-     specifically, not every Eigandi-typed employee, see api/skrifstofa-login.js). First
-     thing here: a read-only view of Eyðublaðs ÚRVINNSLA, the part-template formula table
-     nothing else in this app has ever surfaced. More gets added here later. Same shell/
-     theme as every other office page — not a new visual language. */
+  /* bakendi.html — admin-only ("admin" = Starfsheiti Rekstrarstjóri, see api/skrifstofa-login.js).
+     2026-10-29: rebuilt as (1) a live pipeline map (stations + Airtable automations + external services,
+     dots = what is happening at each station right now) and (2) a hub of every page/tool. Eyðublaðs
+     ÚRVINNSLA is edited in Airtable now (link only). Same shell/theme as every other office page. */
   :root {
     --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
     --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
@@ -42,23 +41,48 @@
   .pageHd h1 { font-size:1.35rem; font-weight:700; }
   .pageHd .sub { font-size:.82rem; color:var(--muted); margin-top:2px; }
 
-  .toolbar { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
-  .toolbar input, .toolbar select {
-    font:inherit; font-size:.85rem; background:var(--surface); border:1px solid var(--line);
-    border-radius:8px; padding:8px 10px; color:var(--text);
-  }
-  .toolbar input { min-width:220px; }
 
-  .tableWrap { background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:auto; }
-  table { width:100%; border-collapse:collapse; font-size:.82rem; white-space:nowrap; }
-  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); }
-  th { color:var(--muted); text-transform:uppercase; font-size:.68rem; letter-spacing:.04em; position:sticky; top:0; background:var(--surface); }
-  tr:last-child td { border-bottom:none; }
-  tr:hover td { background:var(--bg); }
-  .formula { font-family:"SF Mono",Consolas,monospace; font-size:.8rem; color:var(--accent); }
-  .tag { display:inline-block; font-size:.68rem; font-weight:700; padding:2px 7px; border-radius:999px; background:var(--bg); border:1px solid var(--line); color:var(--muted); margin-right:3px; }
-  .count { font-size:.82rem; color:var(--muted); margin-bottom:10px; }
-  .loading, .empty { text-align:center; color:var(--muted); padding:40px 0; }
+  .main { max-width:none; }
+  h2.sec { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:26px 0 10px; }
+  .mapCard { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px 14px; position:relative; }
+  .mapBar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; font-size:.82rem; color:var(--muted); }
+  .mapBar .live { margin-left:auto; display:flex; align-items:center; gap:6px; } .mapBar .live i { width:8px; height:8px; border-radius:50%; background:var(--good); animation:pulse 2s infinite; } .mapBar .live.off i { background:var(--dim); animation:none; }
+  @keyframes pulse { 50% { opacity:.3; } }
+  .fchip { all:unset; cursor:pointer; padding:4px 12px; border-radius:999px; border:1px solid var(--line); font-size:.78rem; color:var(--muted); } .fchip.on { background:var(--text); color:var(--surface); border-color:var(--text); }
+  .mapHost { position:relative; width:100%; overflow:hidden; }
+  .mapCanvas { position:relative; transform-origin:0 0; }
+  .mapCanvas svg { position:absolute; left:0; top:0; pointer-events:none; overflow:visible; }
+  .laneBg { position:absolute; left:0; right:0; border-radius:14px; background:var(--bg); }
+  .laneTag { position:absolute; left:14px; font-size:.7rem; font-weight:800; letter-spacing:.08em; color:var(--dim); }
+  .nd { position:absolute; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:8px 11px; cursor:pointer; transition:box-shadow .15s, opacity .15s, border-color .15s; overflow:hidden; }
+  .nd:hover, .nd.sel { box-shadow:0 0 0 2px var(--accent); border-color:var(--accent); }
+  .nd.dim { opacity:.22; }
+  .nd .ti { font-size:.82rem; font-weight:700; line-height:1.2; padding-right:58px; } .nd.ex .ti { padding-right:42px; } .nd.au .su { font-size:.66rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .nd .su { font-size:.7rem; color:var(--muted); margin-top:3px; line-height:1.25; }
+  .nd.st { border-width:2px; } .nd.st .ti { font-size:.92rem; }
+  .nd.au { background:#fff8e6; border-color:#efd58a; } :root[data-theme="dark"] .nd.au { background:#2b2614; border-color:#6b5a1c; }
+  .nd.au.off { opacity:.55; border-style:dashed; }
+  .nd.ex { background:#f3eefc; border-color:#cdbdf0; } :root[data-theme="dark"] .nd.ex { background:#241c36; border-color:#4a3a78; }
+  .bdg { position:absolute; top:7px; right:8px; font-size:.56rem; font-weight:800; letter-spacing:.05em; padding:2px 6px; border-radius:5px; }
+  .bdg.at { background:#f5c542; color:#4a3500; } .bdg.ap { background:var(--accent); color:#fff; } .bdg.ex { background:#8250df; color:#fff; } .bdg.hm { background:var(--dim); color:#fff; }
+  .cnt { position:absolute; right:-1px; bottom:-1px; min-width:30px; text-align:center; font-size:.78rem; font-weight:800; padding:3px 9px; border-radius:12px 0 11px 0; background:var(--good); color:#fff; } .cnt.zero { background:var(--bg); color:var(--dim); }
+  .cnt.warn { background:#e9b000; color:#3b2c00; }
+  .pgs { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; } .pgs span { font-size:.62rem; background:var(--bg); border-radius:4px; padding:1px 6px; color:var(--accent); }
+  .panel { position:absolute; right:14px; top:54px; width:360px; max-height:calc(100% - 70px); overflow:auto; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 40px rgba(10,14,20,.2); padding:16px 18px; z-index:5; }
+  .panel[hidden] { display:none; } .panel h3 { font-size:1.02rem; margin-bottom:2px; padding-right:24px; } .panel .x { position:absolute; right:12px; top:10px; all:unset; cursor:pointer; font-size:1.3rem; color:var(--muted); }
+  .panel p { font-size:.86rem; color:var(--muted); margin:8px 0; } .panel .kv { font-size:.8rem; margin:6px 0; } .panel .kv b { display:inline-block; min-width:92px; color:var(--muted); font-weight:600; }
+  .panel a.lnk { display:inline-block; margin:4px 8px 4px 0; font-size:.82rem; color:var(--accent); text-decoration:none; font-weight:600; }
+  .panel .plist a { display:block; font-size:.84rem; padding:5px 0; border-bottom:1px solid var(--line); color:var(--text); text-decoration:none; } .panel .plist a:hover { color:var(--accent); }
+  .panel code { font-size:.75rem; background:var(--bg); padding:1px 6px; border-radius:5px; }
+  .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:.74rem; color:var(--muted); margin-top:8px; align-items:center; } .legend .bdg { position:static; margin-right:5px; display:inline-block; }
+  .hubG { margin-bottom:6px; } .hubGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
+  .hubT { display:block; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:11px 14px; text-decoration:none; color:var(--text); transition:border-color .15s, box-shadow .15s; }
+  .hubT:hover { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .hubT .n { font-size:.9rem; font-weight:700; display:flex; align-items:center; gap:6px; } .hubT .n em { font-style:normal; margin-left:auto; color:var(--dim); font-size:.8rem; }
+  .hubT .d { font-size:.74rem; color:var(--muted); margin-top:2px; } .hubT .f { font-size:.66rem; color:var(--dim); margin-top:4px; font-family:"SF Mono",Consolas,monospace; }
+  .hubT.at { border-color:#efd58a; background:#fffaf0; } :root[data-theme="dark"] .hubT.at { background:#2b2614; border-color:#6b5a1c; }
+  .hubSub { font-size:.8rem; font-weight:700; margin:16px 0 8px; color:var(--text); }
+  .note { font-size:.8rem; color:var(--muted); margin-top:6px; }
+
 </style>
 </head>
 <body>
@@ -71,29 +95,31 @@
   <div class="main">
     <div class="pageHd">
       <div>
-        <h1>🧰 Bakendi</h1>
-        <div class="sub">Admin-only — innviðir sem ekkert annað í appinu sýnir ennþá.</div>
+        <h1>Bakendi</h1>
+        <div class="sub">Admin — hvernig verk fara í gegnum kerfið, hvað er að gerast á hverri stöð og öll tólin á einum stað.</div>
       </div>
     </div>
 
-    <div class="sectionTitle" style="font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px;">⚙️ Eyðublaðs ÚRVINNSLA — pörtasniðmát</div>
-    <div class="toolbar">
-      <input id="search" type="text" placeholder="🔎 Leita að Partur…" />
-      <select id="tegundFilter"><option value="">Allar tegundir</option></select>
+    <h2 class="sec" style="margin-top:6px">Ferlið — lifandi</h2>
+    <div class="mapCard">
+      <div class="mapBar" id="mapBar">
+        <button class="fchip on" data-f="all" type="button">Allt</button><button class="fchip" data-f="at" type="button">Aðeins Airtable</button><button class="fchip" data-f="ap" type="button">Aðeins síður</button><button class="fchip" data-f="ex" type="button">Aðeins ytri</button>
+        <span class="live" id="liveTag"><i></i><span id="liveTxt">sæki…</span></span>
+      </div>
+      <div class="mapHost" id="mapHost"><div class="mapCanvas" id="mapCanvas"></div></div>
+      <aside class="panel" id="panel" hidden></aside>
+      <div class="legend">
+        <span><span class="bdg at">AIRTABLE</span>sjálfvirkni sem keyrir í Airtable — skoðaðu hana þar ef eitthvað bilar</span>
+        <span><span class="bdg ap">SÍÐA</span>síða / endapunktur hér í appinu</span>
+        <span><span class="bdg ex">YTRI</span>utanaðkomandi þjónusta</span>
+        <span><span class="bdg hm">HANDVIRKT</span>manneskja ýtir á takka</span>
+        <span>Græn tala = verk á stöðinni núna · dökkur ferningur með punktalínu = sjálfvirkni slökkt</span>
+      </div>
     </div>
-    <div class="count" id="count"></div>
-    <div class="tableWrap">
-      <table id="tbl">
-        <thead>
-          <tr>
-            <th>Partur</th><th>Tegund</th><th>Efnisflokkur</th>
-            <th>Magn formúla</th><th>Hæð formúla</th><th>Breidd formúla</th><th>Þykkt formúla</th>
-            <th>Kantlíming</th><th>Skúffukerfi</th><th>Yfirfræsari</th><th>Athugasemd</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"><tr><td colspan="11" class="loading">Sæki…</td></tr></tbody>
-      </table>
-    </div>
+
+    <h2 class="sec">Öll tól og síður</h2>
+    <div id="hub"></div>
+    <div class="note">Eyðublaðs ÚRVINNSLA (pörtasnið) er breytt beint í Airtable — hlekkur í „Airtable“ hér að ofan.</div>
   </div>
 </div>
 
@@ -101,96 +127,231 @@
 <script>
 (function () {
   "use strict";
-  var URVINNSLA = "tblR1TpicLRVTXHql";
-
   var shellInfo = window.OfficeShell.boot("bakendi");
   if (!shellInfo) return;
-  // Hard gate, not just a hidden nav tile — the user was explicit that only
-  // they (admin = Rekstrarstjóri specifically, see api/skrifstofa-login.js)
-  // should ever reach this page, so a logged-in non-admin typing /bakendi
-  // directly must not see its content either.
-  if ((shellInfo.record.roles || []).indexOf("admin") === -1) {
-    location.href = "/skrifstofa";
-    return;
-  }
+  // Hard gate, not just a hidden nav tile: only the admin (Rekstrarstjóri) may see this page.
+  if ((shellInfo.record.roles || []).indexOf("admin") === -1) { location.href = "/skrifstofa"; return; }
   var k = shellInfo.k;
+  var BASE = "https://airtable.com/app91U15z9K704Okd";
+  var TAEKIFAERI = "tbl4LMXlQjp66RFKI", PANTADIR = "tblSccfV2lBp4FiFU";
 
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function api(path, extra) {
-    var u = "/api/airtable?path=" + encodeURIComponent(path);
-    if (k) u += "&k=" + encodeURIComponent(k);
-    if (extra) u += "&" + extra;
+    var u = "/api/airtable?path=" + encodeURIComponent(path); if (k) u += "&k=" + encodeURIComponent(k); if (extra) u += "&" + extra;
     return fetch(u).then(function (r) { return r.json(); });
   }
 
-  // Airtable pages at 100 — this table has 133+ rows.
-  function fetchAllPages(table, extra, acc, offset) {
-    acc = acc || [];
-    var qs = extra + (offset ? "&offset=" + encodeURIComponent(offset) : "");
-    return api(table, qs).then(function (d) {
-      acc = acc.concat(d.records || []);
-      return d.offset ? fetchAllPages(table, extra, acc, d.offset) : acc;
-    });
-  }
-
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; });
-  }
-  function multi(v) {
-    return Array.isArray(v) ? v.map(function (x) { return x && x.name ? x.name : x; }) : (v ? [v] : []);
-  }
-  function single(v) { return v && v.name ? v.name : (v || ""); }
-
-  var allRows = [];
-
-  function render() {
-    var q = $("search").value.trim().toLowerCase();
-    var tegund = $("tegundFilter").value;
-    var rows = allRows.filter(function (r) {
-      var f = r.fields || {};
-      if (q && (f["Partur"] || "").toLowerCase().indexOf(q) === -1) return false;
-      if (tegund && multi(f["Tegund"]).indexOf(tegund) === -1) return false;
-      return true;
-    });
-    $("count").textContent = rows.length + " af " + allRows.length + " línum";
-    if (!rows.length) {
-      $("tbody").innerHTML = '<tr><td colspan="11" class="empty">Ekkert fannst.</td></tr>';
-      return;
-    }
-    $("tbody").innerHTML = rows.map(function (r) {
-      var f = r.fields || {};
-      return "<tr>" +
-        "<td><b>" + esc(f["Partur"]) + "</b></td>" +
-        "<td>" + multi(f["Tegund"]).map(function (t) { return '<span class="tag">' + esc(t) + "</span>"; }).join("") + "</td>" +
-        "<td>" + esc(single(f["Efnisflokkur"])) + "</td>" +
-        '<td class="formula">' + esc(f["Magn formúla"]) + "</td>" +
-        '<td class="formula">' + esc(f["Hæð formúla"]) + "</td>" +
-        '<td class="formula">' + esc(f["Breidd formúla"]) + "</td>" +
-        '<td class="formula">' + esc(f["Þykkt formúla"]) + "</td>" +
-        "<td>" + esc(f["Kantlíming"]) + "</td>" +
-        "<td>" + esc(single(f["Skúffukerfi"])) + "</td>" +
-        "<td>" + (f["Yfirfræsari"] ? "✅" : "") + "</td>" +
-        "<td>" + esc(f["Athugasemd"]) + "</td>" +
-        "</tr>";
-    }).join("");
-  }
-
-  function $(id) { return document.getElementById(id); }
-
-  fetchAllPages(URVINNSLA, "pageSize=100").then(function (records) {
-    allRows = records.sort(function (a, b) {
-      return (a.fields["Partur"] || "").localeCompare(b.fields["Partur"] || "", "is");
-    });
-    var tegundir = {};
-    allRows.forEach(function (r) { multi(r.fields["Tegund"]).forEach(function (t) { tegundir[t] = true; }); });
-    $("tegundFilter").innerHTML = '<option value="">Allar tegundir</option>' +
-      Object.keys(tegundir).sort().map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + "</option>"; }).join("");
-    render();
-  }).catch(function (e) {
-    $("tbody").innerHTML = '<tr><td colspan="11" class="empty">Villa: ' + esc(e.message) + "</td></tr>";
+  // ======================= the map (data) =======================
+  // kind: st = station (a status a project sits in), au = Airtable automation, ex = external service, hm = manual step.
+  // live(r) decides which projects (Tækifæri rows) sit at a station; orders = open supplier orders.
+  var COLW = 214, NW = 184, LANE_Y = { A: 34, B: 434, C: 834 }, LANE_H = 380, SROW = 74;
+  function S(id, lane, col, title, sub, o) { o = o || {}; o.id = id; o.kind = "st"; o.lane = lane; o.col = col; o.title = title; o.sub = sub; o.h = 78; return o; }
+  function A(id, lane, col, srow, name, sub, o) { o = o || {}; o.id = id; o.kind = "au"; o.lane = lane; o.col = col; o.srow = srow; o.title = name; o.sub = sub; o.h = 64; return o; }
+  function X(id, x, y, title, sub, o) { o = o || {}; o.id = id; o.kind = "ex"; o.x = x; o.y = y; o.title = title; o.sub = sub; o.h = 54; return o; }
+  var SO = function (v) { return function (f) { return (f["Staða í söluferli"] || "").indexOf(v) === 0; }; };
+  var WON = function (f) { return f["Staða í söluferli"] === "🏆 Tækifæri unnið"; };
+  var SK = function (v) { return function (f) { return WON(f) && (f["Staða í skipulagi"] || "For-skipulag") === v; }; };
+  var PR = function (v) { return function (f) { return WON(f) && f["Staða í framleiðslu"] === v; }; };
+  var NODES = [
+    // ---- SALA
+    S("studio", "A", 0, "Fyrirspurn / Studio", "Viðskiptavinur teiknar sjálfur — verður að Tækifæri + Line Items", { pages: ["/skipuleggja", "api/kp-submit"], desc: "Sjálfsafgreiðsla (BJÖRNINN STUDIO). kp-submit býr til tengilið, Tækifæri og Line Items í Airtable, og teikningar (PDF).", badge: "ap" }),
+    S("honnun", "A", 1, "Hönnun & Ráðgjöf", "Teikning í vinnslu", { live: SO("Hönnun"), pages: ["/crm", "/pro"], desc: "Staða í söluferli = Hönnun & Ráðgjöf. Hönnuðurinn (PRO) skrifar Line Items í Airtable.", badge: "ap" }),
+    S("teikna", "A", 2, "Teikna & yfirfara tilboð", "Tilboð í vinnslu", { live: SO("✍️"), pages: ["/crm", "/pro"], desc: "Line Items fylltir út, tilboð yfirfarið. Prentun tilboðs fer í gegnum Airtable-sjálfvirkni sem kallar á appið.", badge: "ap" }),
+    S("sent", "A", 3, "Tilboð sent", "Bíður svars", { live: SO("📤"), pages: ["/crm"], desc: "Tilboð sent þann er skráð, eftirfylgni eftir 3 og 15 daga, 30 daga ósnert = Tapað.", badge: "ap" }),
+    S("liklegt", "A", 4, "Líklegt tækifæri", "Verkfundur / ákvörðun", { live: SO("🔥"), pages: ["/crm"], desc: "Næsta skref skráð í CRM.", badge: "ap" }),
+    S("unnid", "A", 5, "Tækifæri unnið", "Verk staðfest — allt hér eftir er 'verk'", { live: function (f) { return WON(f); }, pages: ["/ferli"], desc: "Staða í söluferli = unnið. Tilboðið er fryst, verðin læst og verkið fer í For-skipulag. Talan hér = öll virk verk (ekki afhent).", badge: "ap", total: true }),
+    // ---- SKIPULAG
+    S("forskip", "B", 0, "For-skipulag", "Teikning lögð / Line Items", { live: SK("For-skipulag"), pages: ["/ferli", "/pro"], desc: "Hönnuðurinn lagar teikninguna, forprófun sýnir hvað verður að einingum.", badge: "ap" }),
+    S("iskip", "B", 1, "Í skipulagningu", "Eyðublöð eru til, einingar yfirfarnar", { live: SK("Í skipulagningu"), pages: ["/ferli"], desc: "Keyra skipulag hefur búið til Eyðublað úr hverri Line Item. Hver eining er yfirfarin (Sögunarlisti, Vörur á einingu).", badge: "ap" }),
+    S("yfirfara", "B", 2, "Yfirfara", "Loka yfirferð", { live: SK("Yfirfara"), pages: ["/ferli", "/cutlist", "/aedar", "/smida"], desc: "Dagatal, Cutty (skurðarlisti → USB), Æðar, Smíða & CNC (.bpp → USB), gátlisti.", badge: "ap" }),
+    S("pontun", "B", 3, "Pöntun", "Pöntunarlisti → birgjar", { orders: true, pages: ["/ferli", "/pontun"], desc: "Pöntunarlisti verkefnis reiknaður (Airtable), PDF prentað, pöntun send á birgja. Talan = pantanir sem eru ekki enn sendar.", badge: "ap" }),
+    S("klart", "B", 4, "Klárt til framleiðslu", "Pantanir sendar → verk fer á gólfið", { live: function (f) { return SK("Klárt til framleiðslu")(f) && !f["Staða í framleiðslu"]; }, pages: ["/ferli"], desc: "Merkt Klárt í /ferli: gólfið fær tilkynningu, Konto-drög að annarri greiðslu, Staða í framleiðslu = Tilbúið til framleiðslu.", badge: "ap" }),
+    // ---- FRAMLEIÐSLA
+    S("f1", "C", 0, "Tilbúið til framleiðslu", "Bíður þess að sögun byrji", { live: PR("Tilbúið til framleiðslu 📋"), pages: ["/framleidsla", "/app"], desc: "Verk á gólfinu bíður. Sögun/fræsing er skráð í appinu (/verk, /velja, /fraesing).", badge: "ap" }),
+    S("f2", "C", 1, "Verk í vinnslu", "Verktímar / sögun hafin", { live: PR("Verk í vinnslu 🔨"), pages: ["/framleidsla", "/verk", "/labels"], desc: "Færist sjálfkrafa þegar verktímar eru skráðir eða sögun hafin. Merkingar (Zebra) prentaðar í /labels.", badge: "ap" }),
+    S("f3", "C", 2, "Samsetning & pökkun", "Sögun ≥ 95%, fræsing ≥ 60%", { live: PR("Samsetning og pökkun 🪛📦"), pages: ["/framleidsla", "/verk"], desc: "Færist sjálfkrafa út frá framvindu.", badge: "ap" }),
+    S("f4", "C", 3, "Má afhenda", "Finna afhendingartíma", { live: PR("Má Afhenda 🚚"), pages: ["/framleidsla"], desc: "Skrifstofa fær skilaboð um að finna tíma með kúnnanum; lokagreiðsla í Konto-drög.", badge: "ap" }),
+    S("f5", "C", 4, "Afhent (LOKIÐ)", "Verk lokið", { pages: ["/framleidsla"], desc: "Afhent. Dagsetning skráð, uppgjör í Konto ef uppsetning/heimsending. Dálkurinn telur ekki afhent verk.", badge: "ap" }),
+    S("tapad", "A", 3, "Tapað / Neitað", "Lokað án verks", { pages: ["/crm"], desc: "Sjálfvirkt eftir 30 daga ósnert, eða handvirkt. F1 'Tapað' póstur er til en slökktur.", badge: "ap", srow: 2, kind: "st" }),
+    // ---- Airtable automations (names exactly as in Airtable — search for them under Automations)
+    A("a_unnid", "A", 5, 0, "Sala · Unnið → For-skipulag + chat", "wflGbtZowOX4cdk0M", { at: ["Sala · Unnið → For-skipulag + chat", "wflGbtZowOX4cdk0M", 1], desc: "Þegar Staða í söluferli breytist: setur verkið í For-skipulag og sendir skilaboð í SKRIF-CHAT." }),
+    A("a_frysta", "A", 5, 1, "Sala · Unnið → frysta tilboð", "Fjármál · Unnið → verðlás", { at: ["Sala · Unnið → frysta tilboð (wflyIHT5mL9QEQRVd) + Fjármál · Unnið → verðlás (wfls1CDlBAkORxnGq)", "", 1], desc: "Skráir Verk staðfest þann, frystir staðfest tilboð (PDF, upphæð, tekjur án vsk) og læsir verði Line Items og hölda." }),
+    A("a_sent", "A", 3, 0, "Sala · Tilboð sent → dagsetning", "Eftirfylgni 3 / 15 dagar → chat", { at: ["Sala · Tilboð sent → dagsetning (wflhdLSiaz3wiOfq5), Eftirfylgni 3 dagar (wflBClHfYBCN47Oac), Eftirfylgni 15 dagar (wflt0vzOzH1zDr9AO)", "", 1], desc: "Skráir Tilboð sent þann og minnir á eftirfylgni í chat eftir 3 og 15 dögum." }),
+    A("a_tapad", "A", 4, 2, "Sala · Ósnert 30 dagar → Tapað", "wflGwyU2QMhHOLXqk", { at: ["Sala · Ósnert 30 dagar → Tapað", "wflGwyU2QMhHOLXqk", 1], desc: "Verk ósnert í 30 daga í Tilboð sent / Líklegt / Teikna → merkt Tapað." }),
+    A("a_g1", "A", 4, 0, "Fjármál · Konto drög G1", "hnappur á Tækifæri", { at: ["Fjármál · Konto drög G1 (hak)", "wfliSHzoCuapBXoGj", 1], hm: 1, desc: "Hakað á Tækifæri: býr til drög að fyrstu greiðslu í Konto og skilaboð í G.CHAT." }),
+    A("a_prent1", "A", 2, 0, "Prent · Tilboð / Sameinað / Verðhugmynd", "PDF úr appinu", { at: ["Prent · Tilboð (wflfmFCpEnlORMDJk), Sameinað tilboð (wflqt9mPPmLYmUWAz), Verðhugmynd (wflRxq3tHZsMUijzn), Viðbótartilboð (wfljEVvtmutp3Vl4L)", "", 1], hm: 1, desc: "Hnappar á Tækifæri sem kalla á appið (api/generate-quote) og setja PDF í Airtable. Ath: 'Muna að uppfæra token þegar það rennur út hjá GITHUB'." }),
+    A("a_post", "A", 1, 0, "Póstur · F0/F1/F2 (slökkt)", "sjálfvirkir tölvupóstar", { off: 1, at: ["Póstur · F0 Takk fyrir Studio, F1 Unnið + mælingahlekkur, F1 Tapað, F2 Búið í skipulagi, F2 Byrjað í framleiðslu, Seinkun", "", 0], desc: "Tilbúnir en SLÖKKT (undeployed) — yfirfara texta og kveikja handvirkt. Sjá docs um tölvupóstkerfið." }),
+    A("a_keyra", "B", 1, 0, "Skipulag · Keyra skipulag", "Line Items → Eyðublöð", { at: ["Skipulag · Keyra skipulag (Line Items → Eyðublöð)", "wflPGRyv0VYi4AZpd", 1], hm: 1, desc: "Hnappur í /ferli (🔄 Keyra Skipulag). Setur verk í Í skipulagningu, býr til Eyðublað úr hverri gildri Line Item." }),
+    A("a_aftur", "B", 1, 1, "Skipulag · Aftur í forskipulag", "wflm9KW0P8UPL9mIS", { at: ["Skipulag · Aftur í forskipulag", "wflm9KW0P8UPL9mIS", 1], hm: 1, desc: "Færir verk til baka í For-skipulag." }),
+    A("a_yfir", "B", 2, 0, "Skipulag · Yfirfara einingu", "Sögunarlisti → Pöntunarlisti → Vörur á einingu", { at: ["Skipulag · Yfirfara einingu", "wflqQLKQBKIpNutDn", 1], hm: 1, desc: "Hnappur á hverri einingu í /ferli (🔄 Keyra Yfirferð 3.0). Þrjú script: Sögunarlisti, Pöntunarlisti (lean), Pöntun per Unit." }),
+    A("a_skuff", "B", 2, 1, "Skipulag · Skúffusamantekt", "wflMovNqMtRjKZBPc", { at: ["Skipulag · Skúffusamantekt", "wflMovNqMtRjKZBPc", 1], desc: "Tekur saman skúffur fyrir verkefni." }),
+    A("a_lokaprent", "B", 2, 2, "Prent · Lokaprent skipulags", "wflXsdxz7UiNzOmmx", { at: ["Prent · Lokaprent skipulags", "wflXsdxz7UiNzOmmx", 1], hm: 1, desc: "Teikningar/lokaprent skipulags (PDF)." }),
+    A("a_pont", "B", 3, 0, "Skipulag · Pöntunarlisti verkefnis", "Full pöntunarlisti + Pantaðir listar", { at: ["Skipulag · Pöntunarlisti verkefnis", "wflstmiM1A5xC8N66", 1], hm: 1, desc: "Hnappur (🔄 Keyra Pöntunarlista 4.0) í /ferli. Reiknar allt verkið (plötur, kantlíming, skúffur, aukahlutir) og flokkar eftir birgi. ATH: skrifar yfir handvirkar breytingar á línum." }),
+    A("a_senda", "B", 3, 1, "Skipulag · Senda pöntun á birgja", "PDF + Gmail + staða Sent", { at: ["Skipulag · Senda pöntun á birgja", "wflj7DBcXQ4H0sz8D", 1], hm: 1, desc: "📧 Senda á birgja: býr til PDF, sendir tölvupóst með Gmail og setur Sent." }),
+    A("a_prent2", "B", 3, 2, "Prent · Pöntunarlisti / Auka-pöntun", "PDF", { at: ["Prent · Pöntunarlisti (wflM4UfHf98UmT6SP), Auka-pöntunarlisti (wflP5KfwKD3DGHqKF)", "", 1], hm: 1, desc: "Endurprentar PDF úr appinu (api/pontun-print)." }),
+    A("a_g2", "B", 4, 0, "Fjármál · Konto drög G2", "Klárt → greiðsla 2 (30%)", { at: ["Fjármál · Konto drög G2 (Klárt til framleiðslu)", "wfl2CC8XPIZqXry2I", 1], desc: "Staða í skipulagi = Klárt: drög að greiðslu 2 í Konto + G.CHAT." }),
+    A("a_klart", "B", 4, 1, "Framleiðsla · Klárt → Tilbúið", "setur Staða í framleiðslu", { at: ["Framleiðsla · Klárt → Tilbúið til framleiðslu", "wflxPvS2EvOH3gITv", 1], desc: "Klárt + engin framleiðslustaða → Tilbúið til framleiðslu 📋." }),
+    A("a_chatklart", "B", 4, 2, "Chat · Klár til framleiðslu (slökkt)", "tilkynning kemur nú úr appinu", { off: 1, at: ["Chat · Klár til framleiðslu → Almennt", "wflEy97JrOOsJAcSR", 0], desc: "Slökkt — /ferli sendir tilkynninguna sjálft (api/virkni)." }),
+    A("a_hafin", "C", 1, 0, "Framleiðsla · Hafin → Í vinnslu", "wflax4ohwmWYAnwoL", { at: ["Framleiðsla · Hafin → Í vinnslu", "wflax4ohwmWYAnwoL", 1], desc: "Færir verk úr Tilbúið í Í vinnslu þegar Framleiðslustaða skv. gögnum 🤖 segir það." }),
+    A("a_95", "C", 2, 0, "Framleiðsla · 95% sagað → Samsetning", "wflAGBInuliPFcwxL", { at: ["Framleiðsla · 95% sagað → Samsetning", "wflAGBInuliPFcwxL", 1], desc: "Sögun ≥ 95% og fræsing ≥ 60% → Samsetning og pökkun." }),
+    A("a_afh", "C", 3, 0, "Chat · Má afhenda → Skrifstofa", "wflBTkhhtbLWybOLn", { at: ["Chat · Má afhenda → Skrifstofa", "wflBTkhhtbLWybOLn", 1], desc: "Skilaboð í Skrifstofu chat." }),
+    A("a_lokag", "C", 3, 1, "Fjármál · Konto drög lokagreiðsla", "Má afhenda → greiðsla 3", { at: ["Fjármál · Konto drög lokagreiðsla (Má afhenda)", "wflKmGiyqEL6tDJng", 1], desc: "Drög að lokagreiðslu í Konto." }),
+    A("a_afhent", "C", 4, 0, "Framleiðsla · Afhent → dagsetning", "Verklok", { at: ["Framleiðsla · Afhent → dagsetning (wflZOs33oS87redRI), Verklok (wflWC2TPgyvUvCdi6), Sala · Staðfest/afhent → ár og mánuður (wflUBQzJrqbmnyNgA)", "", 1], desc: "Skráir afhendingardag, ár og mánuð fyrir tölfræði." }),
+    A("a_uppgjor", "C", 4, 1, "Fjármál · Konto drög uppgjör", "Afhent → uppsetning/heimsending", { at: ["Fjármál · Konto drög uppgjör (Afhent)", "wflRjajCDarwbA1NV", 1], desc: "Drög að eftirstöðvum uppsetningar + heimsendingu." }),
+    A("a_virkni", "C", 0, 0, "🔔 Virkni-logg — Stöður", "Bjalla í appinu", { at: ["🔔 Virkni-logg — Stöður", "wflWM7MBu9Jv3ccAc", 1], desc: "Skrifar línu í Virkni þegar stöður breytast — það er bjallan efst í appinu." }),
+    // ---- external
+    X("x_chat", 1380, 60, "Google Chat", "SKRIF-CHAT · ALMENNT · G.CHAT", { desc: "Skilaboð úr Airtable-sjálfvirkni og úr appinu (api/virkni)." }),
+    X("x_konto", 1380, 520, "Konto", "Greiðslukröfur (drög)", { desc: "Reikningakerfi. Drög að greiðslum 1–3 + uppgjör búin til úr Airtable (scripts). Engin test-umhverfi; greiðsla er sótt með polli (ekkert webhook)." }),
+    X("x_gmail", 1380, 650, "Gmail → Birgjar", "Pantanir sendar með PDF", { desc: "Skipulag · Senda pöntun á birgja sendir tölvupóst á birgi. Sjálfvirk póstkerfi til viðskiptavina eru slökkt." }),
+    X("x_cnc", 1380, 810, "CNC (Biesse) & USB", "Skurðarskrá + .bpp", { desc: "Cutty og Smíða & CNC skrifa skrár á USB-lykil sem fer í vélina." }),
+    X("x_zebra", 1380, 960, "Zebra merkimiðar", "QR á hverju stykki", { desc: "/labels prentar miða; QR opnar /v → /velja á gólfinu." }),
+  ];
+  var EDGES = [ // [from, to, kind, label]  kind: flow | trig (Airtable automation fires) | ext
+    ["studio", "honnun", "flow"], ["honnun", "teikna", "flow"], ["teikna", "sent", "flow"], ["sent", "liklegt", "flow"], ["liklegt", "unnid", "flow"], ["sent", "tapad", "flow", "ósnert 30 d."], ["liklegt", "tapad", "flow"],
+    ["unnid", "forskip", "flow", "verk byrjar"], ["forskip", "iskip", "flow", "Keyra skipulag"], ["iskip", "yfirfara", "flow", "allar einingar yfirfarnar"], ["yfirfara", "pontun", "flow", "gátlisti búinn"], ["pontun", "klart", "flow", "pantanir sendar"],
+    ["klart", "f1", "flow", "Klárt"], ["f1", "f2", "flow"], ["f2", "f3", "flow"], ["f3", "f4", "flow"], ["f4", "f5", "flow"],
+    ["unnid", "a_unnid", "trig"], ["unnid", "a_frysta", "trig"], ["sent", "a_sent", "trig"], ["sent", "a_tapad", "trig"], ["teikna", "a_prent1", "trig"], ["liklegt", "a_g1", "trig"], ["honnun", "a_post", "trig"],
+    ["iskip", "a_keyra", "trig"], ["iskip", "a_aftur", "trig"], ["yfirfara", "a_yfir", "trig"], ["yfirfara", "a_skuff", "trig"], ["yfirfara", "a_lokaprent", "trig"],
+    ["pontun", "a_pont", "trig"], ["pontun", "a_senda", "trig"], ["pontun", "a_prent2", "trig"], ["klart", "a_g2", "trig"], ["klart", "a_klart", "trig"], ["klart", "a_chatklart", "trig"],
+    ["f1", "a_virkni", "trig"], ["f2", "a_hafin", "trig"], ["f3", "a_95", "trig"], ["f4", "a_afh", "trig"], ["f4", "a_lokag", "trig"], ["f5", "a_afhent", "trig"], ["f5", "a_uppgjor", "trig"],
+    ["a_unnid", "x_chat", "ext"], ["a_g1", "x_konto", "ext"], ["a_g2", "x_konto", "ext"], ["a_lokag", "x_konto", "ext"], ["a_uppgjor", "x_konto", "ext"], ["a_senda", "x_gmail", "ext"], ["a_afh", "x_chat", "ext"], ["a_sent", "x_chat", "ext"],
+    ["yfirfara", "x_cnc", "ext", "USB"], ["f2", "x_zebra", "ext", "merkimiðar"],
+  ];
+  var CANVAS_W = 1620, CANVAS_H = LANE_Y.C + LANE_H + 20;
+  var byId = {};
+  NODES.forEach(function (n) {
+    if (n.kind === "ex") { n.w = NW; }
+    else { n.w = NW; n.x = n.col * COLW + 40; n.y = LANE_Y[n.lane] + (n.kind === "st" && !n.srow ? 34 : 34 + 110 + (n.srow || 0) * SROW); }
+    byId[n.id] = n;
   });
 
-  $("search").addEventListener("input", render);
-  $("tegundFilter").addEventListener("change", render);
+  var live = { projects: null, orders: null };
+  function stationList(n) {
+    if (n.orders) return (live.orders || []).filter(function (o) { return !/^(Sent|Komið)/.test((o.fields || {})["Staða"] || ""); });
+    if (!n.live || !live.projects) return null;
+    return live.projects.filter(function (p) { return n.live(p.fields || {}); });
+  }
+
+  // ======================= drawing =======================
+  var canvas = document.getElementById("mapCanvas"), host = document.getElementById("mapHost"), panel = document.getElementById("panel");
+  var filter = "all", selected = null;
+  function port(a, b) { // pick sides so edges leave/enter sensibly
+    var ax = a.x, ay = a.y, bx = b.x, by = b.y, ah = a.h, bh = b.h, w = NW;
+    if (Math.abs((ay + ah / 2) - (by + bh / 2)) < 60 || bx > ax + w + 10 && Math.abs(by - ay) < 140) return { x1: ax + w, y1: ay + ah / 2, x2: bx, y2: by + bh / 2, h: 1 };
+    if (by > ay) return { x1: ax + w / 2, y1: ay + ah, x2: bx + w / 2, y2: by, h: 0 };
+    return { x1: ax + w / 2, y1: ay, x2: bx + w / 2, y2: by + bh, h: 0 };
+  }
+  function pathFor(a, b) {
+    var p = port(a, b), dx = Math.max(40, Math.abs(p.x2 - p.x1) * .5), dy = Math.max(30, Math.abs(p.y2 - p.y1) * .5);
+    var d = p.h ? "M" + p.x1 + "," + p.y1 + " C" + (p.x1 + dx) + "," + p.y1 + " " + (p.x2 - dx) + "," + p.y2 + " " + p.x2 + "," + p.y2
+                : "M" + p.x1 + "," + p.y1 + " C" + p.x1 + "," + (p.y1 + (p.y2 > p.y1 ? dy : -dy)) + " " + p.x2 + "," + (p.y2 - (p.y2 > p.y1 ? dy : -dy)) + " " + p.x2 + "," + p.y2;
+    return { d: d, mx: (p.x1 + p.x2) / 2, my: (p.y1 + p.y2) / 2 };
+  }
+  function badge(n) { return n.kind === "au" ? (n.hm ? '<span class="bdg at">AIRTABLE</span>' : '<span class="bdg at">AIRTABLE</span>') : n.kind === "ex" ? '<span class="bdg ex">YTRI</span>' : '<span class="bdg ap">SÍÐA</span>'; }
+  function applyScale() {
+    var s = Math.min(1, host.clientWidth / CANVAS_W);
+    canvas.style.transform = "scale(" + s + ")"; host.style.height = (CANVAS_H * s) + "px";
+  }
+  function draw() {
+    var h = '<svg width="' + CANVAS_W + '" height="' + CANVAS_H + '" viewBox="0 0 ' + CANVAS_W + " " + CANVAS_H + '"><defs>' +
+      ["flow:#5d6670", "trig:#d4a017", "ext:#8250df"].map(function (c) { var p = c.split(":"); return '<marker id="ar-' + p[0] + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="' + p[1] + '"/></marker>'; }).join("") + '</defs>';
+    var lanes = [["A", "SALA"], ["B", "SKIPULAG"], ["C", "FRAMLEIÐSLA"]];
+    var bg = lanes.map(function (l) { return '<div class="laneBg" style="top:' + (LANE_Y[l[0]] - 24) + 'px;height:' + (LANE_H - 6) + 'px;right:300px"></div><div class="laneTag" style="top:' + (LANE_Y[l[0]] - 16) + 'px">' + l[1] + '</div>'; }).join("");
+    var paths = "", dots = "", labels = "";
+    EDGES.forEach(function (e, i) {
+      var a = byId[e[0]], b = byId[e[1]]; if (!a || !b) return;
+      var p = pathFor(a, b), col = e[2] === "flow" ? "#5d6670" : e[2] === "trig" ? "#d4a017" : "#8250df";
+      paths += '<path id="e' + i + '" class="ed ed-' + e[2] + '" data-a="' + e[0] + '" data-b="' + e[1] + '" d="' + p.d + '" fill="none" stroke="' + col + '" stroke-width="' + (e[2] === "flow" ? 2.2 : 1.4) + '"' + (e[2] === "flow" ? "" : ' stroke-dasharray="5 4"') + ' marker-end="url(#ar-' + e[2] + ')" opacity="' + (e[2] === "ext" ? .5 : e[2] === "trig" ? .75 : .9) + '"/>';
+      if (e[3]) labels += '<text x="' + p.mx + '" y="' + (p.my - 5) + '" font-size="10" text-anchor="middle" fill="#8a94a0" class="elab">' + esc(e[3]) + '</text>';
+      if (e[2] === "flow") { var cnt = (stationList(a) || []).length; for (var d = 0; d < Math.min(3, cnt); d++) dots += '<circle r="4.5" fill="#1a7d36"><animateMotion dur="3.6s" begin="' + (d * 1.2) + 's" repeatCount="indefinite"><mpath href="#e' + i + '"/></animateMotion></circle>'; }
+    });
+    h += paths + labels + dots + '</svg>';
+    canvas.style.width = CANVAS_W + "px"; canvas.style.height = CANVAS_H + "px";
+    canvas.innerHTML = bg + h + NODES.map(function (n) {
+      var cls = "nd " + (n.kind === "st" ? "st" : n.kind) + (n.off ? " off" : "") + (selected === n.id ? " sel" : "") + (dimmed(n) ? " dim" : "");
+      var list = stationList(n), cnt = list ? '<span class="cnt' + (n.orders ? " warn" : "") + (list.length ? "" : " zero") + '">' + list.length + '</span>' : "";
+      var pg = (n.pages || []).length ? '<div class="pgs">' + n.pages.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + "</div>" : "";
+      return '<div class="' + cls + '" data-id="' + n.id + '" style="left:' + n.x + "px;top:" + n.y + "px;width:" + n.w + "px;height:" + n.h + 'px">' + badge(n) + '<div class="ti">' + esc(n.title) + '</div><div class="su">' + esc(n.sub || "") + '</div>' + (n.kind === "st" ? pg : "") + cnt + '</div>';
+    }).join("");
+    canvas.querySelectorAll(".nd").forEach(function (el) {
+      el.onclick = function () { select(el.dataset.id); };
+      el.onmouseenter = function () { hl(el.dataset.id, true); }; el.onmouseleave = function () { hl(el.dataset.id, false); };
+    });
+    applyScale();
+  }
+  function dimmed(n) { return filter === "all" ? false : filter === "at" ? n.kind !== "au" : filter === "ap" ? n.kind !== "st" : n.kind !== "ex"; }
+  function hl(id, on) {
+    canvas.querySelectorAll(".ed").forEach(function (p) { var m = p.dataset.a === id || p.dataset.b === id; p.style.opacity = on ? (m ? 1 : .08) : ""; if (on && m) p.setAttribute("stroke-width", 3); else p.setAttribute("stroke-width", p.classList.contains("ed-flow") ? 2.2 : 1.4); });
+  }
+  function select(id) {
+    selected = selected === id ? null : id; draw();
+    if (!selected) { panel.hidden = true; return; }
+    var n = byId[id], list = stationList(n), k2 = k ? "&k=" + encodeURIComponent(k) : "";
+    var h = '<button class="x" type="button" aria-label="Loka">&times;</button><h3>' + esc(n.title) + '</h3><div style="font-size:.76rem;color:var(--muted)">' + (n.kind === "au" ? "Airtable-sjálfvirkni" : n.kind === "ex" ? "Ytri þjónusta" : "Stöð í ferlinu") + '</div>';
+    h += '<p>' + esc(n.desc || "") + '</p>';
+    if (n.kind === "au") {
+      var at = n.at || [n.title, "", 1];
+      h += '<div class="kv"><b>Nafn í Airtable</b> ' + esc(at[0]) + '</div>' + (at[1] ? '<div class="kv"><b>ID</b> <code>' + esc(at[1]) + '</code></div>' : "") +
+           '<div class="kv"><b>Staða</b> ' + (at[2] ? "kveikt (deployed)" : "<span style=\"color:var(--warn)\">slökkt (undeployed)</span>") + '</div>' + (n.hm ? '<div class="kv"><b>Ræsing</b> manneskja ýtir á takka (hak/hnappur)</div>' : '<div class="kv"><b>Ræsing</b> sjálfvirk (stöðubreyting / tímasetning)</div>') +
+           '<a class="lnk" target="_blank" rel="noopener" href="' + BASE + '/automations">Opna Automations í Airtable ↗</a>';
+    }
+    if (n.pages && n.pages.length) h += '<div class="kv"><b>Síður</b> ' + n.pages.map(function (x) { return x.charAt(0) === "/" ? '<a class="lnk" href="' + x + '">' + x + '</a>' : "<code>" + esc(x) + "</code>"; }).join(" ") + '</div>';
+    if (n.kind === "st") h += '<a class="lnk" target="_blank" rel="noopener" href="' + BASE + '">Opna Björninn-baseið í Airtable ↗</a>';
+    if (list) {
+      h += '<div class="kv" style="margin-top:12px"><b>Núna</b> ' + list.length + (n.orders ? " ósendar pantanir" : " verk") + '</div><div class="plist">' + list.slice(0, 40).map(function (p) {
+        var f = p.fields || {}, nm = f["Heiti tækifæris / verkefnis"] || f["Stöðu kenni"] || p.id;
+        var href = n.orders ? "/pontun" : (WON(f) ? "/ferli?recordId=" + p.id : "/crm");
+        return '<a href="' + href + '">' + esc(nm) + '</a>'; }).join("") + (list.length > 40 ? '<div class="note">… og ' + (list.length - 40) + ' í viðbót</div>' : "") + '</div>';
+    } else if (n.kind === "st" && live.projects === null) h += '<div class="note">Lifandi gögn hlóðust ekki.</div>';
+    panel.innerHTML = h; panel.hidden = false;
+    panel.querySelector(".x").onclick = function () { selected = null; panel.hidden = true; draw(); };
+  }
+  document.getElementById("mapBar").addEventListener("click", function (e) {
+    var b = e.target.closest(".fchip"); if (!b) return; filter = b.dataset.f;
+    document.querySelectorAll(".fchip").forEach(function (c) { c.classList.toggle("on", c === b); }); draw();
+  });
+  window.addEventListener("resize", applyScale);
+
+  // ======================= live data =======================
+  var FIELDS = ["Heiti tækifæris / verkefnis", "Staða í söluferli", "Staða í skipulagi", "Staða í framleiðslu"];
+  function fetchAll(table, extra, acc, off, n) {
+    acc = acc || []; n = n || 0;
+    return api(table, extra + (off ? "&offset=" + encodeURIComponent(off) : "")).then(function (d) {
+      acc = acc.concat(d.records || []);
+      return d.offset && n < 6 ? fetchAll(table, extra, acc, d.offset, n + 1) : acc;
+    });
+  }
+  function loadLive() {
+    var fml = 'NOT(OR({Staða í söluferli}="🥀 Tækifæri tapað",{Staða í söluferli}="🚫 Tækifæri neitað",{Staða í framleiðslu}="Afhent (LOKIÐ ✅)"))';
+    Promise.all([
+      fetchAll(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&" + FIELDS.map(function (f) { return "fields%5B%5D=" + encodeURIComponent(f); }).join("&") + "&pageSize=100"),
+      fetchAll(PANTADIR, "pageSize=100&fields%5B%5D=" + encodeURIComponent("Stöðu kenni") + "&fields%5B%5D=" + encodeURIComponent("Staða"))
+    ]).then(function (res) {
+      live.projects = res[0]; live.orders = res[1];
+      document.getElementById("liveTag").className = "live"; document.getElementById("liveTxt").textContent = "lifandi · uppfært " + new Date().toTimeString().slice(0, 5);
+    }).catch(function () {
+      document.getElementById("liveTag").className = "live off"; document.getElementById("liveTxt").textContent = "gat ekki sótt lifandi gögn";
+    }).then(function () { draw(); if (selected) { var s = selected; selected = null; select(s); } });
+  }
+
+  // ======================= hub =======================
+  var AT = BASE;
+  var HUB = [
+    ["Skrifstofan", [["Yfirlit", "/skrifstofa", "skrifstofa.html", "Mælaborð, afhendingar, sala, laun"], ["CRM", "/crm", "crm.html", "Söluferli, tengiliðir, fyrirspurnir"], ["Skipulagsferli", "/ferli", "ferli.html", "Verk frá For-skipulagi að Klárt"], ["Framleiðsla", "/framleidsla", "framleidsla.html", "Verk á gólfinu eftir flýti"], ["Pöntunarlistar", "/pontun", "pontun.html", "Pantanir, birgjar, efni í hús"], ["PRO hönnuður", "/pro", "pro.html", "Hönnuðurinn fyrir starfsfólk"], ["Starfsmenn", "/starfsmenn", "starfsmenn.html", "Tímar, fjarvistir, laun"], ["Para tæki", "/para-taeki", "para-taeki.html", "Lyklar fyrir tæki á gólfi"], ["Dagatal", "/dagatal", "dagatal.html", "Dagatal verka"], ["Yfirferð (eldri)", "/yfirferd", "yfirferd.html", "Eldri yfirferðarhjálp"]]],
+    ["Skipulag & smíði", [["Skurðarlisti (Cutty)", "/cutlist", "cutlist.html", "Skurður → USB í sögina"], ["Æðaskipulag", "/aedar", "grain.html", "Viðaræðar á fronta"], ["Smíða & CNC", "/smida", "smida.html", "Lamir, hillur, ofn → .bpp á USB"], ["BPP skoðari", "/bpp", "bpp-viewer.html", "Skoða .bpp skrá"], ["Skipulag (hub)", "/skipulag", "skipulag.html", "Cutty → Æðar → CNC"], ["Eining", "/eining", "eining.html", "Ein eining / skápur"]]],
+    ["Verkstæði & gólf", [["Verkstæðisappið", "/app", "app.html", "Heimaskjár gólfsins (PWA)"], ["Verk í gangi", "/verk-i-gangi", "verk-i-gangi.html", "Velja verk"], ["Verk", "/verk", "verk.html", "Sögunarlisti og framvinda verks"], ["Velja (QR)", "/velja", "velja.html", "QR á stykki"], ["Merkingar", "/labels", "labels.html", "Zebra miðar"], ["Fræsing", "/fraesing", "fraesing.html", "Skrá fræst"], ["Saga (gólf)", "/saga", "grain.html", "Æðar á gólfi"], ["Vélar", "/velar", "velar.html", "Leiðbeiningar fyrir vélar"], ["Verkstæði (hub)", "/verkstaedi", "verkstaedi.html", "Gólf-hub"], ["TV", "/tv", "dashboard.html", "Framleiðsluyfirlit á skjá"]]],
+    ["Viðskiptavinir", [["Studio / Eldhússkipulag", "/skipuleggja", "kitchen-planner.html", "Sjálfsafgreiðsla"], ["Hanna", "/hanna", "kitchen-planner.html", "Sama síða, annar inngangur"], ["Verkefni (gátt)", "/verkefni", "verkefni.html", "Gátt viðskiptavinar (iframe í Wix)"]]],
+    ["Stuðningur", [["Leiðbeiningar", "/leidbeiningar", "leidbeiningar.html", "Cutty + merkingar"], ["Aðstoð (FAQ)", "/adstod", "faq.html", "Spurt og svarað"], ["SOP", "/sop", "sop.html", "Verklag"], ["Stimpilklukka", "/klukka", "stimpilklukka.html", "Inn/Út"], ["Eigandi-klukka", "/eigandi", "stimpilklukka.html", "Sími eigenda"]]],
+    ["Airtable & ytri tól", [["Björninn-baseið", AT, "", "Allar töflur", 1, 1], ["Sjálfvirkni (Automations)", AT + "/automations", "", "Allar 46 sjálfvirkni", 1, 1], ["Eyðublaðs ÚRVINNSLA", AT + "/tblR1TpicLRVTXHql", "", "Pörtasnið — breytt hér, ekki í appinu", 1, 1], ["Tækifæri", AT + "/tbl4LMXlQjp66RFKI", "", "Verkefnin", 1, 1], ["Efnislisti", AT + "/tbl8CrVWKF8CuI7HD", "", "Efni og verð", 1, 1], ["Vörulisti", AT + "/tblzuuRSRkeXaLWxC", "", "Vörur og verð", 1, 1], ["Pöntunarlisti", AT + "/tbloXR7f9Q943O9el", "", "Pöntunarlínur", 1, 1], ["Vercel", "https://vercel.com/dashboard", "", "Hýsing, logs, umhverfisbreytur", 1, 0], ["bjorninn.is (Wix)", "https://www.bjorninn.is", "", "Vefsíðan", 1, 0]]],
+  ];
+  document.getElementById("hub").innerHTML = HUB.map(function (g) {
+    return '<div class="hubG"><div class="hubSub">' + esc(g[0]) + '</div><div class="hubGrid">' + g[1].map(function (t) {
+      var ext = t[4], atb = t[5];
+      return '<a class="hubT' + (atb ? " at" : "") + '" href="' + esc(t[1]) + '"' + (ext ? ' target="_blank" rel="noopener"' : "") + '><div class="n">' + esc(t[0]) + (ext ? "<em>↗</em>" : "") + '</div><div class="d">' + esc(t[3] || "") + '</div>' + (t[2] ? '<div class="f">' + esc(t[2]) + '</div>' : (atb ? '<div class="f">AIRTABLE</div>' : "")) + '</a>';
+    }).join("") + '</div></div>';
+  }).join("");
+
+  draw(); loadLive(); setInterval(function () { if (!document.hidden) loadLive(); }, 60000);
 })();
 </script>
 </body>
