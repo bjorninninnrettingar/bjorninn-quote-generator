@@ -2662,7 +2662,7 @@
           put(new THREE.Mesh(new THREE.CircleGeometry(0.012, 16), foil), bxp, by, 0.0137);
         }
       }
-      put(new THREE.Mesh(new THREE.PlaneGeometry(gw, gh), new THREE.MeshStandardMaterial({ color:0x8090a0, roughness:0.05, metalness:0.3, transparent:true, opacity:0.22 })), 0, gy, 0.016); // the glass
+      put(new THREE.Mesh(new THREE.PlaneGeometry(gw, gh), new THREE.MeshStandardMaterial({ color:0x8090a0, roughness:0.05, metalness:0.3, transparent:true, opacity:0.22, depthWrite:false })), 0, gy, 0.016); // the glass
       put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.01, 0.07, 0.008), dark), 0, heightM - 0.05, 0.012);                          // control strip
       put(new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.016), new THREE.MeshBasicMaterial({ color:0x8fd3ff })), widthM / 2 - 0.08, heightM - 0.05, 0.0165); // temperature display
       put(new THREE.Mesh(new THREE.BoxGeometry(0.014, gh * 0.5, 0.025), steelF), widthM / 2 - fw - 0.02, gy, 0.03);                     // bar handle
@@ -2673,7 +2673,7 @@
       put(new THREE.Mesh(new THREE.TorusGeometry(r + 0.012, 0.016, 14, 56), chrome), 0, cy, 0.016);
       put(new THREE.Mesh(new THREE.CircleGeometry(r - 0.004, 48), new THREE.MeshStandardMaterial({ color:0x9aa3ab, metalness:0.8, roughness:0.35 })), 0, cy, 0.006); // the drum
       for (var dh = 0; dh < 24; dh++){ var ang = dh / 24 * Math.PI * 2, rr = r * (dh % 2 ? 0.45 : 0.7); put(new THREE.Mesh(new THREE.CircleGeometry(0.005, 8), dark), Math.cos(ang) * rr, cy + Math.sin(ang) * rr, 0.007); }
-      put(new THREE.Mesh(new THREE.CircleGeometry(r - 0.004, 48), new THREE.MeshStandardMaterial({ color:0x2b3640, roughness:0.05, metalness:0.3, transparent:true, opacity:0.45 })), 0, cy, 0.02); // smoked glass
+      put(new THREE.Mesh(new THREE.CircleGeometry(r - 0.004, 48), new THREE.MeshStandardMaterial({ color:0x2b3640, roughness:0.05, metalness:0.3, transparent:true, opacity:0.45, depthWrite:false })), 0, cy, 0.02); // smoked glass
       var panelY = heightM - 0.065, panel = new THREE.MeshStandardMaterial({ color:0xe2e4e7, roughness:0.45 });
       put(new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.02, 0.11, 0.01), panel), 0, panelY, 0.005);
       put(new THREE.Mesh(new THREE.BoxGeometry(widthM * 0.3, 0.075, 0.012), new THREE.MeshStandardMaterial({ color:0xf4f5f6, roughness:0.4 })), -widthM / 2 + widthM * 0.17 + 0.01, panelY, 0.009); // detergent drawer
@@ -3190,7 +3190,7 @@
         }
       });
       // a few dishes in the baskets so it reads as a dishwasher (user, 2026-10-25): plates standing in the lower one, cups upside down above
-      var china = new THREE.MeshStandardMaterial({ color:0xf6f6f3, roughness:0.25 }), glassM = new THREE.MeshStandardMaterial({ color:0xdde8ee, roughness:0.05, transparent:true, opacity:0.5 });
+      var china = new THREE.MeshStandardMaterial({ color:0xf6f6f3, roughness:0.25 }), glassM = new THREE.MeshStandardMaterial({ color:0xdde8ee, roughness:0.05, transparent:true, opacity:0.5, depthWrite:false });
       var rwP = tw - 0.04, rdP = td - 0.05;
       for (var pz = 0.06; pz < rdP - 0.03; pz += 0.035){
         var plate = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.008, 32), china); plate.rotation.z = Math.PI / 2;
@@ -3241,7 +3241,7 @@
         var winW = widthM - 0.14, winH = Math.max(0.12, doorH - 0.16);
         addBox(winW, winH, 0.002, 0, doorY + 0.01, zf + 0.001, new THREE.MeshBasicMaterial({ color:0x3a2a1c }));                     // the cavity seen through the glass
         addBox(winW * 0.86, 0.004, 0.002, 0, doorY + 0.01 + winH * 0.1, zf + 0.0015, new THREE.MeshBasicMaterial({ color:0x6b5038 })); // the rack
-        addBox(winW, winH, 0.002, 0, doorY + 0.01, zf + 0.0025, new THREE.MeshStandardMaterial({ color:0x202226, roughness:0.05, metalness:0.4, transparent:true, opacity:0.55 }));
+        addBox(winW, winH, 0.002, 0, doorY + 0.01, zf + 0.0025, new THREE.MeshStandardMaterial({ color:0x202226, roughness:0.05, metalness:0.4, transparent:true, opacity:0.55, depthWrite:false }));
         var trim = new THREE.MeshStandardMaterial({ color:0xb9bec4, metalness:0.85, roughness:0.28 });
         addBox(widthM - 0.006, 0.004, 0.003, 0, sy + doorH + 0.006, zf + 0.0015, trim);
         addBox(widthM - 0.006, 0.115, FRONT_T, 0, sy + sh - 0.06, CD + FRONT_T / 2, new THREE.MeshStandardMaterial({ color:0x1a1b1e, roughness:0.3, metalness:0.5 }));
@@ -3320,8 +3320,8 @@
     if (meta.fridgeKind && meta.split){
       var fz = meta.fridgeKind === "freezer", aTop = bodyBase + bodyH * meta.split - 0.01, aBot = bodyBase + 0.012;
       var lw = widthM - 2 * CARCASS_T - 0.012, ld = CD - 0.03, lz0 = 0.012, liner = new THREE.MeshStandardMaterial({ color:0xf3f4f5, roughness:0.55, metalness:0 });
-      var glass = new THREE.MeshStandardMaterial({ color:0xdfeaf0, roughness:0.05, metalness:0.1, transparent:true, opacity:0.35 });
-      var clear = new THREE.MeshStandardMaterial({ color:0xe8eef2, roughness:0.15, transparent:true, opacity:0.55 });
+      var glass = new THREE.MeshStandardMaterial({ color:0xdfeaf0, roughness:0.05, metalness:0.1, transparent:true, opacity:0.35, depthWrite:false });
+      var clear = new THREE.MeshStandardMaterial({ color:0xe8eef2, roughness:0.15, transparent:true, opacity:0.55, depthWrite:false });
       var ah = aTop - aBot, wallT = 0.012, inW = lw - 2 * wallT, inD = ld - 0.075; // the front 6 cm is left for the door bins
       addBox(lw, ah, wallT, 0, aBot + ah / 2, lz0 + wallT / 2, liner);                                   // back
       addBox(wallT, ah, ld, -lw / 2 + wallT / 2, aBot + ah / 2, lz0 + ld / 2, liner);                   // sides
@@ -5477,6 +5477,7 @@
 
     // White skirting boards along every wall (visible wherever no cabinet stands)
     var skirtMat = new THREE.MeshStandardMaterial({ color:0xf3f1ec, roughness:0.55 });
+    var skirtByWall = {}; // wallId → its skirting board: it goes with the wall when you look at it from behind (fadeWalls)
     geoms.forEach(function(g, gi){
       if (isOpenGeom(gi) || iso) return;
       var sk = new THREE.Mesh(new THREE.BoxGeometry(g.lenM, 0.09, 0.014), skirtMat);
@@ -5484,6 +5485,7 @@
       sk.position.set(g.origin.x + g.axis.x * g.lenM / 2 + g.normal.x * 0.005, 0.045, g.origin.z + g.axis.z * g.lenM / 2 + g.normal.z * 0.005); // back face 2 mm behind the wall line: seen from behind it no longer z-fights with the plinth's back face
       sk.receiveShadow = true;
       scene.add(sk);
+      if (state.walls[gi]) skirtByWall[state.walls[gi].id] = sk;
     });
 
     // open edges of an open-plan kitchen: no wall, just a dashed line on the floor
@@ -6621,10 +6623,13 @@
         var cp = (THREE_STATE.fadeCam || camera).position;
         wallVec.set(cp.x - cx, 0, cp.z - cz);
         var behind = wallVec.x * w.geom.normal.x + wallVec.z * w.geom.normal.z < (opts.fadeMargin || 0); // fadeMargin: the welcome kitchen starts fading a wall before the camera reaches its plane, so it is already gone when the camera sweeps past a corner (no flash)
-        var target = behind ? (opts.clean ? 0 : 0.1) : 1; // export shots drop a wall in the way completely
+        // Seen from behind a wall is gone completely (owner, 2026-10-29). It used to stay at 10 %: a faint surface in the
+        // transparent pass sorted wrongly against the appliances' own glass/transparent parts, which flickered through it.
+        var target = behind ? 0 : 1;
         w.mat.opacity += (target - w.mat.opacity) * 0.2;
         w.mat.depthWrite = w.mat.opacity > 0.6;
         w.mesh.visible = w.mat.opacity > 0.02;
+        if (skirtByWall[w.wallId]) skirtByWall[w.wallId].visible = w.mesh.visible;
         var k = w.mat.opacity; // 1 = wall solid, 0.1 = faded (0 for export shots)
         w.openings.forEach(function(mats){
           mats.forEach(function(m){
@@ -6656,7 +6661,7 @@
         c.items = [];
         gr.traverse(function(o){
           if (!o.isMesh) return;
-          var cl = function(m){ if (m.visible === false) return m; var g = m.clone(); g.transparent = true; return g; };
+          var cl = function(m){ if (m.visible === false) return m; var g = m.clone(); g.transparent = true; g.userData.dw0 = m.depthWrite !== false; return g; };
           c.items.push({ o:o, orig:o.material, cast:o.castShadow, ghost:Array.isArray(o.material) ? o.material.map(cl) : cl(o.material) });
         });
       }
@@ -6667,7 +6672,7 @@
       var floor = c.hide ? 0 : GHOST_OPACITY; // end panels / áfellur go all the way to invisible
       if (c.edgesMat){ c.edgesMat.opacity = c.edgesBaseOpacity - (c.edgesBaseOpacity - floor) * t; c.edgesMat.depthWrite = t < 0.4; }
       c.items.forEach(function(it){
-        (Array.isArray(it.ghost) ? it.ghost : [it.ghost]).forEach(function(m){ m.opacity = 1 - (1 - floor) * t; m.depthWrite = t < 0.4; });
+        (Array.isArray(it.ghost) ? it.ghost : [it.ghost]).forEach(function(m){ m.opacity = 1 - (1 - floor) * t; m.depthWrite = t < 0.4 && m.userData.dw0 !== false; }); // glass parts never write depth
         if (c.hide) it.o.visible = t < 0.97;
         it.o.material = t > 0.01 ? it.ghost : it.orig;
         it.o.castShadow = t > 0.01 ? false : it.cast; // a see-through cabinet casting a full shadow left blotchy shadow patterns on what's behind it
