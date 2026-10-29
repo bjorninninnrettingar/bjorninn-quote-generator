@@ -344,8 +344,10 @@
   function canEdit(c) { return M.editable(c) && !c.pro; }
   function dirty(c) { var e = ed(c); return canEdit(c) && !!(e.reviewed || e.touched) && !M.same(smida(c), c.existing); }
   function dirtyCabs() { return cabs.filter(dirty); }
+  function panelActive(c) { var e = ed(c); return c.endPanel ? (e.led || []).length > 0 : e.frontGrip !== "ekkert"; }
   function stateOf(c) {
     if (!M.editable(c)) return "fre";
+    if (c.panel && !panelActive(c)) return "fre"; // an end panel / dishwasher front with nothing to mill: quiet
     if (c.pro) return ed(c).reviewed ? "done" : "pro";
     if (M.blockers(c, ed(c), plan(c)).length) return "bad";
     return ed(c).reviewed ? "done" : "todo";
@@ -365,7 +367,7 @@
   // ── render ────────────────────────────────────────────────────────────────────────────────
   function render() { renderTop(); renderList(); drawStage(); renderPanel(); }
   function renderTop() {
-    var ed0 = cabs.filter(canEdit), pro0 = !ed0.length; if (pro0) ed0 = cabs.filter(function (c) { return c.pro; }); // a PRO project: PRO's own review marks
+    var ed0 = cabs.filter(function (c) { return canEdit(c) && !(c.panel && stateOf(c) === "fre"); }), pro0 = !ed0.length; if (pro0) ed0 = cabs.filter(function (c) { return c.pro; }); // a PRO project: PRO's own review marks
     var done = ed0.filter(function (c) { return ed(c).reviewed; }).length;
     $("prog").innerHTML = '<span class="bar"><i style="width:' + (ed0.length ? Math.round(done / ed0.length * 100) : 0) + '%"></i></span><span>' + done + " af " + ed0.length + (pro0 ? " yfirfarnir í PRO" : " yfirfarnir") + "</span>";
     var nd = dirtyCabs().length, s = $("save");
@@ -382,7 +384,7 @@
     $("list").innerHTML = "<h4>Skápar</h4>" + cabs.map(function (c, i) {
       var s = stateOf(c);
       return '<button type="button" class="item' + (i === cur ? " on" : "") + '" data-go="' + i + '" title="' + esc(c.name) + '">' + stIcon(s) +
-        '<span class="nm">' + esc(c.sk) + '<span class="ty">' + esc(s === "fre" ? "Í höndunum" : c.pro ? "Teiknaður í PRO" : s === "bad" ? "Þarf að ákveða" : c.fre ? "FRE · " + c.tegund : c.tegund) + "</span></span>" +
+        '<span class="nm">' + esc(c.sk) + '<span class="ty">' + esc(s === "fre" ? (c.panel ? "Engin borun" : "Í höndunum") : c.pro ? "Teiknaður í PRO" : s === "bad" ? "Þarf að ákveða" : c.fre ? "FRE · " + c.tegund : c.tegund) + "</span></span>" +
         '<span class="un' + (dirty(c) ? " on" : "") + '" title="Óvistað"></span></button>';
     }).join("");
   }
@@ -399,7 +401,32 @@
       drawFront(c, ed(c), plan(c), $("cf")); drawSide(c, plan(c), $("cs"), true);
     } else if (view === "side" && M.editable(c)) drawSide(c, plan(c), $("canvas")); else drawFront(c, ed(c), plan(c), $("canvas"));
   }
+  // An end panel / the dishwasher front seen as it is milled: width = depth axis (front edge to the left), LED lines in
+  // magenta at their true 4 mm, the grip band in red at its 30 mm. Read-only picture — the controls are in the panel.
+  function drawPanelFront(c, e, p, box) {
+    var H = p.LPX, W = p.LPY, bw = box.clientWidth || 700, bh = box.clientHeight || 700;
+    var sc = Math.min((bh - 70) / H, (bw - 150) / W, 1.6), padL = 70, padT = 22, vw = W * sc + padL + 80, vh = H * sc + padT + 40;
+    var X = function (m) { return padL + m * sc; }, Y = function (m) { return padT + (H - m) * sc; };
+    var s = '<svg xmlns="' + NS + '" viewBox="0 0 ' + vw + " " + vh + '" width="' + vw + '" height="' + vh + '" id="elev">' +
+      '<rect x="' + X(0) + '" y="' + Y(H) + '" width="' + W * sc + '" height="' + H * sc + '" rx="2" fill="#fff" stroke="#1d1d1f" stroke-width="1.4"/>';
+    if (c.endPanel) {
+      (p.led || []).forEach(function (l) {
+        var y = typeof l === "object" ? l.y : l, x0 = typeof l === "object" ? l.from : 0, x1 = typeof l === "object" && l.len != null ? Math.min(H, l.from + l.len) : H, lw = Math.max(3, 4 * sc);
+        s += '<g><rect x="' + (X(y) - lw / 2) + '" y="' + Y(x1) + '" width="' + lw + '" height="' + Math.max(2, (x1 - x0) * sc) + '" fill="#e6007e"/>' +
+          '<text x="' + (X(y) + 8) + '" y="' + (Y(x1) + 14) + '" font-size="12" fill="#e6007e">' + mm(y) + ' mm</text><title>LED-fræsing 4 × 8 mm — ' + mm(y) + " mm frá framkanti, " + mm(x0) + "–" + mm(x1) + " mm upp</title></g>";
+      });
+      if (W * sc > 110) s += '<text x="' + X(W / 2) + '" y="' + (Y(H / 2)) + '" text-anchor="middle" font-size="13" fill="#a1a1a6">Úthlið' + (p.endCount > 1 ? " ×" + p.endCount : "") + "</text>";
+    } else {
+      var top = p.frontGrip !== "nedst";
+      if (p.frontGrip !== "ekkert") s += '<rect x="' + X(0) + '" y="' + (top ? Y(H) : Y(30)) + '" width="' + W * sc + '" height="' + 30 * sc + '" fill="#d70015" fill-opacity=".14"><title>Fræst grip alla leið, 30 mm</title></rect>';
+      if (W * sc > 150) s += '<text x="' + X(W / 2) + '" y="' + (Y(H / 2)) + '" text-anchor="middle" font-size="13" fill="#a1a1a6">Uppþvottavélarfrontur' + (p.endCount > 1 ? " ×" + p.endCount : "") + "</text>";
+    }
+    s += '<text x="' + (X(0) - 12) + '" y="' + (Y(H / 2) + 4) + '" text-anchor="end" font-size="12" fill="#a1a1a6">' + mm(H) + "</text>" +
+      '<text x="' + X(W / 2) + '" y="' + (Y(0) + 22) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + mm(W) + "</text></svg>";
+    box.innerHTML = s;
+  }
   function drawFront(c, e, p, box) {
+    if (c.panel) { drawPanelFront(c, e, p, box); return; }
     if (!M.editable(c)) { box.innerHTML = '<div class="msg"><h2>' + esc(c.sk) + "</h2><p>" + esc("Engin hlið sem CNC borar.") + "</p></div>"; return; }
     var g = M.geom(c), H = g.H, W = c.B || c.base.LPY || 600;
     var bw = box.clientWidth || 700, bh = box.clientHeight || 700;
@@ -668,7 +695,7 @@
   }
   function drawSide(c, p, box, compact) {
     var wrap = document.createElement("div"); wrap.className = "cncv"; box.appendChild(wrap);
-    if (p.status === "stop" || p.status === "skip") { wrap.innerHTML = '<div class="msg"><p>' + esc((p.stop || []).join(" · ") || "Engin hlið.") + "</p></div>"; return; }
+    if (p.status === "stop" || p.status === "skip") { wrap.innerHTML = '<div class="msg"><p>' + esc((p.stop || []).join(" · ") || (c.panel ? "Ekkert fræst hér enn." : "Engin hlið.")) + "</p></div>"; return; }
     var files = SD.sideFiles(p), acc = handSet(c, ed(c)), maxH = Math.max(260, (box.clientHeight || 700) - (compact ? 90 : 200));
     // every front at its real height next to the side (drawer fronts sit at the bottom of their slot, the grip gap above)
     // the grip profile (e.g. Jey 27, "Grip mm" on the handle) sits on each front — slot = front + profile + 3 mm gap
@@ -693,7 +720,7 @@
     var cap = document.createElement("div"); cap.className = "cnccap";
     cap.innerHTML = '<span><svg width="12" height="16" viewBox="-1 -1 26 30"><path d="M1 9.5H5V13.5H1Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><path d="M19 9H23V17H19Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><rect x="5" y="0" width="14" height="28" rx="3" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/></svg>Lamaplata</span>' +
       '<span><i class="cs"></i>Hillugöt</span><span><i style="width:9px;height:9px;background:#8e8e93;border:1px solid #1d1d1f"></i>Slá í bakinu</span><span><i style="width:4px;height:12px;background:#e6dcc8;border:1px solid #9c8a6b"></i>Masonít-rauf</span><span><i style="width:4px;height:12px;background:#fff4e5;border:1px solid #e8903a"></i>LED</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span><i class="cfr"></i>Frontar</span><span><i class="cgp"></i>Gripprófíll</span><span class="cred">Rautt = árekstur</span><span class="cb">Blátt = stillt hér</span>';
-    wrap.appendChild(cap);
+    if (files.length) wrap.appendChild(cap);
     // the cabinet's fronts, each with what /cnc drills in it (plan.fronts = the export's own front plans), read-only
     if ((p.fronts || []).length) {
       var fsec = document.createElement("div"); fsec.className = "frsec";
@@ -828,11 +855,19 @@
         [["vinstri", "Vinstra megin"], ["haegri", "Hægra megin"]].map(function (o) { return '<button type="button" data-blind="' + o[0] + '" class="' + ((e.blindSide || "haegri") === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + "</span></div>");
     }
     var led = e.led || [];
-    h += row("led", "LED-fræsing", led.length ? led.map(function (x) { return (x.where === "toppur" ? "toppur " : "hlið ") + mm(x.y); }).join(" · ") : "Engin",
-      '<div class="line"><span class="u">4 mm breið, 8 mm djúp ' + tip("Hlið: fræst í báðar hliðar skápsins með /cnc (mm frá framkanti). Toppur: kemur sem athugasemd, fræst með Topp/Botn skránni í höndunum.") + "</span></div>" +
-      led.map(function (x, i) { return '<div class="line"><span class="seg"><button type="button" data-ledw="' + i + ':hlid" class="' + (x.where === "toppur" ? "" : "on") + '">Hlið</button><button type="button" data-ledw="' + i + ':toppur" class="' + (x.where === "toppur" ? "on" : "") + '">Toppur</button></span>' +
+    if (!c.dishwasher) h += row("led", "LED-fræsing", led.length ? led.map(function (x) { return (x.where === "toppur" ? "toppur " : c.panel ? "" : "hlið ") + mm(x.y) + (x.len ? " · " + mm(x.len) + " langt" : ""); }).join(" · ") : "Engin",
+      '<div class="line"><span class="u">4 mm breið, 8 mm djúp ' + tip(c.panel ? "Fræst í úthliðina, enda til enda ef lengd er ekki gefin. Fjarlægð er mm frá framkanti (sjálfgefið 50). „Nánar“: stytta fræsinguna — lengd og hvar hún byrjar (mm frá botni)." : "Hlið: fræst í báðar hliðar skápsins með /cnc (mm frá framkanti). Toppur: kemur sem athugasemd, fræst með Topp/Botn skránni í höndunum. „Nánar“: stytta fræsinguna (lengd og hvar hún byrjar).") + "</span></div>" +
+      led.map(function (x, i) { return '<div class="line">' + (c.panel ? "" : '<span class="seg"><button type="button" data-ledw="' + i + ':hlid" class="' + (x.where === "toppur" ? "" : "on") + '">Hlið</button><button type="button" data-ledw="' + i + ':toppur" class="' + (x.where === "toppur" ? "on" : "") + '">Toppur</button></span>') +
         '<input type="number" data-led="' + i + '" value="' + mm(x.y) + '"><span class="u">mm frá framkanti</span><button type="button" class="mini" data-leddel="' + i + '">✕</button></div>'; }).join("") +
-      '<div class="line"><button type="button" class="mini" data-ledadd="1">＋ LED-fræsing</button></div>');
+      '<div class="line"><button type="button" class="mini" data-ledadd="1">＋ LED-fræsing</button></div>' +
+      (led.length ? more("ledx", led.map(function (x, i) { return '<div class="line"><span class="t">LED ' + (i + 1) + '</span><input type="number" data-ledlen="' + i + '" value="' + (x.len ? mm(x.len) : "") + '" placeholder="enda til enda"><span class="u">mm langt</span></div>' +
+        '<div class="line"><span class="t"></span><input type="number" data-ledfrom="' + i + '" value="' + (x.from ? mm(x.from) : "") + '" placeholder="0"><span class="u">mm frá botni</span></div>'; }).join("")) : ""));
+    if (c.dishwasher) {
+      var fg = e.frontGrip || "efst";
+      h += row("fgrip", "Fræst grip", fg === "efst" ? "Efst, alla leið" : fg === "nedst" ? "Neðst, alla leið" : "Ekkert",
+        '<div class="line"><span class="u">Harðviðargrip alla leið ' + tip("Frontinn fær fræst grip (HARDVIDAR_GRIP_ENDA_TIL_ENDA, 30 mm) eftir allri breiddinni, ofan eða neðan. Engar lamir — frontinn hangir á uppþvottavélinni.") + '</span></div>' +
+        '<div class="line"><span class="seg">' + [["efst", "Efst"], ["nedst", "Neðst"], ["ekkert", "Ekkert"]].map(function (o) { return '<button type="button" data-fgrip="' + o[0] + '" class="' + (fg === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + "</span></div>");
+    }
     var sl = e.oven ? e.oven.shelves : e.shelves;
     if (e.oven) {
       h += row("oven", "Ofn", e.oven.h + " · stendur á " + mm(e.oven.under),
@@ -899,7 +934,8 @@
       if (jj[2] === "0" || jj[2] === "v") { if (at < 0) l.push(n); } else if (at >= 0) l.splice(at, 1); }); return; }
     if (d.hsplit != null) { change(function (e) { var k = +d.hsplit, n = c.base.cabinets; e.hingeSplit = k === 0 || k === n ? null : { vinstri: k, haegri: n - k }; if (k === 0) e.hinge = "haegri"; else if (k === n) e.hinge = "vinstri"; }); return; }
     if (d.blind) { change(function (e) { e.blindSide = d.blind; }); return; }
-    if (d.ledadd) { change(function (e) { (e.led = e.led || []).push({ where: "hlid", y: 57 }); }); openRow[c.unit + "led"] = true; return; }
+    if (d.fgrip) { change(function (e) { e.frontGrip = d.fgrip; }); return; }
+    if (d.ledadd) { change(function (e) { (e.led = e.led || []).push({ where: "hlid", y: c.panel ? 50 : 57 }); }); openRow[c.unit + "led"] = true; return; }
     if (d.leddel != null) { change(function (e) { e.led.splice(+d.leddel, 1); }); return; }
     if (d.ledw) { var lw = d.ledw.split(":"); change(function (e) { e.led[+lw[0]].where = lw[1]; }); return; }
     if (d.pos) { var pp = d.pos.split(":").map(Number); change(function (e) { (e.shelves || e.oven.shelves)[pp[0]].pos = pp[1]; }); return; }
@@ -935,6 +971,8 @@
       else if (d.rail != null) e.rails[+d.rail].mm = v;
       else if (d.oven) e.oven[d.oven] = v;
       else if (d.led != null) e.led[+d.led].y = Math.max(1, v);
+      else if (d.ledlen != null) { if (v > 0) e.led[+d.ledlen].len = v; else delete e.led[+d.ledlen].len; }
+      else if (d.ledfrom != null) { if (v > 0) e.led[+d.ledfrom].from = v; else delete e.led[+d.ledfrom].from; }
       else if (d.hinge) {
         var ij = d.hinge.split(":").map(Number), door = plan(c).doors[ij[0]], len = r1(door.to - door.from), q = door.hinges[ij[1]];
         setHinge(c, ij[0], ij[1], q > len / 2 ? len - v : v, door);

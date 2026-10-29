@@ -82,8 +82,9 @@
     // Note: fronts also carry GLB=HS_HLID (renderSide stamps every file it writes the same way), so TOPP_BOTN/
     // SLA_HLID — ops every side gets unconditionally and no front master has — are the only reliable "side" signal.
     if (names.indexOf("TOPP_BOTN") >= 0 || names.indexOf("SLA_HLID") >= 0) return "hlid";
-    if (has(Object.keys(FRONT_EXTRA_MM)) || names.indexOf("K_M_NEDSTI_FRONTUR_MERIVO") >= 0 || names.indexOf("K_M_NEDSTI_FRONTUR_LEGRABOX") >= 0) return "front-skuffa";
+    if (has(Object.keys(FRONT_EXTRA_MM)) || names.indexOf("HARDVIDAR_GRIP_ENDA_TIL_ENDA") >= 0 || names.indexOf("K_M_NEDSTI_FRONTUR_MERIVO") >= 0 || names.indexOf("K_M_NEDSTI_FRONTUR_LEGRABOX") >= 0) return "front-skuffa";
     if (names.indexOf("IKEALOM") >= 0) return "front-hurd";
+    if (names.indexOf("CUT_X") >= 0) return "hlid"; // an end panel (Úthlið): the master with just its LED line
     return "unknown";
   }
   var KIND_LABEL = { "hlid": "Hlið", "front-skuffa": "Skúffufrontur", "front-hurd": "Hurðafrontur",
@@ -178,7 +179,10 @@
           // the masonite groove (4 mm wide, 16 mm from the back edge, Y = its centre from the front edge) and the LED routs (4 × 8):
           // vertical lines on the side, Y = mm from the front edge (2026-10-29)
           var cy = num(p[3], vars), isLed = /^LED/i.test(op.label || ""), isMas = /masonit/i.test(op.label || "");
-          if (cy != null && (isLed || isMas)) features.push({ type: "groove", y: cy, led: isLed, label: isLed ? "LED-fræsing 4 × 8 mm — " + cy + " mm frá framkanti" : "Masonít-rauf 4 mm — 16 mm frá bakbrún" });
+          if (cy != null && (isLed || isMas)) {
+            var gs = num(p[2], vars), gl = num(p[6], vars); // start + length: a custom LED run is shorter than the panel
+            features.push({ type: "groove", y: cy, led: isLed, x0: Math.max(0, gs == null ? 0 : gs), x1: gl != null && gs != null ? Math.min(vars.LPX, gs + gl) : vars.LPX, label: isLed ? "LED-fræsing 4 × 8 mm — " + cy + " mm frá framkanti" : "Masonít-rauf 4 mm — 16 mm frá bakbrún" });
+          }
           break;
         }
         case "GEO": case "ENDPATH": case "GEOTEXT": case "STAT_BLOCK": case "BG": case "RECTANGLE": case "MOVENTO_BAKKI":
@@ -194,6 +198,10 @@
     var features = [], names = ops.filter(function (o) { return o.active; }).map(function (o) { return o.name; });
     Object.keys(FRONT_EXTRA_MM).forEach(function (n) {
       if (names.indexOf(n) >= 0) features.push({ type: "shelfFixed", y: FRONT_EXTRA_MM[n], axis: "y", label: n + " — " + FRONT_EXTRA_MM[n] + " mm frá botni" });
+    });
+    ops.filter(function (o) { return o.active && o.name === "HARDVIDAR_GRIP_ENDA_TIL_ENDA"; }).forEach(function (o) {
+      var gy = num(o.params[0], vars);
+      if (gy != null) features.push({ type: "shelfFixed", y: gy, axis: "y", label: "Harðviðargrip (fræst alla leið) — " + gy + " mm frá botni" });
     });
     return { features: features, unknown: [], info: [] };
   }
@@ -410,7 +418,8 @@
         });
       } else if (f.type === "groove") {
         var egr = g(f.label), gx = X(f.y), gw = Math.max(f.led ? 3 : 2, 4 * s); // LED: magenta, true 4 mm (at least 3 px) so a clash is easy to see
-        egr.appendChild(svgEl("rect", { x: gx - gw / 2, y: Y(LPX), width: gw, height: h, fill: f.led ? "#e6007e" : "#e6dcc8", stroke: f.led ? "#e6007e" : "#9c8a6b", "stroke-width": f.led ? 0 : .9 }));
+        var gx1 = f.x1 != null ? f.x1 : LPX, gx0 = f.x0 != null ? f.x0 : 0;
+        egr.appendChild(svgEl("rect", { x: gx - gw / 2, y: Y(gx1), width: gw, height: Math.max(1, (gx1 - gx0) * s), fill: f.led ? "#e6007e" : "#e6dcc8", stroke: f.led ? "#e6007e" : "#9c8a6b", "stroke-width": f.led ? 0 : .9 }));
       }
     });
     (opts.hits || []).forEach(function (hh) {

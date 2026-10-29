@@ -112,6 +112,69 @@
     return (spec || []).map(function (h) { return r1(h.from === "top" ? boxLen - h.mm : h.mm); }).sort(function (a, b) { return a - b; });
   }
 
+  // LED routs from Smíðagögn led = [{ where:"hlid"|"toppur", y: mm from the front edge, from?: mm from the bottom end,
+  // len?: mm }] (2026-10-29). A plain number = the usual run-through (start −50, length lpx+100, as the master has it);
+  // an object = a custom run: it starts `from` mm up the panel (0 if only len is given) and is `len` long (to the end
+  // + 50 mm run-out when only from is given). `toppur` entries are not side work — they go to `toppur` for a hand note.
+  function ledSpecs(sm, toppur) {
+    var out = [];
+    ((sm || {}).led || []).forEach(function (l) {
+      var y = num(l && l.y); if (!(y > 0)) return;
+      if (l.where === "toppur") { if (toppur) toppur.push(r1(y)); return; }
+      var from = num(l.from), len = num(l.len);
+      out.push(from > 0 || len > 0 ? { y: r1(y), from: from > 0 ? r1(from) : 0, len: len > 0 ? r1(len) : null } : r1(y));
+    });
+    return out;
+  }
+  // The pieces that are not a carcass side but still get a program (2026-10-29, owner):
+  //  - "uthlid": an end panel (Sögunarlisti kind "uthlid", not Blindlok) with LED. The master's own LED 4x8 line, Y from
+  //    the front edge (default 50 in /smida), run-through by default (lengdin = hæðin), `len`/`from` to shorten it. LPX = the
+  //    long way (hæð), same swap rule as a side. No other op: the file is just the master with the LED line.
+  //  - "uthv": the dishwasher front (Athugasemd UÞV/uppþvottavél, Stakur frontur): a front file on the drawer-front master
+  //    with HARDVIDAR_GRIP_ENDA_TIL_ENDA (milled Jey-style grip, edge to edge), no hinges. Smíðagögn frontGrip "efst" | "nedst" | "ekkert".
+  function panelPlan(plan, rows, by, opts) {
+    var sm = parseSmida(opts.smida) || {}, check = plan.check, info = plan.info, defaults = [];
+    plan.hits = []; plan.drawers = []; plan.doors = []; plan.fronts = []; plan.frontCheck = []; plan.loose = 0; plan.cabinets = 1; plan.groove = false;
+    var finish = function (reviewedOk) {
+      plan.reviewed = parseSmida(opts.smida) ? !!sm.ready : null;
+      plan.defaults = defaults; plan.defaultsAccepted = false;
+      if (plan.reviewed && defaults.length) { for (var di = check.length - 1; di >= 0; di--) if (defaults.indexOf(check[di]) >= 0) check.splice(di, 1); plan.defaultsAccepted = true; }
+      if (plan.status !== "skip") plan.status = plan.stop.length ? "stop" : check.length ? "check" : "ok";
+      return plan;
+    };
+    var eps = (by.uthlid || []).filter(function (r) { return !/blindlok/i.test(r.Partur); });
+    var dw = (by.door || []).filter(function (r) { return /^frontur\b/i.test(String(r.Partur).trim()); });
+    if (eps.length && !dw.length) {
+      var sz = eps.map(function (r) { return r.H + "×" + r.B + "×" + r["Þ"]; });
+      if (sz.some(function (x) { return x !== sz[0]; })) { plan.stop.push("Úthliðar af ólíkri stærð í sömu einingu (" + sz.join(", ") + ") — skipta einingunni"); plan.status = "stop"; return plan; }
+      var e0 = eps[0], H = num(e0.H), B = num(e0.B), T = num(e0["Þ"]), hh = num(opts.unitHeight);
+      if (H == null || B == null || T == null) { plan.stop.push("Úthlið vantar H/B/Þ í Sögunarlista"); plan.status = "stop"; return plan; }
+      if (hh ? Math.abs(B - hh) < Math.abs(H - hh) : B > H) { var t0 = H; H = B; B = t0; }
+      plan.panel = "uthlid"; plan.noFront = true; plan.LPX = H; plan.LPY = B; plan.LPZ = T;
+      plan.endCount = Math.max(1, Math.round(eps.reduce(function (a, r) { return a + (num(r.M) || 0); }, 0)));
+      var tp = []; plan.led = ledSpecs(sm, tp);
+      tp.forEach(function () { check.push("LED í toppi á úthlið á ekki við"); });
+      info.push("Úthlið " + r1(H) + " × " + r1(B) + " × " + r1(T) + (plan.endCount > 1 ? " — keyra ×" + plan.endCount : ""));
+      if (!plan.led.length) plan.status = "skip";
+      return finish();
+    }
+    if (dw.length && /UÞV|uppþv/i.test(plan.name)) {
+      var r = dw[0], fh = num(r.H), fw = num(r.B), ft = num(r["Þ"]);
+      if (fh == null || fw == null || ft == null) { plan.stop.push("Uppþvottavélarfrontur vantar H/B/Þ í Sögunarlista"); plan.status = "stop"; return plan; }
+      var grip = sm.frontGrip === "nedst" || sm.frontGrip === "ekkert" ? sm.frontGrip : "efst";
+      plan.panel = "uthv"; plan.noSide = true; plan.LPX = fh; plan.LPY = fw; plan.LPZ = ft; plan.frontGrip = grip;
+      plan.endCount = Math.max(1, Math.round(dw.reduce(function (a, q) { return a + (num(q.M) || 0); }, 0)));
+      if (grip === "ekkert") { plan.status = "skip"; return finish(); }
+      if (!sm.frontGrip) { var msg = "Uppþvottavélarfrontur: fræst grip efst (sjálfgefið) — breyttu ef gripið á að vera neðst"; check.push(msg); defaults.push(msg); }
+      var fin = grip === "efst" ? r1(fh) : GRIP_MILL_DEPTH;
+      plan.fronts.push({ name: "Uppþvottavélarfrontur " + r1(fh), master: "merivo", LPX: fw, LPY: r1(fh), LPZ: ft, count: plan.endCount,
+        ops: [{ name: "HARDVIDAR_GRIP_ENDA_TIL_ENDA", label: "Harðviðargrip", params: fin + ", " + GRIP_MILL_DEPTH }] });
+      info.push("Uppþvottavélarfrontur " + r1(fh) + " × " + r1(fw) + ": fræst grip " + (grip === "efst" ? "efst" : "neðst") + ", alla leið, engar lamir");
+      return finish();
+    }
+    return null;
+  }
+
   // One unit's Sögunarlisti rows → what its sides need. rows: [{Partur, H, B, Þ, M, Tegund einingu}]
   // opts.unitHeight = the Eyðublað's Hæð (only to tell which way a side is stored — Sögunarlisti has some tall
   //   sides as H 580 × B 2470); opts.gripMm = grip strip on the drawer fronts (slot = cut front + grip).
@@ -126,8 +189,9 @@
     // FRE (owner 2026-10-29): an FRE cabinet works like any other — its "FRE - Hlið" rows are the sides; plan.fre marks it
     // (no masonite groove on FRE sides)
     if (by.freSide && !by.side) { by.side = by.freSide; plan.fre = true; info.push("FRE-skápur — hliðar úr „FRE - Hlið“"); }
-    // Plinths, end panels, covers… have no carcass side — not a side program, not an error.
-    if (!by.side) { plan.status = "skip"; return plan; }
+    // Plinths, covers… have no carcass side — not a side program, not an error. An end panel (Úthlið) with LED and a
+    // dishwasher front (Stakur frontur UÞV) are the two exceptions: panelPlan() gives them their own file(s).
+    if (!by.side) { var pnl = panelPlan(plan, rows, by, opts); if (pnl) return pnl; plan.status = "skip"; return plan; }
     if (by.side.length > 1) {
       var sz = by.side.map(function (r) { return r.H + "×" + r.B + "×" + r["Þ"]; });
       if (sz.some(function (s) { return s !== sz[0]; })) { stop.push("Hliðar af ólíkri stærð í sömu einingu (" + sz.join(", ") + ") — skipta einingunni"); plan.status = "stop"; return plan; }
@@ -525,12 +589,9 @@
     // LED fræsing (Smíða "+ LED", 2026-10-29): Smíðagögn led = [{ where:"hlid"|"toppur", y: mm from the front edge }] — 4 mm wide,
     // 8 mm deep. On the sides it is the master's own "LED 4x8" CUT_X line with Y replaced (renderSide); the top board's
     // file isn't written by /cnc, so those are listed for the hand.
-    plan.led = [];
-    ((parseSmida(opts.smida) || {}).led || []).forEach(function (l) {
-      var y = num(l && l.y); if (!(y > 0)) return;
-      if (l.where === "toppur") check.push("LED í toppi, " + r1(y) + " mm frá framkanti — fræst með Topp/Botn skránni í höndunum (ekki í /cnc enn)");
-      else plan.led.push(r1(y));
-    });
+    var ledTop = [];
+    plan.led = ledSpecs(parseSmida(opts.smida), ledTop);
+    ledTop.forEach(function (y) { check.push("LED í toppi, " + r1(y) + " mm frá framkanti — fræst með Topp/Botn skránni í höndunum (ekki í /cnc enn)"); });
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
     plan.defaults = defaults; plan.defaultsAccepted = false;
     if (plan.reviewed && defaults.length) { // reviewed in PRO = these defaults were looked at and accepted
@@ -626,6 +687,8 @@
   // side with them and the other without; hinges on both (two doors) or side unknown → one file with hinges for both.
   function isHinge(o) { return o.name === "LOM" || o.name === "IKEALOM"; }
   function sideFiles(p) {
+    if (p.noSide) return []; // the dishwasher front: front file only
+    if (p.panel === "uthlid") return [{ name: "Úthlið", count: p.endCount || 1, plan: p }];
     if (!p.ops.some(isHinge)) return [{ name: "Hliðar", count: 2 * p.cabinets, plan: p }];
     if (p.hingeSide === "vinstri" || p.hingeSide === "haegri") {
       var bare = Object.assign({}, p, { ops: p.ops.filter(function (o) { return !isHinge(o); }) }), left = p.hingeSide === "vinstri";
@@ -683,7 +746,14 @@
       if (section === "PROGRAM") {
         var m = l.match(/^([@'])( +)([A-Z0-9_]+), "", "([^"]*)",(.*)$/);
         if (m && m[3] === "CUT_X" && /^LED 4x8/.test(m[4]) && (p.led || []).length) {
-          (p.led || []).forEach(function (y) { out.push("@" + m[2] + 'CUT_X, "", "LED 4x8 (Smíða Y ' + y + ')", ' + newId() + "," + m[5].replace(/^ \d+,/, "").replace(/(: 0, "\d", -50, )[^,]+/, "$1" + y)); });
+          (p.led || []).forEach(function (l) {
+            var y = typeof l === "object" ? l.y : l, line = m[5].replace(/^ \d+,/, "").replace(/(: 0, "\d", -50, )[^,]+/, "$1" + y);
+            if (typeof l === "object") { // a custom run: start `from` mm up, `len` long (or to the end + 50 run-out)
+              var x0 = l.from || 0, ln = l.len != null ? l.len : r1(p.LPX - x0 + 50);
+              line = line.replace(/(: 0, "\d", )-50(, [^,]+, [^,]+, [^,]+, )lpx\+50\+50/, "$1" + x0 + "$2" + ln);
+            }
+            out.push("@" + m[2] + 'CUT_X, "", "LED 4x8 (Smíða Y ' + y + (typeof l === "object" ? ", " + (l.from || 0) + "–" + (l.len != null ? r1((l.from || 0) + l.len) : "enda") : "") + ')", ' + newId() + "," + line);
+          });
           return;
         }
         if (m && m[3] === "CUT_X" && lc(m[4]).indexOf(GROOVE_LABEL) >= 0) { out.push((p.groove ? "@" : "'") + m[2] + "CUT_X, \"\", \"" + m[4] + "\"," + m[5]); return; }

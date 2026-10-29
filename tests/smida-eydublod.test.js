@@ -318,3 +318,18 @@ test("hinge split (T-15 Sk 5-8 shape, 2026-10-29): 2 hung left + 2 hung right �
   e.hingeSplit = null; e.hinge = "haegri";
   assert.deepEqual(S.sideFiles(M.planOf(c, M.smidaOf(c, e))).map((f) => f.count), [4, 4]);
 });
+
+// ── Úthlið in /smida (2026-10-29): listed as a unit, LED row writes Smíðagögn led, nothing else needed ──
+test("Úthlið becomes a /smida unit (no carcass side) and its LED edit round-trips into the plan", () => {
+  const rows = [{ Partur: "Úthlið", H: 720, B: 580, "Þ": 19, M: 1, "Tegund einingu": ["Úthlið"] }];
+  const c = M.cabinet(unit("recE", "Sk20 | Úthlið", { "Hæð": 720 }), rows, {});
+  assert.ok(c && c.endPanel && M.editable(c));
+  const e = M.initEdit(c); assert.deepEqual(e.led, []);
+  assert.equal(M.planOf(c, M.smidaOf(c, e)).status, "skip");
+  e.led.push({ where: "hlid", y: 50, len: 400 });
+  const sm = M.smidaOf(c, e), p = M.planOf(c, sm);
+  assert.equal(p.status, "ok"); assert.deepEqual(p.led, [{ y: 50, from: 0, len: 400 }]);
+  assert.deepEqual(M.blockers(c, e, p), []);
+  // a cabinet without any end panel rows is not affected
+  assert.equal(M.cabinet(unit("recX", "Sk1", {}), [{ Partur: "Plinta", H: 100, B: 2000, "Þ": 16, M: 1, "Tegund einingu": ["Plinta"] }], {}), null);
+});

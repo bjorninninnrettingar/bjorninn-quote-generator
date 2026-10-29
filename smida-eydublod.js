@@ -35,7 +35,9 @@
     cab.existing = parse(cab.raw);
     cab.base = planOf(cab, null);
     cab.tegund = cab.base.tegund || "";
-    if (cab.base.status === "skip") return null;
+    cab.panel = cab.base.panel || null; // "uthlid" (end panel, LED) | "uthv" (dishwasher front, milled grip) — a file without a carcass side
+    cab.endPanel = cab.panel === "uthlid"; cab.dishwasher = cab.panel === "uthv";
+    if (cab.base.status === "skip" && !cab.panel) return null;
     var by = {}; rows.forEach(function (r) { var k = SD.kind(r.Partur); (by[k] = by[k] || []).push(r); });
     var per = function (list) { return (list || []).reduce(function (a, r) { return a + (num(r.M) || 0); }, 0) / (cab.base.cabinets || 1); };
     cab.nLoose = Math.round(per(by.looseShelf)); cab.nFixed = Math.round(per(by.fixedShelf));
@@ -137,6 +139,7 @@
       e.shelves = ok ? clone(sl) : defaultShelves(cab);
     }
     if (Array.isArray(ex.led)) e.led = clone(ex.led);
+    if (ex.frontGrip === "efst" || ex.frontGrip === "nedst" || ex.frontGrip === "ekkert") e.frontGrip = ex.frontGrip;
     if (ex.hingeSplit && Number.isInteger(ex.hingeSplit.vinstri) && Number.isInteger(ex.hingeSplit.haegri)) e.hingeSplit = { vinstri: ex.hingeSplit.vinstri, haegri: ex.hingeSplit.haegri };
     if (ex.jeyVert && Array.isArray(ex.jeyVert.doors)) e.jeyVert = { doors: clone(ex.jeyVert.doors) };
     if (ex.blindSide === "vinstri" || ex.blindSide === "haegri") e.blindSide = ex.blindSide;
@@ -149,7 +152,7 @@
   // edit → Smíðagögn object (what Vista writes). `ready` only while marked reviewed.
   function smidaOf(cab, e) {
     var o = Object.assign({}, clone(cab.existing) || {});
-    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "ready"].forEach(function (k) { delete o[k]; });
+    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "frontGrip", "ready"].forEach(function (k) { delete o[k]; });
     o.v = 1;
     if (o.w == null && cab.B) o.w = cab.B;
     if (o.h == null && cab.base.LPX) o.h = cab.base.LPX;
@@ -170,6 +173,7 @@
     if (e.hingeSplit && cab.base.cabinets > 1 && e.hingeSplit.vinstri > 0 && e.hingeSplit.haegri > 0 && e.hingeSplit.vinstri + e.hingeSplit.haegri === cab.base.cabinets) o.hingeSplit = { vinstri: e.hingeSplit.vinstri, haegri: e.hingeSplit.haegri };
     if (e.jeyVert && (e.jeyVert.doors || []).length) o.jeyVert = { doors: clone(e.jeyVert.doors).sort() };
     if (e.led && e.led.length) o.led = clone(e.led);
+    if (cab.dishwasher && e.frontGrip) o.frontGrip = e.frontGrip;
     if (cab.blind && e.blindSide === "vinstri") o.blindSide = "vinstri"; // "haegri" is the default and is not written
     if (e.reviewed) o.ready = true;
     return o;

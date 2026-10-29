@@ -501,3 +501,72 @@ test("an 'alla' grip zone on a drawer: its slot = cut front + 35 + 3, the stack 
   const q = S.unitPlan("Sk7", rows, { unitHeight: 800, gripMm: 0 }); // without the zone the stack is 35 short
   assert.ok(q.check.some((t) => /Frontar \(765\) passa ekki/.test(t)), q.check.join(" | "));
 });
+
+// ── Úthlið (end panel) with LED, 2026-10-29 ─────────────────────────────────────────────────────────────────
+// No carcass side → used to be "skip". With Smíðagögn led the panel gets one file: the shop's own side master with only
+// the LED 4x8 line (Y from the front edge, run-through by default, `len`/`from` shorten it).
+const LEDMASTER = ["[VARIABLES]", "PAN=LPX|0||4|", "PAN=LPY|0||4|", "PAN=LPZ|0||4|", "", "[PROGRAM]",
+  `' TOPP_BOTN, "", "Toppur / Botn", 68342668, "", 0 : Bora_I_Gegn, LPZ, 0, "1,4"`,
+  `' CUT_X, "", "Sögun f. masonit", 133054388, "", 0 : 0, "2", -32, lpy-18, 0, 7, lpx+64, 0, 100, "", 1, 4`,
+  `' CUT_X, "", "LED 4x8 (default Y 57)", 144058572, "", 0 : 0, "2", -50, 60, 0, 8+.5, lpx+50+50, 0, 100, "", 1, 4`,
+  `@ STAT_BLOCK, "", "", 66488244, "", 0 : 0, LPY+100, 1`, "", "[VBSCRIPT]"].join("\r\n");
+const END = [{ Partur: "Úthlið", H: 580, B: 720, "Þ": 19, M: 1, "Tegund einingu": ["Úthlið"] }];
+
+test("Úthlið: no LED → no file (as before); LED → one file 'Úthlið', long way = LPX, default run-through at the given Y", () => {
+  assert.equal(S.unitPlan("Sk20 | Úthlið", END).status, "skip");
+  const p = S.unitPlan("Sk20 | Úthlið", END, { smida: JSON.stringify({ v: 1, led: [{ where: "hlid", y: 50 }] }) });
+  assert.equal(p.panel, "uthlid"); assert.equal(p.status, "ok");
+  assert.deepEqual([p.LPX, p.LPY, p.LPZ], [720, 580, 19]); // 720 is the long way even though Sögunarlisti stores 580 × 720
+  assert.deepEqual(S.sideFiles(p).map((f) => [f.name, f.count]), [["Úthlið", 1]]);
+  const r = S.renderSide(LEDMASTER, p);
+  assert.deepEqual(r.errors, []);
+  const act = r.text.split("\r\n").filter((l) => l.startsWith("@ CUT_X"));
+  assert.equal(act.length, 1);
+  assert.match(act[0], /"LED 4x8 \(Smíða Y 50\)".*: 0, "2", -50, 50, 0, 8\+\.5, lpx\+50\+50,/);
+  assert.ok(r.text.includes("PAN=LPX|720|")); assert.ok(!r.text.includes("@ TOPP_BOTN")); assert.ok(r.text.includes("' CUT_X, \"\", \"Sögun f. masonit\"")); // masonite groove off
+});
+
+test("Úthlið: shorter LED (len, from) writes start + length; Blindlok is not an end panel; two sizes stop", () => {
+  const sm = JSON.stringify({ v: 1, led: [{ where: "hlid", y: 40, len: 500, from: 100 }] });
+  const p = S.unitPlan("Sk20 | Úthlið", END, { smida: sm });
+  const r = S.renderSide(LEDMASTER, p);
+  assert.match(r.text, /"LED 4x8 \(Smíða Y 40, 100–600\)".*: 0, "2", 100, 40, 0, 8\+\.5, 500,/);
+  const onlyLen = S.renderSide(LEDMASTER, S.unitPlan("x", END, { smida: JSON.stringify({ v: 1, led: [{ where: "hlid", y: 40, len: 300 }] }) }));
+  assert.match(onlyLen.text, /: 0, "2", 0, 40, 0, 8\+\.5, 300,/);
+  assert.equal(S.unitPlan("Sk3", [{ ...END[0], Partur: "Blindlok" }], { smida: sm }).status, "skip");
+  assert.equal(S.unitPlan("x", [END[0], { ...END[0], B: 700 }], { smida: sm }).status, "stop");
+  assert.equal(S.unitPlan("x", [{ ...END[0], M: 2 }], { smida: sm }).endCount, 2);
+});
+
+test("Cabinet LED still the master's own run-through line (unchanged by the new from/len options)", () => {
+  const p = S.unitPlan("SK 1", SK1, { smida: JSON.stringify({ v: 1, led: [{ where: "hlid", y: 57 }, { where: "toppur", y: 30 }] }) });
+  assert.deepEqual(p.led, [57]);
+  assert.ok(p.check.some((c) => /LED í toppi, 30 mm/.test(c)));
+});
+
+// ── Uppþvottavélarfrontur (Stakur frontur, Athugasemd UÞV), 2026-10-29 ──────────────────────────────────────────
+// A front of its own, no carcass side: written on the drawer-front master with HARDVIDAR_GRIP_ENDA_TIL_ENDA (the milled
+// grip, edge to edge, top or bottom), no hinge cups, no side file.
+const FRMASTER = ["[VARIABLES]", "PAN=LPX|0||4|", "PAN=LPY|0||4|", "PAN=LPZ|0||4|", "", "[PROGRAM]",
+  `@ STAT_BLOCK, "", "", 132215068, "", 0 : 0, LPY+100, 1`,
+  `@ K_M_NEDSTI_FRONTUR_MERIVO, "", "", 67399988, "", 0 :`, `@ E_NEDSTI_FRONTUR_MERIVO, "", "", 67342012, "", 0 :`,
+  `' HARDVIDAR_GRIP_ENDA_TIL_ENDA, "", "Harðviðargrip", 1111, "", 0 : 197, 30`, "", "[VBSCRIPT]"].join("\r\n");
+const UTHV = [{ Partur: "Frontur", H: 700, B: 597, "Þ": 19, M: 1, "Tegund einingu": ["Stakur frontur"] }];
+
+test("UÞV-frontur: front file with the milled grip at the top (default) or bottom; no side file, no hinges", () => {
+  const p = S.unitPlan("Sk30 | UÞV frontur", UTHV);
+  assert.equal(p.panel, "uthv"); assert.deepEqual(S.sideFiles(p), []);
+  assert.ok(p.check.some((c) => /fræst grip efst \(sjálfgefið\)/.test(c)));
+  const f = p.fronts[0];
+  assert.deepEqual([f.name, f.master, f.LPX, f.LPY, f.LPZ, f.count], ["Uppþvottavélarfrontur 700", "merivo", 597, 700, 19, 1]);
+  assert.deepEqual(f.ops, [{ name: "HARDVIDAR_GRIP_ENDA_TIL_ENDA", label: "Harðviðargrip", params: "700, 30" }]); // far edge at the top = the front's height
+  const r = S.renderSide(FRMASTER, f, S.FRONT_MANAGED.merivo);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.text.includes("@ HARDVIDAR_GRIP_ENDA_TIL_ENDA") && r.text.includes(": 700, 30") && !r.text.includes("NEDSTI_FRONTUR_MERIVO, \"\", \"\", 6") && !/IKEALOM|LOM,/.test(r.text));
+  assert.ok(r.text.includes("PAN=LPX|597|") && r.text.includes("PAN=LPY|700|"));
+  const bot = S.unitPlan("Sk30 | UÞV frontur", UTHV, { smida: JSON.stringify({ v: 1, frontGrip: "nedst" }) });
+  assert.equal(bot.fronts[0].ops[0].params, "30, 30");
+  assert.ok(!bot.check.some((c) => /sjálfgefið/.test(c)));
+  assert.equal(S.unitPlan("Sk30 | UÞV frontur", UTHV, { smida: JSON.stringify({ v: 1, frontGrip: "ekkert" }) }).status, "skip");
+  assert.equal(S.unitPlan("Sk31 | Stakur frontur", UTHV).status, "skip"); // any other single front stays as it was
+});
