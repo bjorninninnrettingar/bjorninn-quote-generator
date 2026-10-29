@@ -388,6 +388,10 @@
         efb.appendChild(svgEl("rect", { x: fb.x, y: Y(fhi), width: Math.max(2, fb.w), height: Math.max(2, (fhi - flo) * s), fill: "#e4e4e9", stroke: "#6e6e73", "stroke-width": 1 }));
       }
     }
+    var innerN = 0;
+    // board footprints, rails and grooves are drawn LAST so a drawer / shelf background never covers them (owner 2026-10-29)
+    var TOPLAYER = { tb: 1, rail: 1, groove: 1 };
+    features = features.filter(function (f) { return !TOPLAYER[f.type]; }).concat(features.filter(function (f) { return TOPLAYER[f.type]; }));
     features.forEach(function (f) {
       if (f.type === "drawer") {
         // the box as the Rover macro places it: on its runner line, as tall as the Blum side of its code
@@ -409,7 +413,7 @@
         var icode = (String(f.label).match(/skúffa\s+([NMKCFE])\b/i) || [])[1] || "", ih = f.to - f.from, lg = f.sys === "legra", ib = f.from - (lg ? 38 : 54);
         var ei = g(f.label + " — innskúffa", "inner", f.from), ic = acc.inner ? BLUE : "#6e6e73";
         // macro: front panel 16 thick at Y = 3 (FRONTUR tall from X − 54 / X − 38), the box behind it from Y = 20 (Merivo) / 19 (Legra), TYPE_ tall, as deep as the drawer
-        var isH = (BOX_SIDE[f.sys] || BOX_SIDE.merivo)[icode.toUpperCase()] || 90, id0 = lg ? 19 : 20, idp = opts.depths && (opts.depths[icode.toUpperCase()] || opts.depths.K || opts.depths.M) || 300;
+        var isH = (BOX_SIDE[f.sys] || BOX_SIDE.merivo)[icode.toUpperCase()] || 90, id0 = lg ? 19 : 20, idp = (opts.innerDepths && opts.innerDepths[innerN]) || 300; innerN++;
         var ifr = XR(3, 19), ibx = XR(id0, Math.min(LPY - 2, id0 + idp));
         ei.appendChild(svgEl("rect", { x: ibx.x, y: Y(ib + isH), width: ibx.w, height: isH * s, rx: 2, fill: "#fff", stroke: ic, "stroke-width": 1.1, "stroke-dasharray": "5 3" }));
         ei.appendChild(svgEl("rect", { x: ifr.x, y: Y(ib + ih), width: ifr.w, height: ih * s, fill: "#fff", stroke: ic, "stroke-width": 1.1 }));
@@ -607,7 +611,7 @@
       if (outEl) { var cx = document.createElement("button"); cx.type = "button"; cx.textContent = "Fjarlægja"; cx.style.color = "#8e8e93"; cx.onclick = rm.onclick; ch.appendChild(cx); }
       calm.appendChild(ch);
       var cbody = document.createElement("div"); cbody.className = "bpp-calm-body";
-      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts, mirror: opts.mirror, fre: opts.fre, depths: opts.depths }));
+      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts, mirror: opts.mirror, fre: opts.fre, depths: opts.depths, innerDepths: opts.innerDepths }));
       calm.appendChild(cbody);
       card.insertBefore(calm, win);
       setView(opts.view === "tech" ? "tech" : "calm");

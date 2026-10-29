@@ -557,6 +557,14 @@
     // (older Smíðagögn has no `hinge`; 2026-10-26, T-32 Sk6)
     if (hingeAt.length && !hs && leaves && doors.every(function (d) { return leaves.filter(function (l) { return Math.round(l.H) === Math.round(d.H); }).length >= 2; })) hs = "baedi";
     plan.hingeSide = hs;
+    // Lamaklossar á blindloki (Töfrahorn, owner 2026-10-29): Smíðagögn blindHinge "blindlok" | "engir" (default "hlid" = as before). The side that
+    // faces the blind panel (blindSide, default hægri) then gets NO hinge plates — the door hangs on the blind panel (blocks, drawn in /smida) or
+    // has none; the other side is untouched. The door front still gets its cups.
+    var bhg = (parseSmida(opts.smida) || {}).blindHinge;
+    if ((bhg === "blindlok" || bhg === "engir") && (by.uthlid || []).some(function (r) { return /blindlok/i.test(r.Partur); })) {
+      plan.noHingeSide = (parseSmida(opts.smida) || {}).blindSide === "vinstri" ? "vinstri" : "haegri";
+      info.push("Blindlok " + (plan.noHingeSide === "vinstri" ? "vinstra" : "hægra") + " megin: engin lamaplata í þeirri hlið (" + (bhg === "blindlok" ? "lamaklossar á blindloki" : "engir lamaklossar") + ")");
+    }
     // Does a rail lift's footprint run into anything on that side? A board (shelf / oven board) at its height, shelf-pin holes (Y 37 from the
     // front, 80 from the back), a hinge plate (Y 37 ± 23, ± 28 along) on a side that has hinges, a drawer runner. Each hit is a check line and a red band.
     var ov = function (a0, a1, b0, b1) { return a1 > b0 && a0 < b1; };
@@ -641,6 +649,16 @@
       plan.drawerDepth[d.code] = { mm: r1(mmv), def: nom != null ? r1(nom) : null, set: set > 0 && set !== nom };
       if (set > 0 && nom != null && set !== nom) info.push("Skúffa " + d.code + ": dýpt " + r1(set) + " mm (Sögunarlisti " + r1(nom) + ") — breytir ekki borun, skúffubotn/-bak í Sögunarlista fylgja ekki, keyra Yfirfara");
       if (mmv > B - 20) check.push("Skúffa " + d.code + ": dýpt " + r1(mmv) + " mm kemst ekki fyrir í skápnum (hliðin er " + r1(B) + " mm djúp)");
+    });
+    // innskúffur: one depth each (key "I<n>", in plan order), default = the "Innskúffubotn - <kerfi>" length + 26, else the main drawers' / 300
+    inner.forEach(function (d, i) {
+      var key = "I" + i, bs = rows.filter(function (r) { return /^innskúffubotn\b/i.test(String(r.Partur).trim()) && lc(r.Partur).indexOf(d.sys) >= 0 && num(r.H) > 0; });
+      if (!bs.length) bs = rows.filter(function (r) { return /^skúffubotn\b/i.test(String(r.Partur).trim()) && lc(r.Partur).indexOf(d.sys) >= 0 && num(r.H) > 0; }); // no inner bottom row: the main drawers' depth
+      var nom = bs.length ? Math.max.apply(null, bs.map(function (r) { return num(r.H); })) + 26 : null, set = num((sms.drawerDepth || {})[key]), mmv = set > 0 ? set : nom;
+      if (!(mmv > 0)) return;
+      plan.drawerDepth[key] = { mm: r1(mmv), def: nom != null ? r1(nom) : null, set: set > 0 && set !== nom, code: d.code, inner: true };
+      if (set > 0 && nom != null && set !== nom) info.push("Innskúffa " + d.code + ": dýpt " + r1(set) + " mm (Sögunarlisti " + r1(nom) + ") — breytir ekki borun, keyra Yfirfara");
+      if (mmv > B - 20) check.push("Innskúffa " + d.code + ": dýpt " + r1(mmv) + " mm kemst ekki fyrir í skápnum (hliðin er " + r1(B) + " mm djúp)");
     });
     // Úrtak fyrir vatnslás (Smíða, 2026-10-29): Smíðagögn urtak = { drawer:"E", place:"midja"|"vinstri"|"haegri", x?: mm from the
     // board's left edge }. The macro URTAK_F_VATNSLAS (PLACEMENT, REFRENCE, TYPE_) cuts a 150.1 wide notch from the board's Y = 0 edge,
@@ -807,6 +825,10 @@
     return [{ name: "Vinstri hlið" + sfx(L, lh), count: p.cabinets, plan: L }, { name: "Hægri hlið" + sfx(R, rh), count: p.cabinets, plan: R }];
   }
   function sideFiles(p) {
+    if (p.noHingeSide && !p.hingeSplit && p.ops.some(isHinge)) { // the side facing the blind panel has no hinge plates (see unitPlan blindHinge)
+      var hs0 = p.hingeSide, other = p.noHingeSide === "vinstri" ? "haegri" : "vinstri";
+      p = hs0 === p.noHingeSide ? Object.assign({}, p, { ops: p.ops.filter(function (o) { return !isHinge(o); }) }) : Object.assign({}, p, { hingeSide: other });
+    }
     if (p.noSide) return []; // the dishwasher front: front file only
     if (p.panel === "uthlid") return [{ name: "Úthlið", count: p.endCount || 1, plan: p }];
     if (p.ops.some(function (o) { return o.only; }) && !p.hingeSplit) return oneSidedFiles(p);

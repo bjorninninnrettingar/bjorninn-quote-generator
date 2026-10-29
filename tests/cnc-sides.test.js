@@ -729,3 +729,32 @@ test("Fastar hillur: mm measured from the top (default), the underside or the mi
   assert.equal(fh(S.unitPlan("Sk6", rows, { smida: sm("undir") })), "1016");   // underside at 1000 → top face 1016
   assert.equal(fh(S.unitPlan("Sk6", rows, { smida: sm("midja") })), "1008");   // middle at 1000 → top face 1008
 });
+
+// ── Töfrahorn: lamir á blindloki (blindHinge) og dýpt innskúffa, 2026-10-29 ──────────────────────────────────────
+const MAGIC = [row("Skápur hlið", 800, 580, 16, 2), row("Frontur", 797, 497, 19, 1), row("Úthlið Blindlok", 797, 380, 19, 1)];
+const hingeNames = (files) => files.map((f) => [f.name, f.plan.ops.filter((o) => o.name === "LOM").length]);
+test("Blindlok: 'hlid' (default) = as before; 'blindlok' / 'engir' drop the hinge plates on the side facing the blind panel only", () => {
+  const sm = (o) => JSON.stringify({ v: 1, hinge: "haegri", ...o });
+  const same = S.unitPlan("Sk40", MAGIC, { smida: sm({}) });
+  assert.deepEqual(hingeNames(S.sideFiles(same)), [["Vinstri hlið", 0], ["Hægri hlið - lamir", 1]]); // hinges right, blind on the right (default): as before
+  for (const bh of ["blindlok", "engir"]) {
+    const p = S.unitPlan("Sk40", MAGIC, { smida: sm({ blindHinge: bh }) });
+    assert.equal(p.noHingeSide, "haegri");
+    assert.deepEqual(hingeNames(S.sideFiles(p)), [["Hliðar", 0]]); // hinge side = the blind side → no plates at all, one file ×2
+  }
+  const left = S.unitPlan("Sk40", MAGIC, { smida: sm({ blindHinge: "blindlok", blindSide: "vinstri" }) }); // blind on the left, hinges right: the hinge side keeps its plates
+  assert.equal(left.noHingeSide, "vinstri");
+  assert.deepEqual(hingeNames(S.sideFiles(left)), [["Vinstri hlið", 0], ["Hægri hlið - lamir", 1]]);
+  const both = S.unitPlan("Sk40", MAGIC, { smida: JSON.stringify({ v: 1, hinge: "baedi", blindHinge: "engir" }) }); // plates both sides → only the side away from the blind keeps them
+  assert.deepEqual(hingeNames(S.sideFiles(both)), [["Vinstri hlið - lamir", 1], ["Hægri hlið", 0]]);
+  assert.ok(p0(same)); function p0(x) { return x.fronts.some((f) => f.master === "door" && f.ops.length); } // the door's own cups are always drilled
+  assert.equal(S.unitPlan("Sk41", [MAGIC[0], MAGIC[1]], { smida: sm({ blindHinge: "blindlok" }) }).noHingeSide, undefined); // no blind panel → ignored
+});
+test("Innskúffa: own depth (key I<n>), default Innskúffubotn + 26, per-inner override is information only", () => {
+  const rows = [row("Skápur hlið", 2000, 580, 16, 2), row("Frontur", 1997, 597, 19, 1), row("Innskúffufrontur K - Merivo Skrokkaefni", 144, 562, 16, 2), row("Innskúffubotn - Merivo", 424, 517, 16, 2)];
+  const p = S.unitPlan("Sk17", rows, {});
+  assert.deepEqual(p.drawerDepth, { I0: { mm: 450, def: 450, set: false, code: "K", inner: true }, I1: { mm: 450, def: 450, set: false, code: "K", inner: true } });
+  const q = S.unitPlan("Sk17", rows, { smida: JSON.stringify({ v: 1, drawerDepth: { I1: 400 } }) });
+  assert.deepEqual([q.drawerDepth.I0.mm, q.drawerDepth.I1.mm, q.drawerDepth.I1.set], [450, 400, true]);
+  assert.deepEqual(q.ops, p.ops);
+});

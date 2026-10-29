@@ -465,7 +465,7 @@
       var h = (c.inner[i] || {}).h || 100, y = Y(x.mm + h);
       s += runnerSvg(Y(x.mm + 54), "#e8903a", "Braut innskúffu " + x.code + " — 54 mm ofan við neðri brún frontsins");
       s += '<g class="drag" data-k="inner" data-i="' + i + '"><rect x="' + (X(0) + 12) + '" y="' + y + '" width="' + (W * sc - 24) + '" height="' + h * sc + '" rx="3" fill="#fff4e5" stroke="#e8b06a"/>' +
-        '<text x="' + X(W / 2) + '" y="' + (y + h * sc / 2 + 4) + '" text-anchor="middle" font-size="11.5" fill="#b25000">Innskúffa ' + x.code + "</text></g>";
+        '<text x="' + X(W / 2) + '" y="' + (y + h * sc / 2 + 4) + '" text-anchor="middle" font-size="11.5" fill="#b25000">Innskúffa ' + x.code + ((p.drawerDepth || {})["I" + i] ? " · " + mm(p.drawerDepth["I" + i].mm) : "") + "</text></g>";
     });
     var shelves = e.shelves || (e.oven && e.oven.shelves) || [];
     shelves.forEach(function (x, i) {
@@ -502,7 +502,7 @@
         '<title>Blindlok ' + mm(bwid) + ' × ' + mm(bh) + ' mm — fast á kassanum, engar lamir</title></g>';
       // Töfrahorn: the door hangs on the blind panel, so the hinge blocks (lamaklossar) go on the blind panel, not the side — drawn behind the
       // panel at the door's hinge heights when the door's hinge side faces it (illustration; no CNC file for it)
-      if (e.hinge === (blindL ? "vinstri" : "haegri")) (p.doors || []).forEach(function (dd) { (dd.hinges || []).forEach(function (hh) {
+      if (e.blindHinge === "blindlok" && e.hinge === (blindL ? "vinstri" : "haegri")) (p.doors || []).forEach(function (dd) { (dd.hinges || []).forEach(function (hh) {
         // the Blum mounting plate (cnc-bpp.js drawPlate, 41.8 × 56.5 mm) on the blind panel's edge next to the door, at the hinge height
         var kk = (e.klossMm > 0 ? e.klossMm : M.KLOSS_MM) * sc, kx = blindL ? bx0 + blindW * sc - kk : bx0 + kk, ky = Y(dd.from + hh), gk = document.createElementNS(NS, "g");
         BPP.drawPlate(gk, kx, ky, sc, "#b25000", 1);
@@ -742,7 +742,7 @@
     var row = document.createElement("div"); row.className = "cncrow"; wrap.appendChild(row);
     files.forEach(function (f) {
       var r = SD.renderSide(MASTER, f.plan);
-      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: compact ? (files.length > 1 ? 130 : 220) : files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, shelfD: p.shelfD, fronts: fronts, mirror: /^Hægri/.test(f.name), fre: !!p.fre, depths: Object.keys(p.drawerDepth || {}).reduce(function (a, k) { a[k] = p.drawerDepth[k].mm; return a; }, {}) });
+      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: compact ? (files.length > 1 ? 130 : 220) : files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, shelfD: p.shelfD, fronts: fronts, mirror: /^Hægri/.test(f.name), fre: !!p.fre, innerDepths: Object.keys(p.drawerDepth || {}).filter(function (k) { return /^I\d+$/.test(k); }).sort(function (a, b) { return +a.slice(1) - +b.slice(1); }).map(function (k) { return p.drawerDepth[k].mm; }), depths: Object.keys(p.drawerDepth || {}).reduce(function (a, k) { a[k] = p.drawerDepth[k].mm; return a; }, {}) });
       var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
       row.appendChild(card);
       var sv = card.querySelector(".bpp-calm-svg"); if (sv && canEdit(c)) wireCalm(sv, c, p);
@@ -898,6 +898,7 @@
       h += row("blind", "Blindlok", mm(c.blind.B) + " × " + mm(c.blind.H) + " · " + (e.blindSide === "vinstri" ? "vinstra megin" : "hægra megin"),
         '<div class="line"><span class="u">Fast á kassanum, engar lamir ' + tip("Stærðin kemur úr Sögunarlista (Úthlið/Blindlok). Veldu hvoru megin það situr við hurðina.") + '</span></div><div class="line"><span class="seg">' +
         [["vinstri", "Vinstra megin"], ["haegri", "Hægra megin"]].map(function (o) { return '<button type="button" data-blind="' + o[0] + '" class="' + ((e.blindSide || "haegri") === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + "</span></div>" +
+        '<div class="line"><span class="u">Lamir hurðarinnar ' + tip("Töfrahorn: hurðin hangir á blindlokinu. „Á blindloki“: lamaklossar teiknaðir á blindlokið og engin lamaplata borast í hliðina sem snýr að því. „Engir“: hvorki klossar né lamaplata í þeirri hlið. „Á hlið“: eins og áður (lamaplata í hliðinni).") + '</span></div><div class="line"><span class="seg">' + [["", "Á hlið"], ["blindlok", "Á blindloki"], ["engir", "Engir"]].map(function (o) { return '<button type="button" data-bhg="' + o[0] + '" class="' + ((e.blindHinge || "") === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + "</span></div>" +
         '<div class="line"><span class="t">Lamaklossar</span><input type="number" step="0.5" data-kloss="1" value="' + (e.klossMm > 0 ? e.klossMm : M.KLOSS_MM) + '"><span class="u">mm frá brún að miðju plötu ' + tip("Lamaklossarnir sitja á blindlokinu, ekki í hliðinni. Fjarlægð frá þeirri brún blindloksins sem er næst hurðinni að miðju borunar (plötumiðju). Sjálfgefið 21,5.") + "</span></div>");
     }
     var led = e.led || [];
@@ -954,6 +955,20 @@
               '<div class="line"><span class="t">Hlið</span><span class="seg">' + [["", "Báðar"], ["vinstri", "Vinstri"], ["haegri", "Hægri"]].map(function (o) { return '<button type="button" data-rside="' + i + ":" + o[0] + '" class="' + ((x.side || "") === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + "</span></div>" : "");
         }).join("") +
         '<div class="line"><button type="button" class="mini" data-radd="">＋ Slá</button><button type="button" class="mini" data-radd="emuca">＋ Emuca</button><button type="button" class="mini" data-radd="toplift">＋ Toplift</button></div>');
+    }
+    if ((p.drawers || []).length) {
+      var ur = e.urtak, codes = p.drawers.map(function (d) { return d.code; }).filter(function (x, i, a) { return a.indexOf(x) === i; }), PL = { vinstri: "Vinstri", midja: "Miðja", haegri: "Hægri" };
+      h += row("urtak", "Úrtak fyrir vatnslás", ur && ur.drawer ? "Skúffa " + ur.drawer + " · " + (PL[ur.place || "midja"] || "Miðja").toLowerCase() + (ur.x ? " · " + mm(ur.x) + " mm" : "") : "Ekkert",
+        '<div class="line"><span class="u">Í botni hvaða skúffu ' + tip("Botninn fær úrtak (URTAK_F_VATNSLAS, 150 mm breitt) og kemur sem sér skrá í CNC-útflutninginn — stærðin kemur úr „Skúffubotn“ í Sögunarlista, kerfið (Merivo/Legra) úr skúffunni.") + '</span></div>' +
+        '<div class="line"><span class="seg"><button type="button" data-urd="" class="' + (ur && ur.drawer ? "" : "on") + '">Ekkert</button>' + codes.map(function (cd) { return '<button type="button" data-urd="' + cd + '" class="' + (ur && ur.drawer === cd ? "on" : "") + '">' + cd + "</button>"; }).join("") + "</span></div>" +
+        (ur && ur.drawer ? '<div class="line"><span class="seg">' + ["vinstri", "midja", "haegri"].map(function (k) { return '<button type="button" data-urp="' + k + '" class="' + ((ur.place || "midja") === k ? "on" : "") + '">' + PL[k] + "</button>"; }).join("") + "</span></div>" +
+          more("urx", '<div class="line"><span class="t">Miðað við</span><input type="number" data-urx="1" value="' + (ur.x ? mm(ur.x) : "") + '" placeholder="miðja botns"><span class="u">mm frá vinstri brún botns ' + tip("Autt = í miðju botnsins (eins og tilbúna skráin). Vinstri/Miðja/Hægri segir hvaða brún úrtaksins er á þessum stað.") + "</span></div>") : ""));
+    }
+    if ((p.drawers || []).length || Object.keys(p.drawerDepth || {}).length) {
+      var dd = p.drawerDepth || {}, dkeys = Object.keys(dd).sort(function (a, b) { return (/^I/.test(a) - /^I/.test(b)) || a.localeCompare(b, "is", { numeric: true }); });
+      h += row("dw", "Skúffur", (p.drawers || []).map(function (d) { return d.code + " " + mm(d.front); }).join(" · ") + (dkeys.length ? " · dýpt " + dkeys.map(function (k) { return mm(dd[k].mm); }).join("/") : ""),
+        '<div class="line"><span class="u">Dýpt skúffu (mm) ' + tip("Sjálfgefið úr „Skúffubotn“ / „Innskúffubotn“ í Sögunarlista (lengd + 26). Valið er í 50 mm Blum-skrefum. Dýptin breytir EKKI borun — Merivo/Legra macroin hafa enga dýptarbreytu — hún er upplýsing og CNC varar við ef skúffan kemst ekki fyrir í skápnum. Til að skera botn og bak í aðra dýpt: breyttu á Eyðublaðinu og keyrðu Yfirfara.") + "</span></div>" +
+        dkeys.map(function (k) { var x = dd[k]; return '<div class="line"><span class="t">' + (x.inner ? "inn " + x.code : k) + '</span><select data-ddepth="' + k + '">' + depthOptions(x.mm, c.base.LPY).map(function (o) { return '<option value="' + o.v + '"' + (o.v === Math.round(x.mm) ? " selected" : "") + (o.bad ? ' style="color:#b25000"' : "") + ">" + o.v + (o.note || "") + "</option>"; }).join("") + '</select><span class="u">mm' + (x.def != null && x.set ? " (Sögunarlisti " + mm(x.def) + ")" : "") + "</span></div>"; }).join(""));
     }
     if ((p.drawers || []).length) {
       var ur = e.urtak, codes = p.drawers.map(function (d) { return d.code; }).filter(function (x, i, a) { return a.indexOf(x) === i; }), PL = { vinstri: "Vinstri", midja: "Miðja", haegri: "Hægri" };
@@ -1021,6 +1036,7 @@
     if (d.rside != null) { var rs = d.rside.split(":"); change(function (e) { if (rs[1]) e.rails[+rs[0]].side = rs[1]; else delete e.rails[+rs[0]].side; }); return; }
     if (d.urd != null) { change(function (e) { e.urtak = d.urd ? { drawer: d.urd, place: (e.urtak && e.urtak.place) || "midja", x: e.urtak ? e.urtak.x : null } : null; }); openRow[c.unit + "urtak"] = true; return; }
     if (d.urp) { change(function (e) { if (e.urtak) e.urtak.place = d.urp; }); return; }
+    if (d.bhg != null) { change(function (e) { if (d.bhg) e.blindHinge = d.bhg; else delete e.blindHinge; }); return; }
     if (d.shref != null) { change(function (e) { var tF = c.tFixed, off = function (r) { return r === "undir" ? tF : r === "midja" ? tF / 2 : 0; }, a = off(e.shelfRef || ""), b = off(d.shref);
       (e.shelves || (e.oven && e.oven.shelves) || []).forEach(function (x) { if (x.fixed) x.mm = r1(x.mm + a - b); }); if (d.shref) e.shelfRef = d.shref; else delete e.shelfRef; }); return; }
     if (d.shled != null) { change(function (e) { var sh = (e.shelves || e.oven.shelves)[+d.shled]; if (sh.led) delete sh.led; else sh.led = { y: 50 }; }); return; }

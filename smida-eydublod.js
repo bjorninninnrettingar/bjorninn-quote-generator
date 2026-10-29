@@ -157,6 +157,7 @@
     if (ex.jeyVert && Array.isArray(ex.jeyVert.doors)) e.jeyVert = { doors: clone(ex.jeyVert.doors) };
     if (ex.drawerDepth && typeof ex.drawerDepth === "object") e.drawerDepth = clone(ex.drawerDepth);
     if (ex.shelfRef === "undir" || ex.shelfRef === "midja") e.shelfRef = ex.shelfRef;
+    if (ex.blindHinge === "blindlok" || ex.blindHinge === "engir") e.blindHinge = ex.blindHinge;
     if (num(ex.klossMm) > 0) e.klossMm = num(ex.klossMm);
     if (ex.blindSide === "vinstri" || ex.blindSide === "haegri") e.blindSide = ex.blindSide;
     if (ex.noJey && typeof ex.noJey === "object") e.noJey = { drawers: clone(ex.noJey.drawers || []), doors: clone(ex.noJey.doors || []) };
@@ -168,7 +169,7 @@
   // edit → Smíðagögn object (what Vista writes). `ready` only while marked reviewed.
   function smidaOf(cab, e) {
     var o = Object.assign({}, clone(cab.existing) || {});
-    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "frontGrip", "urtak", "shelfRef", "drawerDepth", "klossMm", "jey", "jeyBot", "ready"].forEach(function (k) { delete o[k]; });
+    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "frontGrip", "urtak", "blindHinge", "shelfRef", "drawerDepth", "klossMm", "jey", "jeyBot", "ready"].forEach(function (k) { delete o[k]; });
     o.v = 1;
     if (o.w == null && cab.B) o.w = cab.B;
     if (o.h == null && cab.base.LPX) o.h = cab.base.LPX;
@@ -195,6 +196,7 @@
     if (cab.dishwasher && e.frontGrip) o.frontGrip = e.frontGrip;
     if ((e.shelfRef === "undir" || e.shelfRef === "midja") && ((o.shelves && o.shelves.list || []).some(function (x) { return x.fixed; }) || (o.oven && o.oven.shelves || []).some(function (x) { return x.fixed; }))) o.shelfRef = e.shelfRef; // fixed shelves' mm measured from the underside / middle (default: top face, not written)
     if (e.drawerDepth && Object.keys(e.drawerDepth).length) o.drawerDepth = clone(e.drawerDepth);
+    if (cab.blind && e.blindHinge) o.blindHinge = e.blindHinge; // "blindlok" | "engir"; absent = "hlid" (hinge plates in the side, as before)
     if (cab.blind && e.klossMm > 0 && Math.abs(e.klossMm - KLOSS_MM) > 0.01) o.klossMm = e.klossMm; // lamaklossar: plate centre from the blind panel's edge (default 21.5)
     if (cab.blind && e.blindSide === "vinstri") o.blindSide = "vinstri"; // "haegri" is the default and is not written
     if (e.reviewed) o.ready = true;
