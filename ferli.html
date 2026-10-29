@@ -295,22 +295,22 @@
   .unitPane .mClose, .unitPane .wTabs { display:none; }
   .unitPane .wPanel { display:block; }
   .unitPane #p-innihald { display:none; }
-  .unitCols { display:grid; grid-template-columns:minmax(240px,340px) 1fr; gap:24px; align-items:start; }
+  .unitCols { display:grid; grid-template-columns:var(--kassiW,420px) 14px minmax(0,1fr); gap:0; align-items:start; } .colGrip { align-self:stretch; cursor:col-resize; position:relative; } .colGrip::after { content:""; position:absolute; left:6px; top:36px; bottom:8px; width:2px; border-radius:2px; background:var(--line); } .colGrip:hover::after, .colGrip.drag::after { background:var(--accent); }
   .unitCols .wSecT:first-child { margin-top:8px; }
-  @media (max-width:980px) { .unitCols { grid-template-columns:1fr; } }
-  .dt { width:100%; border-collapse:collapse; font-size:.88rem; } .dt th { text-align:left; font-size:.74rem; font-weight:500; color:var(--muted); padding:6px 10px; border-bottom:1px solid var(--line); }
-  .dt td { padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:middle; } .dt .n { text-align:right; font-variant-numeric:tabular-nums; } .dt .c { text-align:center; width:80px; }
+  @media (max-width:980px) { .unitCols { grid-template-columns:1fr; } .colGrip { display:none; } }
+  .dt { width:100%; border-collapse:collapse; font-size:.9rem; table-layout:fixed; font-weight:500; } .dt th { text-align:left; font-size:.74rem; font-weight:600; color:var(--muted); padding:6px 10px; border-bottom:1px solid var(--line); }
+  .dt td { overflow:hidden; text-overflow:ellipsis; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:middle; } .dt .n { text-align:right; font-variant-numeric:tabular-nums; } .dt .c { text-align:center; } #pontunList { max-width:980px; } .sgGrp summary b { font-weight:700; }
   .dt .pill { background:var(--acc-bg,#e6f0fa); color:var(--accent); padding:2px 9px; border-radius:6px; font-size:.82rem; white-space:nowrap; } .dt img.th { width:36px; height:36px; object-fit:cover; border-radius:6px; display:block; }
   .sgGrp { margin:0 0 14px; } .sgGrp summary { cursor:pointer; padding:6px 0; font-size:.92rem; } .sgGrp .cnt { color:var(--muted); font-size:.8rem; margin-left:6px; }
   .supAct { display:flex; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap; } .pBtn { cursor:pointer; border:1px solid var(--line); background:var(--surface); color:var(--text); border-radius:8px; padding:6px 12px; font-size:.84rem; } .pBtn.hot { background:var(--warn-bg); color:var(--warn); border-color:transparent; font-weight:600; } .pBtn:disabled { opacity:.5; cursor:default; }
   .pdfFrame { width:100%; height:min(80vh,900px); border:1px solid var(--line); border-radius:10px; margin-top:12px; background:#fff; }
   .warnNote { background:var(--warn-bg); color:var(--warn); padding:10px 14px; border-radius:10px; margin-bottom:12px; font-size:.9rem; }
-  .qIn, .swIn { font:inherit; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--text); } .qIn { width:84px; text-align:right; } .swIn { width:min(420px,100%); }
+  .qIn, .swIn { font:inherit; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--text); } .qIn { width:76px; text-align:right; } .swIn { width:min(420px,100%); }
   .swRes { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; } .swPick { cursor:pointer; border:none; background:var(--acc-bg,#e6f0fa); color:var(--accent); border-radius:6px; padding:4px 10px; font-size:.84rem; }
   .lineTbl tr.np td { color:var(--bad); } .swapRow td { background:var(--bg); }
   .qchip.wait { background:var(--warn-bg); color:var(--warn); }
   .unitPane .wCard { background:var(--bg); }
-  .unitPane .boxSvg { max-width:320px; display:block; margin:0 auto; }
+  .unitPane .boxSvg { max-width:100%; display:block; margin:0 auto; }
   .wSecT { font-size:.8rem; font-weight:600; color:var(--muted); letter-spacing:.02em; margin:22px 0 8px; }
   .unitPane .approveBtn { max-width:360px; margin-left:auto; display:block; }
 
@@ -669,7 +669,7 @@
     window.addEventListener("focus", function () { if (SIG.ready) refreshSignals(); });
     setInterval(function () { if (SIG.ready && !document.hidden) refreshSignals(); }, 30000);
   }
-  function jumpStep(id) { var el = document.getElementById("step-" + id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  function jumpStep(id) { var el = document.getElementById("step-" + id); if (el) el.scrollIntoView({ behavior: "auto", block: "start" }); } // only ever called by a click on the rail / a lock card
 
   // ---- the signals ----
   function loadUnits(proj) {
@@ -780,10 +780,13 @@
       '<div id="preflight" class="preflight"><div class="empty">Athuga línurnar…</div></div>' +
       '<div class="orderActions">' + (ran ? '' : '<button class="runBtn" id="runSkipulagBtn" type="button">Keyra skipulag</button>') +
         '<a class="proLink" target="_blank" rel="noopener" href="/skipuleggja?pro=' + proj.id + k2 + '">Opna hönnuðinn í nýjum flipa ↗</a></div><div class="gateMsg" id="runSkipulagMsg" style="text-align:left"></div>' +
-      '<div class="proEmbed" id="proEmbed"><div class="empty">Hönnuðurinn hleðst þegar þú skrunar hingað…</div></div>';
-    // the designer, embedded (same page the PRO tab in the sidebar uses), loaded when it scrolls into view
-    var host = document.getElementById("proEmbed"), loadPro = function () { if (host.dataset.loaded) return; host.dataset.loaded = "1"; host.innerHTML = '<iframe src="/skipuleggja?pro=' + proj.id + k2 + '&embedded=1" title="PRO hönnuður"></iframe>'; };
-    if ("IntersectionObserver" in window) { var io = new IntersectionObserver(function (e) { if (e[0].isIntersecting) { loadPro(); io.disconnect(); } }, { rootMargin: "300px" }); io.observe(host); } else loadPro();
+      '<button type="button" class="pBtn" id="proToggle" style="margin-top:10px">Opna hönnuðinn ▾</button><div class="proEmbed" id="proEmbed" hidden></div>';
+    // the designer, embedded: closed until you open it (it is heavy and used to steal the scroll)
+    var host = document.getElementById("proEmbed"), tg = document.getElementById("proToggle");
+    tg.onclick = function () {
+      host.hidden = !host.hidden; tg.textContent = host.hidden ? "Opna hönnuðinn ▾" : "Loka hönnuðinum ▴";
+      if (!host.hidden && !host.dataset.loaded) { host.dataset.loaded = "1"; host.innerHTML = '<iframe src="/skipuleggja?pro=' + proj.id + k2 + '&embedded=1" title="PRO hönnuður"></iframe>'; }
+    };
     loadPreflight(proj);
     var btn = document.getElementById("runSkipulagBtn");
     if (btn) btn.addEventListener("click", function () {
@@ -835,6 +838,15 @@
       [[pk, "1 · Kassi"], [ps, "2 · Sögunarlisti"]].forEach(function (x) {
         var c = document.createElement("div"); c.className = "unitCol";
         var h = document.createElement("h3"); h.className = "wSecT"; h.textContent = x[1]; c.appendChild(h); c.appendChild(x[0]); cols.appendChild(c);
+      });
+      var grip = document.createElement("div"); grip.className = "colGrip"; grip.title = "Dragðu til að breikka / mjókka";
+      cols.insertBefore(grip, cols.children[1]);
+      try { var sw = parseInt(localStorage.getItem("ferli:kassiW"), 10); if (sw >= 240 && sw <= 900) cols.style.setProperty("--kassiW", sw + "px"); } catch (e) {}
+      grip.addEventListener("pointerdown", function (ev) {
+        ev.preventDefault(); grip.classList.add("drag"); var x0 = ev.clientX, w0 = cols.children[0].getBoundingClientRect().width;
+        function mv(e) { var w = Math.max(240, Math.min(900, w0 + e.clientX - x0)); cols.style.setProperty("--kassiW", w + "px"); }
+        function up() { document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up); grip.classList.remove("drag"); try { localStorage.setItem("ferli:kassiW", parseInt(cols.style.getPropertyValue("--kassiW"), 10)); } catch (e) {} }
+        document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up);
       });
       modal.insertBefore(cols, pp);
       var h3 = document.createElement("h3"); h3.className = "wSecT"; h3.textContent = "3 · Pöntun einingar"; modal.insertBefore(h3, pp);
@@ -987,7 +999,7 @@
         var help = { cutlist: "Búðu til skurðarlistann og skrifaðu hann á USB-lykilinn. Klárt þegar skurðarskrá er skráð á hlutina.", aedar: "Raðaðu viðaræðum á frontaplötur. Þarf aðeins ef verkið hefur frontaefni með æð — annars er þetta skref sleppt sjálfkrafa.", cnc: "Yfirfarðu lamir, hillur og ofn skáp fyrir skáp og skrifaðu CNC-skrárnar á USB. Klárt þegar „CNC yfirfarið“ er skráð." }[t.id] || "";
         return '<section class="sub" id="sub-' + t.id + '"><h3 class="subT"><span>3' + "bcd"[i] + '</span> ' + t.label + (t.chip ? ' <span class="chip" id="' + t.chip + '">…</span>' : ' <span class="chip" id="chipCnc">Vélun</span>') +
           '<a class="newTab" target="_blank" title="Opna í nýjum flipa" href="' + t.path + qs + (t.key && k ? "&k=" + encodeURIComponent(k) : "") + '">Opna í nýjum flipa ↗</a></h3>' +
-          '<p class="subHelp">' + help + '</p><div class="inlineFrame open" id="frame-' + t.id + '"><div class="empty">Hleð verkfærinu þegar þú skrunar hingað…</div></div></section>';
+          '<p class="subHelp">' + help + '</p><div class="inlineFrame open" id="frame-' + t.id + '"><div class="empty">Hleðst þegar þú opnar þennan hluta…</div></div></section>';
       }).join("") +
       '<section class="sub" id="sub-bpp"><h3 class="subT"><span>3e</span> Skoða CNC-forritun (.bpp) <span class="chip">valfrjálst</span></h3><p class="subHelp">Slepptu .bpp skrá hér til að sjá hana teiknaða áður en hún fer á vélina.</p>' +
       '<button hidden id="bppToggleBtn" type="button"></button>' +
@@ -1023,10 +1035,6 @@
       frame.dataset.loaded = "1";
       frame.innerHTML = '<iframe src="' + tool.path + qs + (tool.key && k ? "&k=" + encodeURIComponent(k) : "") + '&embedded=1" loading="lazy" title="' + esc(tool.label) + '"></iframe>';
     }
-    if ("IntersectionObserver" in window) {
-      var io = new IntersectionObserver(function (ents) { ents.forEach(function (en) { if (en.isIntersecting) { var id = en.target.id.replace("sub-", ""), tool = PIPE_TOOLS.filter(function (t) { return t.id === id; })[0]; if (tool) { loadTool(tool); io.unobserve(en.target); } } }); }, { rootMargin: "300px" });
-      PIPE_TOOLS.forEach(function (t) { var sec = document.getElementById("sub-" + t.id); if (sec) io.observe(sec); });
-    } else PIPE_TOOLS.forEach(loadTool);
     // each part folds away; a finished part folds itself (a part you opened by hand stays as you left it)
     el.querySelectorAll(".sub").forEach(function (sec) {
       var hd = sec.querySelector(".subT"), body = document.createElement("div"); body.className = "subBody";
@@ -1039,11 +1047,8 @@
         if (tool && !sec.classList.contains("collapsed")) loadTool(tool);
       });
     });
-    function subDone(id, done) {
-      var sec = document.getElementById("sub-" + id); if (!sec || sec.dataset.touched) return;
-      sec.classList.toggle("collapsed", !!done);
-    }
-    subDone("bpp", true);
+    function subDone() {} // every part starts closed and opens only when you open it
+    el.querySelectorAll(".sub").forEach(function (sec) { sec.classList.add("collapsed"); });
     var dagOk = !!f[DATES_FIELD], dc = document.getElementById("chipDagatal");
     dc.className = "chip" + (dagOk ? " ok" : ""); dc.textContent = dagOk ? "✓ skráð" : "vantar dagsetningar"; subDone("dagatal", dagOk);
     var cncOk = !!f["6. CNC yfirfarið"], cc = document.getElementById("chipCnc");
@@ -1217,13 +1222,13 @@
     var groups = {}, order = [];
     lines.forEach(function (l) { var g = tx((l.fields || {})["Gerð"]) || "Annað"; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(l); });
     return '<h3 class="wSecT" style="margin-top:26px">Vörur á pöntun — lagaðu magn eða skiptu um vöru áður en PDF fer út</h3>' + order.map(function (g) {
-      return '<details class="sgGrp" open><summary><b>' + esc(g) + '</b> <span class="cnt">' + groups[g].length + '</span></summary><table class="dt lineTbl"><thead><tr><th>Vara / efni</th><th class="n">Dýpt</th><th class="n">Magn</th><th>Mynd</th><th>Litur</th><th>Birgir</th><th></th></tr></thead><tbody>' +
+      return '<details class="sgGrp" open><summary><b>' + esc(g) + '</b> <span class="cnt">' + groups[g].length + '</span></summary><table class="dt lineTbl"><colgroup><col><col style="width:70px"><col style="width:100px"><col style="width:60px"><col style="width:130px"><col style="width:110px"><col style="width:130px"></colgroup><thead><tr><th>Vara / efni</th><th class="n">Dýpt</th><th class="n">Magn</th><th>Mynd</th><th>Litur</th><th>Birgir</th><th></th></tr></thead><tbody>' +
         groups[g].map(function (l) {
           var f = l.fields || {}, price = Number(f["Áætlaður kostnaður"]) || 0, im = thumb(f["Mynd af vöru"]) || thumb(f["Mynd af efni"]), hasProd = (f["Vörulisti 🚪"] || []).length;
           var sup = tx(f["Birgir 👴"]); if (/^rec/.test(sup)) sup = lineOrderIds(l).map(function (id) { return orderName[id]; }).filter(Boolean).join(", ");
           return '<tr data-line="' + l.id + '"' + (price ? "" : ' class="np"') + '><td>' + esc(tx(f["Vörulisti txt"]) || "—") + '</td><td class="n">' + esc(tx(f["Dýpt (mm)"]) || "–") + '</td>' +
             '<td class="n"><input type="number" min="0" step="1" class="qIn" data-q="' + l.id + '" value="' + esc(f["Magn"] ?? "") + '"></td><td>' + (im ? '<img class="th" src="' + esc(im) + '" alt="">' : "") + '</td>' +
-            '<td>' + esc(tx(f["Litur"]) || "–") + '</td><td>' + esc(sup || "–") + '</td><td class="c">' + (hasProd ? '<button type="button" class="link" data-swap="' + l.id + '">Skipta um vöru</button>' : "") + '</td></tr>' +
+            '<td>' + esc(tx(f["Litur"]).replace(/[^\wÀ-ɏ\s.\-]/gu, "").trim() || "–") + '</td><td>' + esc(sup || "–") + '</td><td class="c">' + (hasProd ? '<button type="button" class="link" data-swap="' + l.id + '">Skipta um vöru</button>' : "") + '</td></tr>' +
             '<tr class="swapRow" data-swaprow="' + l.id + '" hidden><td colspan="7"><input type="text" class="swIn" placeholder="Leita að vöru í Vörulista…" data-sw="' + l.id + '"><div class="swRes" id="swres-' + l.id + '"></div></td></tr>';
         }).join("") + '</tbody></table></details>';
     }).join("");
@@ -1484,7 +1489,7 @@
     });
     el.innerHTML = shown.length ? order.map(function (g) {
       return '<details class="sgGrp" open><summary><b>' + esc(g) + '</b> <span class="cnt">' + groups[g].length + '</span></summary>' +
-        '<table class="dt"><thead><tr><th>Partur</th><th class="n">H</th><th class="n">B</th><th class="n">Þ</th><th class="n">M</th><th class="c">Tilbúið</th></tr></thead><tbody>' +
+        '<table class="dt"><colgroup><col><col style="width:72px"><col style="width:72px"><col style="width:60px"><col style="width:60px"><col style="width:80px"></colgroup><thead><tr><th>Partur</th><th class="n">H</th><th class="n">B</th><th class="n">Þ</th><th class="n">M</th><th class="c">Tilbúið</th></tr></thead><tbody>' +
         groups[g].map(function (r) {
           var f = r.fields || {}, on = !!f["Tilbúið 🔒"];
           readyState["sog:" + r.id] = on;
@@ -1522,7 +1527,7 @@
         .catch(function () {}).then(function () { renderVorur.busy = false; if (need.some(function (id) { return prodNames[id]; })) renderVorur(recs); });
     }
     var hasWhat = recs.some(function (r) { return (r.fields || {})["Hvað viltu panta?"]; }), hasDim = recs.some(function (r) { var f = r.fields || {}; return f["Breidd (mm)"] || f["Hæð (mm)"]; });
-    el.innerHTML = '<table class="dt"><thead><tr><th>Tegund</th><th>Vara</th>' + (hasWhat ? '<th>Hvað viltu panta?</th>' : "") + '<th class="n">Skúffu dýpt</th><th class="n">Magn</th><th>Mynd</th><th class="c">Rétt</th>' + (hasDim ? '<th class="n">Hæð (mm)</th><th class="n">Breidd (mm)</th>' : "") + '</tr></thead><tbody>' +
+    el.innerHTML = '<table class="dt"><colgroup><col style="width:90px"><col>' + (hasWhat ? '<col style="width:130px">' : '') + '<col style="width:90px"><col style="width:70px"><col style="width:60px"><col style="width:70px">' + (hasDim ? '<col style="width:80px"><col style="width:80px">' : '') + '</colgroup><thead><tr><th>Tegund</th><th>Vara</th>' + (hasWhat ? '<th>Hvað viltu panta?</th>' : "") + '<th class="n">Skúffu dýpt</th><th class="n">Magn</th><th>Mynd</th><th class="c">Rétt</th>' + (hasDim ? '<th class="n">Hæð (mm)</th><th class="n">Breidd (mm)</th>' : "") + '</tr></thead><tbody>' +
       recs.map(function (r) {
         var f = r.fields || {}, on = !!f["Rétt"], names = (f["Vörulisti 🚪"] || []).map(function (id) { return prodNames[id] || ""; }).filter(Boolean).join(", "), im = thumb(f["Mynd 🖼️"]);
         readyState["vor:" + r.id] = on;

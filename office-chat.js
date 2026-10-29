@@ -22,7 +22,7 @@
     el.id = "ocStyle";
     el.textContent =
       ".ocBtn svg{flex:none}" +
-      "#ocDrawer{position:fixed;top:0;right:0;bottom:0;width:min(400px,100vw);z-index:300;display:none;flex-direction:column;background:#fff;color:#1a1d21;border-left:1px solid #e1e4e8;box-shadow:-8px 0 30px rgba(10,14,20,.12);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}" +
+      "#ocDrawer{position:fixed;right:20px;bottom:20px;width:min(380px,calc(100vw - 40px));height:min(560px,calc(100vh - 40px));z-index:300;display:none;flex-direction:column;background:#fff;color:#1a1d21;border:1px solid #e1e4e8;border-radius:18px;overflow:hidden;box-shadow:0 12px 40px rgba(10,14,20,.18);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;}" +
       "#ocDrawer.open{display:flex;}" +
       "#ocDrawer header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;}" +
       "#ocDrawer h2{margin:0;font-size:1rem;font-weight:700;}" +
@@ -58,9 +58,9 @@
     drawer = document.createElement("aside");
     drawer.id = "ocDrawer";
     drawer.setAttribute("role", "dialog");
-    drawer.setAttribute("aria-label", "Spyrja");
+    drawer.setAttribute("aria-label", "Birnir");
     drawer.innerHTML =
-      '<header><h2>Spyrja</h2><button class="ocX" type="button" aria-label="Loka">&times;</button></header>' +
+      '<header><h2>Birnir</h2><button class="ocX" type="button" aria-label="Loka">&times;</button></header>' +
       '<div id="ocList"></div>' +
       '<form id="ocForm"><input id="ocInput" type="text" maxlength="500" autocomplete="off" placeholder="Hvar er T-32? Hvar finn ég pöntunarlistann?" /><button id="ocSend" type="submit">Senda</button></form>';
     document.body.appendChild(drawer);

@@ -382,7 +382,7 @@
       bottomEl.className = "osBottom";
       bottomEl.innerHTML =
         '<div class="osBellRow" id="officeBellHost"></div>' +
-        '<button class="osSettingsBtn" id="officeAskBtn" type="button" title="Spyrja">' + svgIcon("ask", 17) + '<span class="osLabel">Spyrja</span></button>' +
+        '<button class="osSettingsBtn" id="officeAskBtn" type="button" title="Birnir">' + svgIcon("ask", 17) + '<span class="osLabel">Birnir</span></button>' +
         '<div class="osBottomRow">' +
           '<button class="osSettingsBtn" id="officeSettingsBtn" type="button">' + svgIcon("gear", 17) + '<span class="osLabel">Stillingar</span></button>' +
           '<button class="osFoldBtn" id="officeFoldBtn" type="button" title="Fela/sýna valmynd"></button>' +
