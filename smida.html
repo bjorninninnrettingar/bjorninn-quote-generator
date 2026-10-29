@@ -470,6 +470,14 @@
       s += '<g class="drag" data-k="shelf" data-i="' + i + '"><rect x="' + X(0) + '" y="' + (y - 8) + '" width="' + W * sc + '" height="16" fill="transparent"/>' +
         '<line x1="' + (X(0) + 1) + '" x2="' + (X(W) - 1) + '" y1="' + y + '" y2="' + y + '" stroke="' + (x.fixed ? "#1d1d1f" : "#6e6e73") + '" stroke-width="' + (x.fixed ? 3 : 1.8) + '"' + (x.fixed ? "" : ' stroke-dasharray="8 5"') + "/></g>";
     });
+    // a rail lift (Emuca / Toplift): its footprint as a band across the cabinet at the real height range, the macro's own limits for Toplift
+    // (min 44 from the bottom), red when CNC finds it running into a shelf / hinge plate / runner (plan.liftEnv)
+    (p.liftEnv || []).forEach(function (le) {
+      var bad = le.hits.length, col = bad ? "#d70015" : "#0071e3", ya = Y(Math.min(H, le.x1)), yb = Y(Math.max(0, le.x0));
+      s += '<g><rect x="' + (X(0) + 2) + '" y="' + ya + '" width="' + (W * sc - 4) + '" height="' + Math.max(2, yb - ya) + '" fill="' + col + '" fill-opacity=".08" stroke="' + col + '" stroke-width="1" stroke-dasharray="4 3"/>' +
+        '<text x="' + (X(0) + 6) + '" y="' + (ya + 11) + '" font-size="10" fill="' + col + '">' + le.name + (bad ? " — rekst á " + esc(le.hits.join(", ")) : "") + '</text><title>' + le.name + " — " + mm(le.x0) + "–" + mm(le.x1) + " mm frá botni, " + mm(H - le.x) + " mm frá toppi" + '</title></g>';
+      if (le.type === "toplift") s += '<line x1="' + X(0) + '" x2="' + X(W) + '" y1="' + Y(44) + '" y2="' + Y(44) + '" stroke="#d70015" stroke-width=".9" stroke-dasharray="5 3"/><text x="' + (X(0) + 4) + '" y="' + (Y(44) - 2) + '" font-size="9" fill="#d70015">min 44</text>';
+    });
     (e.rails || []).forEach(function (x, i) {
       var y = Y(x.mm);
       s += '<g class="drag" data-k="rail" data-i="' + i + '"><rect x="' + X(0) + '" y="' + (y - 8) + '" width="' + W * sc + '" height="16" fill="transparent"/>' +

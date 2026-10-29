@@ -703,3 +703,19 @@ test("Vænghurð (hinge baedi): no Jey on the doors at all — no top/bottom/sid
   // a single door in the same cabinet still gets it
   assert.equal(S.unitPlan("Sk9", [rows[0], row("Frontur", 770, 597, 19, 1)], { gripMm: 27, smida: JSON.stringify({ v: 1, hinge: "vinstri" }) }).doors[0].g, 27);
 });
+
+test("Fatalyfta: footprint recorded; a shelf / hinge plate in its height range at its Y is a collision (check + red band)", () => {
+  const rows = [row("Skápur hlið", 2400, 600, 16, 2), row("Frontur", 2397, 597, 19, 1), row("Laus hilla", 558, 568, 16, 2)];
+  const sm = (extra) => JSON.stringify({ v: 1, hinge: "vinstri", rails: [{ type: "emuca", mm: 1770, y: 180, ...extra }], shelves: { loose: 1, fixed: 0, list: [{ mm: 1600, fixed: false, pos: 3 }] } });
+  const p = S.unitPlan("Sk36", rows, { smida: sm() });
+  assert.deepEqual(p.liftEnv.map((l) => [l.x0, l.x1, l.y0, l.y1]), [[1507, 1770, 200, 340]]);
+  assert.ok(p.check.some((c) => /Emuca fatalyfta \(1507–1770 mm frá botni\) rekst á hilluna í 1600/.test(c)));
+  assert.ok(p.hits.some((h) => h.from === 1507 && h.to === 1770));
+  const clear = S.unitPlan("Sk36", rows, { smida: sm({ mm: 2300 }) });
+  assert.ok(!clear.check.some((c) => /rekst á/.test(c)), clear.check.join("|"));
+  const top = S.unitPlan("Sk36", rows, { smida: JSON.stringify({ v: 1, hinge: "vinstri", rails: [{ type: "toplift", mm: 1880, y: 300 }] }) });
+  assert.deepEqual([top.liftEnv[0].y0, top.liftEnv[0].y1], [80, 520]);
+  assert.ok(!top.check.some((c) => /rekst á lamaplötuna/.test(c))); // hinge plates sit at Y 37 ± 23 = up to 60: clear of Y 80
+  const near = S.unitPlan("Sk36", rows, { smida: JSON.stringify({ v: 1, hinge: "vinstri", rails: [{ type: "emuca", mm: 2300, y: -10 }] }) }); // body from Y 10
+  assert.ok(near.check.some((c) => /rekst á lamaplötuna í 2320/.test(c)) || near.check.some((c) => /staðsetningin/.test(c)));
+});

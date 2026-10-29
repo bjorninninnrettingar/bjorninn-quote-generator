@@ -202,7 +202,7 @@
             sh.push({ k: "rect", x0: lx - 515, x1: lx + 10, y0: ly - 10, y1: ly + 10 });
             [[lx - 481, ly - 31], [lx - 519, ly - 79], [lx - 680, ly + 69]].forEach(function (h2) { sh.push({ k: "hole", x: h2[0], y: h2[1], r: 6 }); });
           }
-          features.push({ type: "lift", shapes: sh, label: (em ? "Emuca fatalyfta" : "Kessebohmer toplift") + " — " + lx + " mm frá botni, " + ly + " mm frá framkanti" });
+          features.push({ type: "lift", em: em, lx: lx, ly: ly, shapes: sh, label: (em ? "Emuca fatalyfta" : "Kessebohmer toplift") + " — " + lx + " mm frá botni, " + ly + " mm frá framkanti" });
           break;
         }
         case "GEO": case "ENDPATH": case "GEOTEXT": case "STAT_BLOCK": case "BG": case "RECTANGLE": case "MOVENTO_BAKKI":
@@ -452,6 +452,19 @@
           else if (sp.k === "poly") elf.appendChild(svgEl("polygon", { points: sp.pts.map(function (q) { return X(q[1]).toFixed(1) + "," + Y(q[0]).toFixed(1); }).join(" "), fill: "#f2f2f4", stroke: lc2, "stroke-width": 1.1 }));
           else elf.appendChild(svgEl("circle", { cx: X(sp.y), cy: Y(sp.x), r: Math.max(2, sp.r * s), fill: "#fff", stroke: lc2, "stroke-width": 1.2 }));
         });
+        // Guide lines for placing it (2026-10-29): distance from the top edge and from the front edge to POSITION_X / POSITION_Y,
+        // and — Toplift — the macro's own limits ("minimum 44" on X, "minimum 241" on Y, from KESSEBOHMER_TOPLIFT_FATASLA.ini; the far
+        // limit LPY−241 is the same arm reach (±220 + 21) on the back side).
+        var GC = "#0071e3", gl = function (x1, y1, x2, y2, dash, col) { elf.appendChild(svgEl("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: col || GC, "stroke-width": .9, "stroke-dasharray": dash || "", opacity: .85 })); },
+          gt = function (x, y, t, col, anchor) { var tx = svgEl("text", { x: x, y: y, "font-size": 9, fill: col || GC, "text-anchor": anchor || "start" }); tx.textContent = t; elf.appendChild(tx); };
+        var gx = X(Math.max(0, Math.min(LPY, f.ly)));
+        gl(gx, Y(LPX), gx, Y(f.lx), "3 2"); gt(gx + 3, Y((LPX + f.lx) / 2), Math.round(LPX - f.lx) + " frá toppi");
+        gl(X(0), Y(f.lx), gx, Y(f.lx), "3 2"); gt(X(Math.min(f.ly, LPY) / 2), Y(f.lx) - 3, Math.round(f.ly) + " frá framkanti", GC, "middle");
+        if (!f.em) {
+          gl(L, Y(44), L + w, Y(44), "5 3", RED); gt(L + 2, Y(44) - 2, "min 44 (X)", RED);
+          gl(X(241), Y(LPX), X(241), Y(0), "5 3", RED); gt(X(241) + 2, Y(LPX) + 9, "min 241 (Y)", RED);
+          gl(X(LPY - 241), Y(LPX), X(LPY - 241), Y(0), "5 3", RED); gt(X(LPY - 241) + 2, Y(LPX) + 18, "LPY−241", RED);
+        }
       } else if (f.type === "groove") {
         var egr = g(f.label), gx = X(f.y), gw = Math.max(f.led ? 3 : 2, 4 * s); // LED: magenta, true 4 mm (at least 3 px) so a clash is easy to see
         var gx1 = f.x1 != null ? f.x1 : LPX, gx0 = f.x0 != null ? f.x0 : 0;

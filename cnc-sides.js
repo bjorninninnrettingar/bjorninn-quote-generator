@@ -420,6 +420,8 @@
         if (y < 241 || y + 220 > B) check.push(nm + ": Y (" + r1(y) + " mm frá framkanti) er utan marka macrosins (lágmark 241, armurinn nær 220 til hvorrar hliðar)");
         if (x - 690 < 0) check.push(nm + ": neðsti hluti búnaðarins (X − 690) fer niður fyrir hliðina");
       }
+      // footprint from the macro geometry (see cnc-bpp.js): Emuca body [X−263, X] × [Y+20, Y+160]; Toplift [X−690, X+10] × [Y−220, Y+220]
+      (plan.liftEnv = plan.liftEnv || []).push({ name: nm, type: ty, x: r1(x), y: r1(y), x0: r1(em ? x - 263 : x - 690), x1: r1(em ? x : x + 10), y0: r1(em ? y + 20 : y - 220), y1: r1(em ? y + 160 : y + 220), side: rl.side || null, hits: [] });
       op(em ? "EMUCA_HANG_FATASLA" : "KESSEBOHMER_TOPLIFT_FATASLA", nm, xs + ", " + ys);
       if (rl.side === "vinstri" || rl.side === "haegri") plan.ops[plan.ops.length - 1].only = rl.side;
       info.push(nm + ": " + r1(x) + " mm frá botni, " + r1(y) + " mm frá framkanti, " + (rl.side === "vinstri" ? "vinstri hlið" : rl.side === "haegri" ? "hægri hlið" : "báðar hliðar"));
@@ -552,6 +554,16 @@
     // (older Smíðagögn has no `hinge`; 2026-10-26, T-32 Sk6)
     if (hingeAt.length && !hs && leaves && doors.every(function (d) { return leaves.filter(function (l) { return Math.round(l.H) === Math.round(d.H); }).length >= 2; })) hs = "baedi";
     plan.hingeSide = hs;
+    // Does a rail lift's footprint run into anything on that side? A board (shelf / oven board) at its height, shelf-pin holes (Y 37 from the
+    // front, 80 from the back), a hinge plate (Y 37 ± 23, ± 28 along) on a side that has hinges, a drawer runner. Each hit is a check line and a red band.
+    var ov = function (a0, a1, b0, b1) { return a1 > b0 && a0 < b1; };
+    (plan.liftEnv || []).forEach(function (le) {
+      boards.forEach(function (b) { if (ov(le.x0 + 0.5, le.x1 - 0.5, b.bot, b.top)) le.hits.push(b.what); });
+      pinRows.forEach(function (yy) { if (ov(le.x0, le.x1, yy - 6, yy + 6) && (ov(le.y0, le.y1, 29, 45) || ov(le.y0, le.y1, B - 88, B - 72))) le.hits.push("hillugöt í " + yy); });
+      if (!(hs && hs !== "baedi" && le.side && le.side !== hs)) hingeAt.forEach(function (xx) { if (ov(le.x0, le.x1, xx - 28, xx + 28) && ov(le.y0, le.y1, 14, 60)) le.hits.push("lamaplötuna í " + xx); });
+      runners.forEach(function (rr) { if (rr > le.x0 && rr < le.x1) le.hits.push("skúffubraut í " + rr); });
+      if (le.hits.length) { check.push(le.name + " (" + le.x0 + "–" + le.x1 + " mm frá botni) rekst á " + le.hits.join(", ")); hits.push({ from: Math.max(0, le.x0), to: Math.min(H, le.x1) }); }
+    });
     // Several identical cabinets on one Eyðublað (T-15 Sk 5-8: 4 wall cabinets) hung half left, half right — Smíðagögn
     // hingeSplit = { vinstri: n, haegri: m }, n + m = the cabinet count; sideFiles() then writes both variants (2026-10-29)
     var hsp = smida && smida.hingeSplit;
