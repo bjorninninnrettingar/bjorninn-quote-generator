@@ -120,6 +120,15 @@
     for (var i = 0; i < cab.fataslar.magn; i++) out.push({ mm: r1(mm - i * 300) });
     return out;
   }
+  // A new rail entry (2026-10-29): "emuca" / "toplift" = a drilled lift with the macros' own default position (cnc-sides.js railLift),
+  // anything else a plain rail (hand job) 60 mm under the first fixed shelf / the top.
+  function newRail(cab, type, e) {
+    var H = cab.base.LPX, B = cab.base.LPY;
+    if (type === "emuca") return { type: "emuca", mm: r1(H - 630), y: 180 };
+    if (type === "toplift") return { type: "toplift", mm: r1(H - 520), y: r1(B / 2) };
+    var g = geom(cab), fx = ((e && e.shelves) || []).filter(function (x) { return x.fixed; })[0];
+    return { mm: r1((fx ? fx.mm - cab.tFixed : g.top) - 60) };
+  }
   function innerEditable(cab) { return cab.inner.length > 0 && !(cab.base.drawers || []).length; }
   function hingedDoors(cab) { return (cab.base.doors || []).filter(function (d) { return d.type !== "lift"; }); }
 
@@ -211,7 +220,7 @@
   function same(a, b) { return JSON.stringify(canon(a || null)) === JSON.stringify(canon(b || null)); }
 
   var api = { cabinet: cabinet, planOf: planOf, geom: geom, initEdit: initEdit, smidaOf: smidaOf, hingeSpec: hingeSpec, blockers: blockers,
-    defaultShelves: defaultShelves, defaultOven: defaultOven, ovenLayout: ovenLayout, defaultInner: defaultInner, innerEditable: innerEditable, editable: editable, defaultRails: defaultRails,
+    defaultShelves: defaultShelves, newRail: newRail, defaultOven: defaultOven, ovenLayout: ovenLayout, defaultInner: defaultInner, innerEditable: innerEditable, editable: editable, defaultRails: defaultRails,
     hingedDoors: hingedDoors, same: same, parse: parse, OVEN_HEIGHTS: OVEN_HEIGHTS };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.SMIDAEY = api;

@@ -607,3 +607,40 @@ test("Úrtak: left/right reference + x in mm, Legra = TYPE 16, bad cases are fla
   assert.ok(S.unitPlan("Sk4", SINK.filter((r) => !/botn/.test(r.Partur)), { smida: sm({ drawer: "E" }) }).check.some((c) => /enginn „Skúffubotn - Merivo“/.test(c)));
   assert.ok(!S.unitPlan("Sk4", SINK).fronts.some((x) => x.master === "urtak")); // off unless chosen
 });
+
+// ── Fatalyfta: Emuca hang / Kessebohmer toplift (2026-10-29) ────────────────────────────────────────────────────
+// Smíðagögn rails[i] = { type:"emuca"|"toplift", mm: POSITION_X from the bottom, y: POSITION_Y from the front edge, side? }.
+// The macros live in the machine's Macros folder (the shop's hand-made T-33 sk 36 / sk 43 call EMUCA_HANG_FATASLA LPX-20-610, 180)
+// but the side master has no template line: they are inserted before STAT_BLOCK with NO error (it used to block the file).
+const WARD = [row("Skápur hlið", 2400, 600, 16, 2), row("Frontur", 2397, 597, 19, 2)];
+const liftSm = (rails) => JSON.stringify({ v: 1, hinge: "baedi", rails });
+
+test("Emuca: the macro's own default (LPX-20-610, 180) is written as the shop's expression; a moved one as numbers", () => {
+  const def = S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "emuca", mm: 1770, y: 180 }]) }); // 2400 − 630
+  assert.deepEqual(def.ops.filter((o) => /FATASLA/.test(o.name)), [{ name: "EMUCA_HANG_FATASLA", label: "Emuca fatalyfta", params: "LPX-20-610, 180" }]);
+  assert.ok(!def.check.some((c) => /Fataslá/.test(c))); // no "borað handvirkt" flag for a drilled lift
+  const mv = S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "emuca", mm: 1500, y: 200 }]) });
+  assert.equal(mv.ops.find((o) => /EMUCA/.test(o.name)).params, "1500, 200");
+  const tl = S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "toplift", mm: 1880 }]) }); // 2400 − 520, Y = LPY/2 = 300
+  assert.equal(tl.ops.find((o) => /TOPLIFT/.test(o.name)).params, "LPX-20-500, LPY/2");
+  // a plain rail (no type) is the old hand job, a typed one next to it does not hide it
+  const mix = S.unitPlan("Sk36", WARD, { smida: liftSm([{ mm: 1800 }, { type: "emuca", mm: 1770, y: 180 }]) });
+  assert.ok(mix.check.includes("Fataslá (1): 1800 mm frá botni (úr Smíða) — borað handvirkt þangað til FATASLA er staðfest í master."));
+});
+
+test("Fatalyfta: written into the side file without a master template, both sides by default, one side when asked; limits flagged", () => {
+  const p = S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "emuca", mm: 1770, y: 180 }]) });
+  const r = S.renderSide(MASTER, p);
+  assert.deepEqual(r.errors, []);
+  assert.match(r.text, /@ EMUCA_HANG_FATASLA, "", "Emuca fatalyfta", \d+, "", 0 : LPX-20-610, 180\r\n/);
+  assert.ok(r.text.indexOf("EMUCA_HANG_FATASLA") < r.text.indexOf("@ STAT_BLOCK"));
+  assert.deepEqual(S.sideFiles(p).map((f) => [f.name, f.count]), [["Hliðar - lamir báðum megin", 2]]); // same ops on both sides = one file ×2
+  const one = S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "emuca", mm: 1770, y: 180, side: "haegri" }]) });
+  const files = S.sideFiles(one);
+  assert.deepEqual(files.map((f) => f.name), ["Vinstri hlið - lamir", "Hægri hlið - lamir - slá"]);
+  assert.ok(!files[0].plan.ops.some((o) => /EMUCA/.test(o.name)) && files[1].plan.ops.some((o) => /EMUCA/.test(o.name)));
+  // limits: Toplift Y under 241 / X under 44, Emuca body off the side
+  assert.ok(S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "toplift", mm: 1880, y: 200 }]) }).check.some((c) => /Y \(200 mm frá framkanti\) er utan marka/.test(c)));
+  assert.ok(S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "toplift", mm: 30, y: 300 }]) }).check.some((c) => /X \(30\) er undir lágmarkinu 44/.test(c)));
+  assert.ok(S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "emuca", mm: 200, y: 180 }]) }).check.some((c) => /Emuca fatalyfta: staðsetningin/.test(c)));
+});

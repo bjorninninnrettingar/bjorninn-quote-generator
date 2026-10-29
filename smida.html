@@ -896,9 +896,18 @@
         e.inner.map(function (x, i) { return '<div class="line"><span class="t">' + x.code + " · " + ((c.inner[i] || {}).h || "") + '</span><input type="number" data-inner="' + i + '" value="' + mm(x.mm) + '"><span class="u">mm ' + (i ? "" : tip("Neðri brún innskúffufrontsins, frá botni hliðar.")) + "</span></div>"; }).join("") +
         '<button type="button" class="more" data-act="innerreset">Raða sjálfkrafa</button>');
     }
-    if (e.rails) {
-      h += row("rails", "Fataslá", e.rails.map(function (x) { return mm(x.mm); }).join(", "),
-        e.rails.map(function (x, i) { return '<div class="line"><span class="t">Slá ' + (i + 1) + '</span><input type="number" data-rail="' + i + '" value="' + mm(x.mm) + '"><span class="u">mm ' + (i ? "" : tip("CNC borar slána ekki enn — staðsetningin fer í CNC-skrána og er boruð í höndunum.")) + "</span></div>"; }).join(""));
+    if (!c.panel) {
+      var rl = e.rails || [], RT = { emuca: "Emuca fatalyfta", toplift: "Kessebohmer toplift" };
+      h += row("rails", "Fataslá / fatalyfta", rl.length ? rl.map(function (x) { return (RT[x.type] || "slá") + " " + mm(x.mm); }).join(" · ") : "Engin",
+        '<div class="line"><span class="u">mm frá botni hliðar ' + tip("Föst slá: borað í höndunum, staðsetningin fer í CNC-skrána. Emuca og Kessebohmer toplift: CNC borar í hliðina (macro EMUCA_HANG_FATASLA / KESSEBOHMER_TOPLIFT_FATASLA). Sjálfgefið er það sem macroið sjálft notar. Y = mm frá framkanti.") + "</span></div>" +
+        rl.map(function (x, i) {
+          var lift = x.type === "emuca" || x.type === "toplift";
+          return '<div class="line"><span class="seg">' + [["", "Slá"], ["emuca", "Emuca"], ["toplift", "Toplift"]].map(function (o) { return '<button type="button" data-rtype="' + i + ":" + o[0] + '" class="' + ((x.type || "") === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + '</span><button type="button" class="mini" data-rdel="' + i + '">✕</button></div>' +
+            '<div class="line"><span class="t">X</span><input type="number" data-rail="' + i + '" value="' + mm(x.mm) + '"><span class="u">mm frá botni</span></div>' +
+            (lift ? '<div class="line"><span class="t">Y</span><input type="number" data-raily="' + i + '" value="' + mm(x.y) + '"><span class="u">mm frá framkanti</span></div>' +
+              '<div class="line"><span class="t">Hlið</span><span class="seg">' + [["", "Báðar"], ["vinstri", "Vinstri"], ["haegri", "Hægri"]].map(function (o) { return '<button type="button" data-rside="' + i + ":" + o[0] + '" class="' + ((x.side || "") === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + "</span></div>" : "");
+        }).join("") +
+        '<div class="line"><button type="button" class="mini" data-radd="">＋ Slá</button><button type="button" class="mini" data-radd="emuca">＋ Emuca</button><button type="button" class="mini" data-radd="toplift">＋ Toplift</button></div>');
     }
     if ((p.drawers || []).length) {
       var ur = e.urtak, codes = p.drawers.map(function (d) { return d.code; }).filter(function (x, i, a) { return a.indexOf(x) === i; }), PL = { vinstri: "Vinstri", midja: "Miðja", haegri: "Hægri" };
@@ -945,6 +954,10 @@
       if (jj[2] === "0" || jj[2] === "v") { if (at < 0) l.push(n); } else if (at >= 0) l.splice(at, 1); }); return; }
     if (d.hsplit != null) { change(function (e) { var k = +d.hsplit, n = c.base.cabinets; e.hingeSplit = k === 0 || k === n ? null : { vinstri: k, haegri: n - k }; if (k === 0) e.hinge = "haegri"; else if (k === n) e.hinge = "vinstri"; }); return; }
     if (d.blind) { change(function (e) { e.blindSide = d.blind; }); return; }
+    if (d.radd != null) { change(function (e) { (e.rails = e.rails || []).push(M.newRail(c, d.radd, e)); }); openRow[c.unit + "rails"] = true; return; }
+    if (d.rdel != null) { change(function (e) { e.rails.splice(+d.rdel, 1); }); return; }
+    if (d.rtype != null) { var rt = d.rtype.split(":"); change(function (e) { var x = e.rails[+rt[0]]; if (rt[1]) { x.type = rt[1]; if (x.y == null) x.y = M.newRail(c, rt[1], e).y; } else { delete x.type; delete x.y; delete x.side; } }); return; }
+    if (d.rside != null) { var rs = d.rside.split(":"); change(function (e) { if (rs[1]) e.rails[+rs[0]].side = rs[1]; else delete e.rails[+rs[0]].side; }); return; }
     if (d.urd != null) { change(function (e) { e.urtak = d.urd ? { drawer: d.urd, place: (e.urtak && e.urtak.place) || "midja", x: e.urtak ? e.urtak.x : null } : null; }); openRow[c.unit + "urtak"] = true; return; }
     if (d.urp) { change(function (e) { if (e.urtak) e.urtak.place = d.urp; }); return; }
     if (d.fgrip) { change(function (e) { e.frontGrip = d.fgrip; }); return; }
@@ -984,6 +997,7 @@
       else if (d.rail != null) e.rails[+d.rail].mm = v;
       else if (d.oven) e.oven[d.oven] = v;
       else if (d.led != null) e.led[+d.led].y = Math.max(1, v);
+      else if (d.raily != null) e.rails[+d.raily].y = Math.max(0, v);
       else if (d.urx != null) { if (e.urtak) e.urtak.x = v > 0 ? v : null; }
       else if (d.ledlen != null) { if (v > 0) e.led[+d.ledlen].len = v; else delete e.led[+d.ledlen].len; }
       else if (d.ledfrom != null) { if (v > 0) e.led[+d.ledfrom].from = v; else delete e.led[+d.ledfrom].from; }

@@ -22,3 +22,20 @@ test("side features: board footprints, back rails at both ends, masonite groove,
   const gr = f.filter((x) => x.type === "groove");
   assert.deepEqual(gr.map((x) => [x.led, x.y]), [[false, 562], [true, 45]]); // masonite at lpy−18, LED 45 from the front edge
 });
+
+test("LED run: a shorter one is read back with its start and end; fatalyfta macros give shapes at their positions", () => {
+  const rows = [{ Partur: "Skápur hlið", H: 2000, B: 580, "Þ": 16, M: 2, "Tegund einingu": ["Hárskápur"] }];
+  const plan = S.unitPlan("Sk 1", rows, { smida: { v: 1, led: [{ where: "hlid", y: 45, from: 100, len: 500 }, { where: "hlid", y: 60 }],
+    rails: [{ type: "emuca", mm: 1370, y: 180 }, { type: "toplift", mm: 1480 }] } });
+  const parsed = B.parseBpp(S.renderSide(MASTER, plan).text);
+  const f = B.buildSideFeatures(parsed.ops, parsed.vars).features;
+  const led = f.filter((x) => x.type === "groove" && x.led);
+  assert.deepEqual(led.map((x) => [x.y, x.x0, x.x1]), [[45, 100, 600], [60, 0, 2000]]);
+  const lifts = f.filter((x) => x.type === "lift");
+  assert.equal(lifts.length, 2);
+  assert.match(lifts[0].label, /Emuca fatalyfta — 1370 mm frá botni, 180 mm frá framkanti/);
+  const box = lifts[0].shapes.find((s) => s.k === "rect");
+  assert.deepEqual([box.x0, box.x1, box.y0, box.y1], [1107, 1370, 200, 340]);
+  assert.equal(lifts[0].shapes.filter((s) => s.k === "hole").length, 4);
+  assert.match(lifts[1].label, /toplift — 1480 mm frá botni, 290 mm frá framkanti/);
+});

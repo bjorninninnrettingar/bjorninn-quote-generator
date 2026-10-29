@@ -28,7 +28,11 @@
   // Every macro this generator decides about. All master lines with these names are switched off and the
   // generated ones are inserted next to them. CUT_X only for the masonite groove (the LED CUT_X lines stay as they are).
   var MANAGED = ["TOPP_BOTN", "GRUNNUR_SKAPUR_TB", "SLA_HLID", "LOM", "IKEALOM", "FOST_HILLA", "LAUS_HILLA",
-    "LEGRABOX_NEDSTA_SKUFFA", "LEGRABOX_SKUFFA", "LEGRABOX_INNSKUFFA", "MERIVOBOX_BOTNSKUFFA", "MERIVOBOX_V2", "MERVIBOX_INNSKUFFA", "FATASLA"];
+    "LEGRABOX_NEDSTA_SKUFFA", "LEGRABOX_SKUFFA", "LEGRABOX_INNSKUFFA", "MERIVOBOX_BOTNSKUFFA", "MERIVOBOX_V2", "MERVIBOX_INNSKUFFA", "FATASLA",
+    "EMUCA_HANG_FATASLA", "KESSEBOHMER_TOPLIFT_FATASLA"];
+  // Macros that live in the machine's own Macros folder (the shop uses them in hand-made jobs) but have no template line in
+  // the side master: inserted before STAT_BLOCK without an error (every other missing macro still stops the file).
+  var GLOBAL_MACROS = ["EMUCA_HANG_FATASLA", "KESSEBOHMER_TOPLIFT_FATASLA"];
   var GROOVE_LABEL = "masonit";
 
   function num(v) { var n = typeof v === "number" ? v : parseFloat(String(v == null ? "" : v).replace(",", ".")); return isFinite(n) ? n : null; }
@@ -391,9 +395,32 @@
     // a real "not in master" case blocked the whole side file outright instead of just flagging it (found
     // live, T-80 Sk1-3, 2026-10-19). Back to flag-only until the master is confirmed to carry FATASLA — same
     // "no position" message below, just with the real Smíða position included so it's a two-second manual job.
+    // 2026-10-29: a rail entry may carry a type — "emuca" (EMUCA_HANG_FATASLA, a hanging wardrobe lift) or "toplift"
+    // (KESSEBOHMER_TOPLIFT_FATASLA): then it IS drilled, in the side file, with the macro's own parameters
+    // POSITION_X (mm from the bottom of the side, the rail's `mm`) and POSITION_Y (mm from the front edge, `y`). Defaults are
+    // the macros' own: Emuca LPX-20-610 / 180 (as in the shop's hand-made T-33 files), Toplift LPX-20-500 / LPY/2 with the
+    // "minimum 44" / "minimum 241" notes from the macro. `side` "vinstri"|"haegri" = only that side's file (default both).
+    // A plain rail (no type) stays a hand job as above.
+    function railLift(rl, ty) {
+      var em = ty === "emuca", defX = r1(H - (em ? 630 : 520)), defY = em ? 180 : r1(B / 2);
+      var x = num(rl.mm) != null ? num(rl.mm) : defX, y = num(rl.y) != null ? num(rl.y) : defY, nm = em ? "Emuca fatalyfta" : "Kessebohmer toplift";
+      var xs = Math.abs(x - defX) < 0.05 ? (em ? "LPX-20-610" : "LPX-20-500") : String(r1(x)), ys = Math.abs(y - defY) < 0.05 ? (em ? "180" : "LPY/2") : String(r1(y));
+      if (em) { // the body (the 4 screw holes' box, from the macro): [X-263, X] × [Y+20, Y+160]
+        if (x - 263 < 0 || x > H || y < 0 || y + 160 > B) check.push(nm + ": staðsetningin (" + r1(x) + " mm frá botni, " + r1(y) + " mm frá framkanti) passar ekki á hliðina (" + H + " × " + B + ")");
+      } else {
+        if (x < 44) check.push(nm + ": X (" + r1(x) + ") er undir lágmarkinu 44 mm sem macroið segir");
+        if (y < 241 || y + 220 > B) check.push(nm + ": Y (" + r1(y) + " mm frá framkanti) er utan marka macrosins (lágmark 241, armurinn nær 220 til hvorrar hliðar)");
+        if (x - 690 < 0) check.push(nm + ": neðsti hluti búnaðarins (X − 690) fer niður fyrir hliðina");
+      }
+      op(em ? "EMUCA_HANG_FATASLA" : "KESSEBOHMER_TOPLIFT_FATASLA", nm, xs + ", " + ys);
+      if (rl.side === "vinstri" || rl.side === "haegri") plan.ops[plan.ops.length - 1].only = rl.side;
+      info.push(nm + ": " + r1(x) + " mm frá botni, " + r1(y) + " mm frá framkanti, " + (rl.side === "vinstri" ? "vinstri hlið" : rl.side === "haegri" ? "hægri hlið" : "báðar hliðar"));
+    }
     if (Array.isArray(sms.rails) && sms.rails.length) {
-      check.push("Fataslá (" + sms.rails.length + "): " + sms.rails.map(function (rl) { return r1(num(rl.mm)); }).join(", ") + " mm frá botni (úr Smíða) — borað handvirkt þangað til FATASLA er staðfest í master.");
-      if (opts.fataslar && opts.fataslar.magn && opts.fataslar.magn !== sms.rails.length)
+      var fostR = [], nLift = 0;
+      sms.rails.forEach(function (rl) { var ty = rl && rl.type; if (ty === "emuca" || ty === "toplift") { nLift++; railLift(rl, ty); } else fostR.push(rl); });
+      if (fostR.length) check.push("Fataslá (" + fostR.length + "): " + fostR.map(function (rl) { return r1(num(rl.mm)); }).join(", ") + " mm frá botni (úr Smíða) — borað handvirkt þangað til FATASLA er staðfest í master.");
+      if (!nLift && opts.fataslar && opts.fataslar.magn && opts.fataslar.magn !== sms.rails.length)
         check.push("Fataslá: magn í Pöntunarlista (" + opts.fataslar.magn + ") og staðsetningar í Smíða (" + sms.rails.length + ") stemma ekki — keyra skipulag/per unit aftur?");
     } else if (opts.fataslar && opts.fataslar.magn) {
       check.push("Fataslá (" + opts.fataslar.magn + "): " + (opts.fataslar.names || []).join(", ") + " — staðsetning vantar í Smíða, settu upp eftir teikningu");
@@ -714,9 +741,19 @@
   // The side programs of one cabinet (2026-10-10): no hinges → one "Hliðar" run on both; hinges on one side → that
   // side with them and the other without; hinges on both (two doors) or side unknown → one file with hinges for both.
   function isHinge(o) { return o.name === "LOM" || o.name === "IKEALOM"; }
+  // Some ops belong to one side only (a rail lift with side "vinstri"/"haegri", 2026-10-29): left and right file each get their
+  // own ops — hinges as before (known side → that file; unknown / both → both files). Same ops on both → one file, run ×2.
+  function oneSidedFiles(p) {
+    var hinge = p.ops.some(isHinge), hs = p.hingeSide, lh = hinge && hs !== "haegri", rh = hinge && hs !== "vinstri";
+    var mk = function (side, h) { return Object.assign({}, p, { ops: p.ops.filter(function (o) { return (!isHinge(o) || h) && (!o.only || o.only === side); }) }); };
+    var L = mk("vinstri", lh), R = mk("haegri", rh), sfx = function (q, h) { return (h ? " - lamir" : "") + (q.ops.some(function (o) { return o.only; }) ? " - slá" : ""); };
+    if (signature(L) === signature(R)) return [{ name: "Hliðar" + (hinge ? " - lamir báðum megin" : ""), count: 2 * p.cabinets, plan: L }];
+    return [{ name: "Vinstri hlið" + sfx(L, lh), count: p.cabinets, plan: L }, { name: "Hægri hlið" + sfx(R, rh), count: p.cabinets, plan: R }];
+  }
   function sideFiles(p) {
     if (p.noSide) return []; // the dishwasher front: front file only
     if (p.panel === "uthlid") return [{ name: "Úthlið", count: p.endCount || 1, plan: p }];
+    if (p.ops.some(function (o) { return o.only; }) && !p.hingeSplit) return oneSidedFiles(p);
     if (!p.ops.some(isHinge)) return [{ name: "Hliðar", count: 2 * p.cabinets, plan: p }];
     if (p.hingeSide === "vinstri" || p.hingeSide === "haegri") {
       var bare = Object.assign({}, p, { ops: p.ops.filter(function (o) { return !isHinge(o); }) }), left = p.hingeSide === "vinstri";
@@ -801,7 +838,7 @@
       var add = [];
       missing.forEach(function (n) {
         if (stat < 0) { errors.push("Fann ekki stað fyrir " + n + " í master"); return; }
-        errors.push("Makró " + n + " er ekki í master — bætt við á undan STAT_BLOCK");
+        if (GLOBAL_MACROS.indexOf(n) < 0) errors.push("Makró " + n + " er ekki í master — bætt við á undan STAT_BLOCK");
         groups[n].forEach(function (o) { add.push(render(o)); });
       });
       if (stat >= 0) out.splice.apply(out, [stat, 0].concat(add));

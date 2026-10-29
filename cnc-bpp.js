@@ -186,6 +186,25 @@
           }
           break;
         }
+        case "EMUCA_HANG_FATASLA": case "KESSEBOHMER_TOPLIFT_FATASLA": {
+          // Fatalyfta (2026-10-29). Read from the macros' own geometry (Macros/*.vbs): POSITION_X along the side from the bottom,
+          // POSITION_Y from the front edge. Emuca: the housing's box [X−263, X] × [Y+20, Y+160] with its 4 screw holes
+          // (X−249 / X−19 × Y+27 / Y+153). Toplift: the arm slot (P1022), the plate (P1012) with 3 Ø12 holes, the 525 mm bar (P1020).
+          var lx = num(p[0], vars), ly = num(p[1], vars);
+          if (lx == null || ly == null) { unknown.push(op); break; }
+          var em = op.name === "EMUCA_HANG_FATASLA", sh = [];
+          if (em) {
+            sh.push({ k: "rect", x0: lx - 263, x1: lx, y0: ly + 20, y1: ly + 160 });
+            [lx - 249, lx - 19].forEach(function (hx) { [ly + 27, ly + 153].forEach(function (hy) { sh.push({ k: "hole", x: hx, y: hy, r: 2.5 }); }); });
+          } else {
+            sh.push({ k: "poly", pts: [[lx - 50, ly], [lx - 50, ly + 25], [lx - 150, ly + 220], [lx - 175, ly + 220], [lx - 75, ly + 25], [lx - 75, ly - 25], [lx - 175, ly - 220], [lx - 150, ly - 220], [lx - 50, ly - 25]] });
+            sh.push({ k: "rect", x0: lx - 690, x1: lx - 471, y0: ly - 99, y1: ly + 100 });
+            sh.push({ k: "rect", x0: lx - 515, x1: lx + 10, y0: ly - 10, y1: ly + 10 });
+            [[lx - 481, ly - 31], [lx - 519, ly - 79], [lx - 680, ly + 69]].forEach(function (h2) { sh.push({ k: "hole", x: h2[0], y: h2[1], r: 6 }); });
+          }
+          features.push({ type: "lift", shapes: sh, label: (em ? "Emuca fatalyfta" : "Kessebohmer toplift") + " — " + lx + " mm frá botni, " + ly + " mm frá framkanti" });
+          break;
+        }
         case "GEO": case "ENDPATH": case "GEOTEXT": case "STAT_BLOCK": case "BG": case "RECTANGLE": case "MOVENTO_BAKKI":
           break; // decorative / unmanaged shop-master furniture, not drawn
         default:
@@ -416,6 +435,13 @@
         f.corners.forEach(function (cn) {
           var bot = cn <= 2, back = cn === 1 || cn === 4, x0 = bot ? f.y : LPX - f.y - f.h, rr2 = back ? XR(LPY - f.bakz, LPY) : XR(0, f.bakz);
           er.appendChild(svgEl("rect", { x: rr2.x, y: Y(x0 + f.h), width: rr2.w, height: Math.max(2, f.h * s), fill: "#e4e4e9", stroke: "#6e6e73", "stroke-width": 1 }));
+        });
+      } else if (f.type === "lift") {
+        var elf = g(f.label, "lift", (f.shapes[0].pts ? f.shapes[0].pts[0][0] : f.shapes[0].x1)), lc2 = acc.rail ? BLUE : "#6e6e73";
+        f.shapes.forEach(function (sp) {
+          if (sp.k === "rect") { var rx = XR(sp.y0, sp.y1); elf.appendChild(svgEl("rect", { x: rx.x, y: Y(sp.x1), width: rx.w, height: Math.max(1, (sp.x1 - sp.x0) * s), fill: "none", stroke: lc2, "stroke-width": 1, "stroke-dasharray": "5 3" })); }
+          else if (sp.k === "poly") elf.appendChild(svgEl("polygon", { points: sp.pts.map(function (q) { return X(q[1]).toFixed(1) + "," + Y(q[0]).toFixed(1); }).join(" "), fill: "#f2f2f4", stroke: lc2, "stroke-width": 1.1 }));
+          else elf.appendChild(svgEl("circle", { cx: X(sp.y), cy: Y(sp.x), r: Math.max(2, sp.r * s), fill: "#fff", stroke: lc2, "stroke-width": 1.2 }));
         });
       } else if (f.type === "groove") {
         var egr = g(f.label), gx = X(f.y), gw = Math.max(f.led ? 3 : 2, 4 * s); // LED: magenta, true 4 mm (at least 3 px) so a clash is easy to see
