@@ -340,9 +340,12 @@
     function emitShelves(list, above, noCount, radborun) {
       var tF = num(((by.fixedShelf || [])[0] || {})["Þ"]) || OVEN_BOARD, tL = num(((by.looseShelf || [])[0] || {})["Þ"]) || OVEN_BOARD;
       var sl = (list || []).filter(function (x) { return num(x.mm) > above && num(x.mm) < H; });
+      // Fixed shelves: the mm in Smíðagögn is measured from the shelf's top face (default, FOST_HILLA's own X), its underside ("undir") or its
+      // middle ("midja") — Smíðagögn shelfRef; converted to the top face here, so the macro always gets the top (2026-10-29)
+      var sref = (parseSmida(opts.smida) || {}).shelfRef, fOff = sref === "undir" ? tF : sref === "midja" ? tF / 2 : 0;
       sl.forEach(function (x) {
         if (x.led) shelfLed.push(x);
-        var mm = r1(num(x.mm));
+        var mm = r1(num(x.mm) + (x.fixed ? fOff : 0));
         if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, " + dFixedS + ", lpz+5"); shelfRows.push(r1(mm - tF / 2)); boards.push({ bot: r1(mm - tF), top: mm, fixed: true, what: "föstu hilluna í " + mm }); return; }
         boards.push({ bot: r1(mm - tL), top: mm, what: "hilluna í " + mm });
         if (radborun) { shelfRows.push(r1(mm - tL)); return; } // its holes come from the one continuous run below

@@ -367,3 +367,13 @@ test("Lamaklossar on the blind panel: plate centre 21.5 mm from the edge by defa
   const sm = M.smidaOf(c, e);
   assert.equal(M.initEdit(M.cabinet(unit("recB", "Sk40", { "Hæð": 800, "Smíðagögn (JSON) 🔧": JSON.stringify(sm) }), rows, {})).klossMm, 30);
 });
+
+test("shelfRef is written only for a non-default reference and only when there is a fixed shelf", () => {
+  const rows = [ef("Skápur hlið", 800, 300, 16, 2), ef("Frontur", 797, 297, 19, 1), ef("Föst hilla", 258, 281, 16, 1)];
+  const c = cab("recF", "Sk8", rows, { "Hæð": 800 }), e = M.initEdit(c);
+  assert.equal(M.smidaOf(c, e).shelfRef, undefined);
+  e.shelfRef = "undir"; assert.equal(M.smidaOf(c, e).shelfRef, "undir");
+  assert.equal(M.initEdit(M.cabinet(unit("recF", "Sk8", { "Hæð": 800, "Smíðagögn (JSON) 🔧": JSON.stringify(M.smidaOf(c, e)) }), rows, {})).shelfRef, "undir");
+  const none = cab("recG", "Sk9", [ef("Skápur hlið", 800, 300, 16, 2), ef("Frontur", 797, 297, 19, 1)], { "Hæð": 800 }), e2 = M.initEdit(none); e2.shelfRef = "midja";
+  assert.equal(M.smidaOf(none, e2).shelfRef, undefined);
+});

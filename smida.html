@@ -467,6 +467,8 @@
     var shelves = e.shelves || (e.oven && e.oven.shelves) || [];
     shelves.forEach(function (x, i) {
       var y = Y(x.mm);
+      var fo = x.fixed ? (e.shelfRef === "undir" ? c.tFixed : e.shelfRef === "midja" ? c.tFixed / 2 : 0) : 0, tfx = c.tFixed; // where the board really is: the mm is measured from its top / underside / middle
+      if (x.fixed) s += '<rect x="' + (X(0) + 1) + '" y="' + Y(x.mm + fo) + '" width="' + (W * sc - 2) + '" height="' + Math.max(2, tfx * sc) + '" fill="#d1d1d6" fill-opacity=".55" stroke="#1d1d1f" stroke-width=".6"><title>Föst hilla ' + mm(tfx) + ' mm — mælt frá ' + (e.shelfRef === "undir" ? "undirflöt" : e.shelfRef === "midja" ? "miðju" : "efri fleti") + '</title></rect>';
       s += '<g class="drag" data-k="shelf" data-i="' + i + '"><rect x="' + X(0) + '" y="' + (y - 8) + '" width="' + W * sc + '" height="16" fill="transparent"/>' +
         '<line x1="' + (X(0) + 1) + '" x2="' + (X(W) - 1) + '" y1="' + y + '" y2="' + y + '" stroke="' + (x.fixed ? "#1d1d1f" : "#6e6e73") + '" stroke-width="' + (x.fixed ? 3 : 1.8) + '"' + (x.fixed ? "" : ' stroke-dasharray="8 5"') + "/></g>";
     });
@@ -922,7 +924,7 @@
       var adv2 = loose.length ? '<div class="line"><span class="u">Göt fyrir hverja lausa hillu ' + tip("Hve margar stillingar (50 mm á milli) hver laus hilla fær. 3 er venjan.") + "</span></div>" +
         loose.sort(function (a, b) { return b.x.mm - a.x.mm; }).map(function (o) { return '<div class="line"><span class="t">' + mm(o.x.mm) + '</span><span class="seg">' + [1, 3, 5].map(function (n) { return '<button type="button" data-pos="' + o.i + ":" + n + '" class="' + ((o.x.pos || 3) === n ? "on" : "") + '">' + n + "</button>"; }).join("") + "</span></div>"; }).join("") : "";
       if (!e.oven) adv2 += '<div class="line"><button type="button" class="mini" data-act="spread">Raða jafnt</button></div>';
-      h += row("shelves", e.oven ? "Botnar, hillur" : "Hillur", esc(sum), '<div class="line"><span class="u">mm frá botni hliðar ' + tip("Efri flötur hillunnar. Fjöldi og föst/laus koma úr Sögunarlista. Dragðu línuna á teikningunni eða smelltu á töluna.") + "</span></div>" + lines + more("s", adv2));
+      h += row("shelves", e.oven ? "Botnar, hillur" : "Hillur", esc(sum), '<div class="line"><span class="u">mm frá botni hliðar ' + tip("Efri flötur hillunnar. Fjöldi og föst/laus koma úr Sögunarlista. Dragðu línuna á teikningunni eða smelltu á töluna.") + "</span></div>" + (nF ? '<div class="line"><span class="u">Fastar hillur, mælt frá</span><span class="seg">' + [["", "Ofan á"], ["undir", "Undir"], ["midja", "Miðja"]].map(function (o2) { return '<button type="button" data-shref="' + o2[0] + '" class="' + ((e.shelfRef || "") === o2[0] ? "on" : "") + '">' + o2[1] + "</button>"; }).join("") + "</span>" + tip("Hvar á fastri hillu mm-gildið er mælt: efri flötur (sjálfgefið — eins og CNC borar), undirflötur eða miðja hillunnar. Teikningin sýnir hilluna sjálfa í sinni raunverulegu stöðu. Þegar þú skiptir breytast gildin svo hillan helst á sama stað.") + "</div>" : "") + lines + more("s", adv2));
     }
     if (e.inner) {
       h += row("inner", "Innskúffur", e.inner.length + " · " + e.inner.map(function (x) { return mm(x.mm); }).join(", "),
@@ -1008,6 +1010,8 @@
     if (d.rside != null) { var rs = d.rside.split(":"); change(function (e) { if (rs[1]) e.rails[+rs[0]].side = rs[1]; else delete e.rails[+rs[0]].side; }); return; }
     if (d.urd != null) { change(function (e) { e.urtak = d.urd ? { drawer: d.urd, place: (e.urtak && e.urtak.place) || "midja", x: e.urtak ? e.urtak.x : null } : null; }); openRow[c.unit + "urtak"] = true; return; }
     if (d.urp) { change(function (e) { if (e.urtak) e.urtak.place = d.urp; }); return; }
+    if (d.shref != null) { change(function (e) { var tF = c.tFixed, off = function (r) { return r === "undir" ? tF : r === "midja" ? tF / 2 : 0; }, a = off(e.shelfRef || ""), b = off(d.shref);
+      (e.shelves || (e.oven && e.oven.shelves) || []).forEach(function (x) { if (x.fixed) x.mm = r1(x.mm + a - b); }); if (d.shref) e.shelfRef = d.shref; else delete e.shelfRef; }); return; }
     if (d.shled != null) { change(function (e) { var sh = (e.shelves || e.oven.shelves)[+d.shled]; if (sh.led) delete sh.led; else sh.led = { y: 50 }; }); return; }
     if (d.fgrip) { change(function (e) { e.frontGrip = d.fgrip; }); return; }
     if (d.ledadd) { change(function (e) { (e.led = e.led || []).push({ where: "hlid", y: c.panel ? 50 : 57 }); }); openRow[c.unit + "led"] = true; return; }

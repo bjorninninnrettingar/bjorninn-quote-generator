@@ -719,3 +719,13 @@ test("Fatalyfta: footprint recorded; a shelf / hinge plate in its height range a
   const near = S.unitPlan("Sk36", rows, { smida: JSON.stringify({ v: 1, hinge: "vinstri", rails: [{ type: "emuca", mm: 2300, y: -10 }] }) }); // body from Y 10
   assert.ok(near.check.some((c) => /rekst á lamaplötuna í 2320/.test(c)) || near.check.some((c) => /staðsetningin/.test(c)));
 });
+
+test("Fastar hillur: mm measured from the top (default), the underside or the middle — the macro always gets the top face", () => {
+  const rows = [row("Skápur hlið", 2400, 600, 16, 2), row("Frontur", 2397, 597, 19, 1), row("Föst hilla", 558, 568, 16, 1)];
+  const sm = (ref) => JSON.stringify({ v: 1, hinge: "vinstri", shelfRef: ref, shelves: { loose: 0, fixed: 1, list: [{ mm: 1000, fixed: true }] } });
+  const fh = (p) => p.ops.find((o) => o.name === "FOST_HILLA").params.split(", ")[1];
+  assert.equal(fh(S.unitPlan("Sk6", rows, { smida: sm(undefined) })), "1000");
+  assert.equal(fh(S.unitPlan("Sk6", rows, { smida: sm("ofan") })), "1000");
+  assert.equal(fh(S.unitPlan("Sk6", rows, { smida: sm("undir") })), "1016");   // underside at 1000 → top face 1016
+  assert.equal(fh(S.unitPlan("Sk6", rows, { smida: sm("midja") })), "1008");   // middle at 1000 → top face 1008
+});
