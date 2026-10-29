@@ -62,8 +62,12 @@
   .pn .s { font-size:.84rem; color:var(--muted); margin-top:2px; }
   .pn .s.late { color:var(--bad); font-weight:600; }
   .pn .s.soon { color:var(--warn); font-weight:600; }
-  .pct { width:140px; flex:none; }
-  .pct .n { font-size:.8rem; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; margin-bottom:5px; }
+  .pct { width:100%; flex:none; order:3; display:flex; align-items:center; gap:10px; }
+  .pct .n { margin:0; min-width:64px; text-align:left; }
+  .pct .bar { flex:1; }
+  .prow { flex-wrap:wrap; row-gap:6px; }
+  .pn .t { white-space:normal; }
+  .pct .n { font-size:.8rem; color:var(--muted); font-variant-numeric:tabular-nums; }
   .bar { height:5px; border-radius:3px; background:var(--line); overflow:hidden; }
   .bar i { display:block; height:100%; background:var(--accent); border-radius:3px; }
   .bar i.g { background:var(--good); }
@@ -139,7 +143,7 @@
   @media (max-width:760px) {
     #shell { display:block; } .sidebar { display:none; }
     .main { padding:28px 16px 60px; } h1 { font-size:1.6rem; }
-    .pct { width:80px; } .prow { padding:14px; gap:12px; }
+    .prow { padding:14px; gap:12px; }
     .stats { grid-template-columns:1fr 1fr 1fr; }
   }
 </style>
@@ -268,10 +272,22 @@
     if (late.length) bits.push(late.length + " of sein");
     if (done.length) bits.push(done.length + " má afhenda");
     $("lead").textContent = bits.join(" · ");
-    function grp(title, items, cls) {
-      return items.length ? '<div class="group"><div class="secTitle ' + (cls || "") + '">' + title + " · " + items.length + '</div><div class="list">' + items.map(rowHtml).join("") + "</div></div>" : "";
+    function grp(id, title, items, cls) {
+      return '<div class="group" id="' + id + '"' + (items.length ? "" : ' style="display:none"') + '><div class="secTitle ' + (cls || "") + '">' + title + " · " + items.length + '</div><div class="list">' + items.map(rowHtml).join("") + "</div></div>";
     }
-    $("view").innerHTML = grp("Of seint", late, "bad") + grp("Í vinnslu", going) + grp("Tilbúið til að byrja", ready) + grp("Má afhenda", done);
+    $("view").innerHTML = '<div id="lGrid">' + grp("g-late", "Of seint", late, "bad") + grp("g-going", "Í vinnslu", going) + grp("g-ready", "Tilbúið til að byrja", ready) + grp("g-done", "Má afhenda", done) + "</div>";
+    // Modular (2026-10-29): the four groups are widgets on the shared grid — arrange per person.
+    var lg = window.OfficeGrid.mount({
+      container: $("lGrid"), key: "framleidsla-listi", user: (shellInfo.record && shellInfo.record.name) || "",
+      widgets: [
+        { id: "late", el: $("g-late"), title: "Of seint", w: 3, h: 8, force: true },
+        { id: "going", el: $("g-going"), title: "Í vinnslu", w: 3, h: 8, force: true },
+        { id: "ready", el: $("g-ready"), title: "Tilbúið til að byrja", w: 3, h: 8, force: true },
+        { id: "done", el: $("g-done"), title: "Má afhenda", w: 3, h: 8, force: true }
+      ]
+    });
+    var lead = $("lead"); lead.innerHTML = esc(lead.textContent) + ' · <button class="link" id="layoutBtn" type="button">Breyta útliti</button>';
+    $("layoutBtn").addEventListener("click", function () { lg.toggleEdit(); });
   }
 
   // ============ PROJECT ============

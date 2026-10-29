@@ -41,8 +41,13 @@
   .sidebar nav a:hover { background:#242e3b; }
   .sidebar nav a.active { background:var(--accent); color:#fff; }
 
-  .main { flex:1; min-width:0; padding:44px 48px 80px; max-width:880px; }
-  .head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:36px; }
+  .main { flex:1; min-width:0; padding:36px 40px 60px; max-width:none; }
+  .head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:24px; }
+  .headR { display:flex; align-items:center; gap:14px; }
+  .link.small { font-size:.85rem; }
+  .sec { margin-bottom:0; }
+  .sec > .secTitle { position:sticky; top:0; }
+  #histSec .list { margin-top:0; }
   h1 { font-size:2rem; font-weight:700; letter-spacing:-.02em; }
   .periodSel { font:inherit; font-size:.9rem; background:transparent; border:none; color:var(--muted); cursor:pointer; padding:6px 4px; text-align:right; }
   .periodSel:hover { color:var(--text); }
@@ -134,22 +139,27 @@
   <div class="main">
     <div class="head">
       <h1>Starfsmenn</h1>
-      <select class="periodSel" id="periodSel" aria-label="Launatímabil" hidden></select>
+      <div class="headR">
+        <select class="periodSel" id="periodSel" aria-label="Launatímabil" hidden></select>
+        <button class="link small" id="layoutBtn" type="button">Breyta útliti</button>
+      </div>
     </div>
 
-    <div class="sec" id="reqSec" hidden>
-      <div class="secTitle">Bíður þín</div>
-      <div class="list" id="reqList"></div>
-    </div>
+    <div id="sGrid">
+      <div class="sec" id="reqSec" hidden>
+        <div class="secTitle">Bíður þín</div>
+        <div class="list" id="reqList"></div>
+      </div>
 
-    <div class="sec">
-      <div class="secTitle" id="peopleTitle">Fólk</div>
-      <div class="list" id="people"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
-    </div>
+      <div class="sec" id="peopleSec">
+        <div class="secTitle" id="peopleTitle">Fólk</div>
+        <div class="list" id="people"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+      </div>
 
-    <div class="sec">
-      <button class="link" id="histBtn" type="button">Fyrri orlofsbeiðnir</button>
-      <div class="list" id="histList" hidden style="margin-top:8px"></div>
+      <div class="sec" id="histSec">
+        <div class="secTitle">Fyrri orlofsbeiðnir</div>
+        <div class="list" id="histList"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -158,6 +168,7 @@
 <aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-label="Starfsmaður"></aside>
 
 <script src="/office-shell.js"></script>
+<script src="/office-grid.js"></script>
 <script>
 (function () {
   "use strict";
@@ -329,19 +340,15 @@
     }
   });
 
-  var histShown = false;
-  $("histBtn").addEventListener("click", function () {
-    histShown = !histShown;
-    $("histList").hidden = !histShown;
-    $("histBtn").textContent = histShown ? "Fela fyrri orlofsbeiðnir" : "Fyrri orlofsbeiðnir";
-    if (!histShown) return;
+  // Fyrri beiðnir: loaded once at start (≤ 40 rows); its widget is hidden by default and shown from "Bæta við".
+  function loadHistory() {
     $("histList").innerHTML = '<div class="skel"></div>';
     fetchAll(FJARVISTIR, "filterByFormula=" + encodeURIComponent('AND({Tegund}="Orlof",{Staða}!="")') + "&pageSize=100").then(function (rs) {
       rs = rs.filter(function (r) { var s = r.fields["Staða"]; s = (s && s.name) || s; return s && s !== "Í bið"; })
         .sort(function (a, b) { return new Date(b.fields["Dagsetning"]) - new Date(a.fields["Dagsetning"]); }).slice(0, 40);
       $("histList").innerHTML = rs.length ? rs.map(function (r) { return reqRow(r, false); }).join("") : '<div class="note">Engar fyrri beiðnir.</div>';
-    }).catch(function () { $("histList").innerHTML = retryNote("Tókst ekki að sækja.", function () { histShown = false; $("histBtn").click(); }); });
-  });
+    }).catch(function () { $("histList").innerHTML = retryNote("Tókst ekki að sækja.", loadHistory); });
+  }
 
   // ── Drawer ──
   var curEmp = null, drawerTok = 0, showPay = false, shiftCache = {};
@@ -410,8 +417,17 @@
 
   // ── Boot ──
   // Names come from Launatímabil, so requests render after people are known.
+  var grid = OfficeGrid.mount({
+    container: $("sGrid"), key: "starfsmenn", user: (shellInfo.record && shellInfo.record.name) || "",
+    widgets: [
+      { id: "req", el: $("reqSec"), title: "Bíður þín", w: 5, h: 5, force: true },
+      { id: "people", el: $("peopleSec"), title: "Fólk", w: 7, h: 8 },
+      { id: "hist", el: $("histSec"), title: "Fyrri orlofsbeiðnir", w: 5, h: 4, hidden: true }
+    ]
+  });
+  $("layoutBtn").addEventListener("click", function () { grid.toggleEdit(); });
   loadPeople().then(function () {
-    loadRequests();
+    loadRequests(); loadHistory();
     var m = /[#&]e=(rec[A-Za-z0-9]+)/.exec(location.hash);
     if (m && emps[m[1]]) openDrawer(m[1]);
   });

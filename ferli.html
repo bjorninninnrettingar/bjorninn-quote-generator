@@ -55,7 +55,7 @@
   .sidebar .user { padding:14px 18px 0; border-top:1px solid #2a3442; margin-top:10px; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; }
   .sidebar .user button { background:none; border:none; color:#8aa4c7; font:inherit; font-size:.8rem; cursor:pointer; }
 
-  .main { flex:1; min-width:0; padding:44px 48px 80px; max-width:980px; }
+  .main { flex:1; min-width:0; padding:36px 40px 60px; max-width:none; }
   .pageHd { margin-bottom:6px; }
   .pageHd h1 { font-size:2rem; font-weight:700; letter-spacing:-.02em; }
   .back { display:inline-block; color:var(--accent); text-decoration:none; font-size:.9rem; margin-bottom:14px; }
@@ -77,8 +77,8 @@
   .pn .s .stale { color:var(--warn); font-weight:600; }
   .pn .s .late { color:var(--bad); font-weight:600; }
   .stg { flex:none; width:128px; text-align:center; font-size:.74rem; font-weight:600; padding:4px 0; border-radius:999px; }
-  .tools { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
-  .tools input { width:100%; font:inherit; font-size:.95rem; padding:10px 14px; border:none; border-radius:10px; background:var(--surface); color:var(--text); outline:none; }
+  .tools { display:flex; flex-direction:row; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+  .tools input { flex:0 1 420px; width:100%; font:inherit; font-size:.95rem; padding:10px 14px; border:none; border-radius:10px; background:var(--surface); color:var(--text); outline:none; }
   .tools input:focus { box-shadow:0 0 0 2px var(--accent); }
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
   .chipf { display:inline-flex; align-items:center; gap:6px; border:none; background:var(--surface); color:var(--muted); font:inherit; font-size:.82rem; padding:6px 13px; border-radius:999px; cursor:pointer; }
@@ -87,6 +87,9 @@
   .chipf:hover { color:var(--text); }
   .chipf.on { background:var(--text); color:var(--surface); }
   .chipf.on b { color:inherit; opacity:.7; }
+  .dotc { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:7px; }
+  .group { margin-bottom:0; }
+  .group > .secTitle { font-weight:700; }
   .steps { display:flex; gap:4px; flex:none; }
   .steps i { width:22px; height:4px; border-radius:2px; background:var(--line); }
   .steps i.on { background:var(--accent); }
@@ -119,11 +122,12 @@
   .stage { background:var(--surface); border-radius:14px; margin-bottom:14px; overflow:hidden; }
   .stage.current { box-shadow:0 0 0 2px var(--accent); }
   .stageHd .badge.done { background:var(--good); }
-  .stageHd { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; cursor:pointer; }
+  .stageHd { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; cursor:default; }
+  .stageHd .chev { display:none; }
   .stageHd .t { font-weight:600; font-size:1.02rem; display:flex; align-items:center; gap:8px; }
   .stageHd .badge { font-size:.68rem; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--accent); color:#fff; }
   .stageHd .chev { color:var(--dim); font-size:.8rem; }
-  .stageBody { display:none; padding:4px 22px 22px; border-top:1px solid var(--line); padding-top:18px; }
+  .stageBody { display:block; padding:4px 22px 22px; border-top:1px solid var(--line); padding-top:18px; }
   .stageBody.open { display:block; }
 
   .unitRow { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); cursor:pointer; font-size:.88rem; }
@@ -317,6 +321,7 @@
 </div>
 
 <script src="/office-shell.js"></script>
+<script src="/office-grid.js"></script>
 <script src="/cnc-bpp.js"></script>
 <script>
 (function () {
@@ -483,35 +488,43 @@
         bits.push(d < 0 ? '<span class="late">' + (-d) + " d. of seint</span>" : "afhending " + dateIs(f[DATE]) + " · " + d + " d.");
       }
       return '<a class="prow" style="--sc:' + look.c + '" href="/ferli?recordId=' + p.id + (k ? "&k=" + encodeURIComponent(k) : "") + '">' +
-        '<span class="stg" style="background:' + look.c + '22;color:' + look.t + '">' + esc(g.label) + "</span>" +
         '<div class="pn"><div class="t">' + esc(name) + (p._open && g.id !== "pontun" ? '<span class="tag pt">Pöntun opin</span>' : "") + "</div>" +
         (bits.length ? '<div class="s">' + bits.join(" · ") + "</div>" : "") + "</div>" + CHEV + "</a>";
     }
 
+    // One widget per stage, side by side (arrangeable per person) — the column IS the stage, so rows carry a
+    // coloured edge but no pill. Search + "Þarf athygli" filter all columns at once.
     var boardEl = document.getElementById("board");
     boardEl.innerHTML =
-      '<div class="tools"><input type="search" id="bq" placeholder="Leita að verki…" autocomplete="off" value="' + esc(boardQuery) + '"/><div class="chips" id="chips"></div></div><div id="rows"></div>';
+      '<div class="tools"><input type="search" id="bq" placeholder="Leita að verki…" autocomplete="off" value="' + esc(boardQuery) + '"/>' +
+      '<div class="chips"><button type="button" class="chipf" id="staleChip">Bara það sem þarf athygli <b id="staleN"></b></button><button type="button" class="chipf" id="layoutBtn">Breyta útliti</button></div></div>' +
+      '<div id="bGrid">' + stages.map(function (g) {
+        var look = STAGE_LOOK[g.id];
+        return '<div class="group" id="b-' + g.id + '"><div class="secTitle" style="color:' + look.t + '"><i class="dotc" style="background:' + look.c + '"></i>' + esc(g.label) + ' · <span id="bn-' + g.id + '">0</span></div><div class="list" id="bl-' + g.id + '"></div></div>';
+      }).join("") + "</div>";
+    var onlyStale = false;
     function paint() {
       var q = boardQuery.trim().toLowerCase();
-      var counts = { all: items.length, stale: items.filter(function (p) { return p._stale; }).length };
-      stages.forEach(function (g) { counts[g.id] = items.filter(function (p) { return p._g.id === g.id; }).length; });
-      var defs = [["all", "Allt"]].concat(counts.stale ? [["stale", "Þarf athygli"]] : []).concat(stages.map(function (g) { return [g.id, g.label]; }));
-      if (!counts[boardFilter] && boardFilter !== "all") boardFilter = "all";
-      document.getElementById("chips").innerHTML = defs.map(function (d) {
-        var st = STAGE_LOOK[d[0]];
-        return '<button type="button" class="chipf' + (boardFilter === d[0] ? " on" : "") + '" data-f="' + d[0] + '"' + (st ? ' style="--sc:' + st.c + '"' : "") + ">" + (st ? '<i style="background:' + st.c + '"></i>' : "") + esc(d[1]) + " <b>" + (counts[d[0]] || 0) + "</b></button>";
-      }).join("");
-      var shown = items.filter(function (p) {
-        if (boardFilter === "stale" && !p._stale) return false;
-        if (boardFilter !== "all" && boardFilter !== "stale" && p._g.id !== boardFilter) return false;
-        return !q || (p.fields["Heiti tækifæris / verkefnis"] || "").toLowerCase().indexOf(q) !== -1;
+      document.getElementById("staleN").textContent = items.filter(function (p) { return p._stale; }).length;
+      document.getElementById("staleChip").classList.toggle("on", onlyStale);
+      stages.forEach(function (g) {
+        var shown = items.filter(function (p) {
+          if (p._g.id !== g.id) return false;
+          if (onlyStale && !p._stale) return false;
+          return !q || (p.fields["Heiti tækifæris / verkefnis"] || "").toLowerCase().indexOf(q) !== -1;
+        });
+        document.getElementById("bn-" + g.id).textContent = shown.length;
+        document.getElementById("bl-" + g.id).innerHTML = shown.length ? shown.map(rowHtml).join("") : '<div class="note" style="padding:16px">Ekkert hér</div>';
       });
-      document.getElementById("rows").innerHTML = shown.length ? '<div class="list">' + shown.map(rowHtml).join("") + "</div>"
-        : '<div class="list"><div class="note">' + (items.length ? "Ekkert verk passar við leitina." : "Ekkert verk er í skipulagi núna.") + "</div></div>";
     }
-    document.getElementById("lead").textContent = items.length ? items.length + (items.length === 1 ? " verk" : " verk") + " í skipulagi" : "";
+    document.getElementById("lead").textContent = items.length ? items.length + " verk í skipulagi" : "";
     document.getElementById("bq").addEventListener("input", function () { boardQuery = this.value; paint(); });
-    document.getElementById("chips").addEventListener("click", function (e) { var b = e.target.closest("button[data-f]"); if (b) { boardFilter = b.dataset.f; paint(); } });
+    document.getElementById("staleChip").addEventListener("click", function () { onlyStale = !onlyStale; paint(); });
+    var bg = OfficeGrid.mount({
+      container: document.getElementById("bGrid"), key: "ferli-listi", user: (shellInfo.record && shellInfo.record.name) || "",
+      widgets: stages.map(function (g) { return { id: g.id, el: document.getElementById("b-" + g.id), title: g.label, w: 3, h: 9 }; })
+    });
+    document.getElementById("layoutBtn").addEventListener("click", function () { bg.toggleEdit(); });
     paint();
   }
   var CHEV = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
@@ -548,14 +561,26 @@
       '<div class="projHd"><div class="stepper">' + [["forskipulag", "Forskipulag"], ["skipulag", "Skipulag"], ["yfirfara", "Loka yfirferð"], ["pontun", "Pöntunarlisti"]].map(function (st, i) {
         return '<div class="sp ' + (i < curRank ? "done" : i === curRank ? "cur" : "") + '"><i></i><span>' + st[1] + "</span></div>";
       }).join("") + "</div></div>" +
+      '<div id="dGrid">' +
       stageHtml("forskipulag", "1 · Forskipulag", stNow === "For-skipulag", done("forskipulag")) +
       stageHtml("skipulag", "2 · Skipulag (einingar)", stNow === "Í skipulagningu", done("skipulag")) +
       stageHtml("yfirfara", "3 · Loka yfirferð", stNow === "Yfirfara", done("yfirfara")) +
-      stageHtml("pontun", "4 · Pöntunarlisti", stNow === "Klárt til framleiðslu", done("pontun"));
+      stageHtml("pontun", "4 · Pöntunarlisti", stNow === "Klárt til framleiðslu", done("pontun")) +
+      "</div>";
 
-    wireStageToggles();
+    // Modular (2026-10-29): the four stages are widgets on the shared grid, all open (size them instead of folding).
+    var dg = OfficeGrid.mount({
+      container: document.getElementById("dGrid"), key: "ferli-verk", user: (shellInfo.record && shellInfo.record.name) || "",
+      widgets: [
+        { id: "forskipulag", el: document.querySelector('.stage[data-stage="forskipulag"]'), title: "1 · Forskipulag", w: 3, h: 4 },
+        { id: "skipulag", el: document.querySelector('.stage[data-stage="skipulag"]'), title: "2 · Skipulag", w: 3, h: 10 },
+        { id: "yfirfara", el: document.querySelector('.stage[data-stage="yfirfara"]'), title: "3 · Loka yfirferð", w: 6, h: 10 },
+        { id: "pontun", el: document.querySelector('.stage[data-stage="pontun"]'), title: "4 · Pöntunarlisti", w: 3, h: 4 }
+      ]
+    });
+    var lead = document.getElementById("lead"); lead.innerHTML = '<button class="link" id="layoutBtn" type="button">Breyta útliti</button>';
+    document.getElementById("layoutBtn").addEventListener("click", function () { dg.toggleEdit(); });
     document.querySelector('.stage[data-stage="' + stageIdFor(stNow) + '"]').classList.add("current");
-    document.getElementById('body-' + stageIdFor(stNow)).classList.add("open");
 
     fillForskipulag(proj);
     fillSkipulag(proj);
