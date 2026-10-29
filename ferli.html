@@ -297,6 +297,7 @@
   .unitCols { display:grid; grid-template-columns:var(--kassiW,420px) 14px minmax(0,1fr); gap:0; align-items:start; } .colGrip { align-self:stretch; cursor:col-resize; position:relative; } .colGrip::after { content:""; position:absolute; left:6px; top:36px; bottom:8px; width:2px; border-radius:2px; background:var(--line); } .colGrip:hover::after, .colGrip.drag::after { background:var(--accent); }
   .unitCols .wSecT:first-child { margin-top:8px; }
   @media (max-width:980px) { .unitCols { grid-template-columns:1fr; } .colGrip { display:none; } }
+  #sogunList { overflow-x:auto; } #sogunList .dt { min-width:440px; }
   .dt { width:100%; border-collapse:collapse; font-size:.9rem; table-layout:fixed; font-weight:500; } .dt th { text-align:left; font-size:.74rem; font-weight:600; color:var(--muted); padding:6px 10px; border-bottom:1px solid var(--line); }
   .dt td { overflow:hidden; text-overflow:ellipsis; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:middle; } .dt .n { text-align:right; font-variant-numeric:tabular-nums; } .dt .c { text-align:center; } #pontunList { max-width:980px; } .sgGrp summary b { font-weight:700; }
   .dt .pill { background:var(--acc-bg,#e6f0fa); color:var(--accent); padding:2px 9px; border-radius:6px; font-size:.82rem; white-space:nowrap; } .dt img.th { width:36px; height:36px; object-fit:cover; border-radius:6px; display:block; }
@@ -818,6 +819,7 @@
         rows.push([todo.length ? "wait" : "ok", todo.length ? todo.length + " línur verða að einingum þegar skipulag er keyrt" : "Allar gildar línur hafa einingu"]);
         if (warn.length) rows.push(["bad", warn.length + " línur hoppa yfir (villa): " + warn.slice(0, 6).map(function (r) { return key(r) + " — " + String((r.fields || {})["⚠️ Skipulagsvilla"]).slice(0, 80); }).join(" · ")]);
         if (changed.length) rows.push(["warn", changed.length + " línur breyttust eftir að eining var búin til: " + changed.slice(0, 8).map(key).join(", ") + " — Eyðublaðið er ekki uppfært sjálfkrafa"]);
+        var rb = document.getElementById("runSkipulagBtn"); if (rb) { rb.disabled = !ls.length; rb.title = ls.length ? "" : "Engar vörulínur í tilboðinu"; }
         host.innerHTML = rows.map(function (r) { return '<div class="pf ' + r[0] + '"><i></i><span>' + esc(r[1]) + '</span></div>'; }).join("");
       }).catch(function () { host.innerHTML = '<div class="pf bad"><i></i><span>Gat ekki lesið línurnar. <button type="button" class="link" id="pfRetry">Reyna aftur</button></span></div>'; var b = document.getElementById("pfRetry"); if (b) b.onclick = function () { loadPreflight(proj); }; });
   }
@@ -925,12 +927,15 @@
   // they're flagged red; the rest are amber. It's a warning, not a lock — "Merkja samt"
   // still goes through, because the office sometimes knows better than the boxes.
   var GATE_HARD = { "5. Efni lent í húsi": "Efnið er ekki komið í hús", "6. CNC yfirfarið": "CNC-skrár ekki komnar á USB (Smíða & CNC)" };
-  function confirmKlart(pname, isOn) {
-    var missing = CHECKLIST.filter(function (it) { return !isOn(it.field); });
+  function confirmKlart(pname, isOn0, extra) {
+    // extra = open things that are not checklist boxes (unreviewed units, unsent orders) — always shown as red
+    var xs = (extra || []).map(function (t, i) { GATE_HARD["extra:" + i] = t; return { field: "extra:" + i, label: t }; });
+    var items = CHECKLIST.concat(xs), isOn = function (fld) { return /^extra:/.test(fld) ? false : isOn0(fld); };
+    var missing = items.filter(function (it) { return !isOn(it.field); });
     var bg = document.getElementById("gateBg");
     document.getElementById("gateTitle").textContent = "Merkja Klárt til framleiðslu?";
     document.getElementById("gateSub").textContent = pname || "";
-    document.getElementById("gateList").innerHTML = CHECKLIST.map(function (it) {
+    document.getElementById("gateList").innerHTML = items.map(function (it) {
       var on = isOn(it.field), hard = !on && GATE_HARD[it.field];
       return '<div class="gateRow ' + (on ? "ok" : hard ? "hard" : "open") + '"><span class="gIc">' + (on ? "✓" : hard ? "!" : "○") + '</span>' +
         '<span>' + esc(it.label) + (hard ? '<div class="gHint">' + esc(GATE_HARD[it.field]) + '</div>' : "") + '</span></div>';
@@ -1075,7 +1080,8 @@
       row.className = "chkRow" + (on ? " on" : "");
       row.innerHTML = '<div class="box">' + (on ? "✓" : "") + '</div><div>' + item.label + (item.auto ? ' <span class="autoTag">sjálfvirkt</span>' : '') + '</div>';
       if (item.auto) row.classList.add("ro");
-      else row.addEventListener("click", function () {
+      else { row.tabIndex = 0; row.setAttribute("role", "checkbox"); row.addEventListener("keydown", function (e) { if (e.key === " " || e.key === "Enter") { e.preventDefault(); row.click(); } }); }
+      if (!item.auto) row.addEventListener("click", function () {
         var next = !row.classList.contains("on");
         row.classList.toggle("on", next);
         row.querySelector(".box").textContent = next ? "✓" : "";
@@ -1151,7 +1157,7 @@
       '<div class="gateMsg" id="recomputeMsg" style="text-align:left">Athugaðu: endurreikningur býr línurnar til upp á nýtt og yfirskrifar magn og vöruskipti sem þú gerðir hér.</div><div id="orderList"></div>';
     document.getElementById("recomputeBtn").addEventListener("click", function () {
       var btn = this, msg = document.getElementById("recomputeMsg");
-      if (!confirm("Búa til pöntunarlistann núna? Þetta reiknar allt verkið aftur (plötur, kantlíming, skúffur, aukahlutir).")) return;
+      if (!confirm("Búa til pöntunarlistann núna? Þetta reiknar allt verkið aftur (plötur, kantlíming, skúffur, aukahlutir) og yfirskrifar magn og vöruskipti sem þú gerðir handvirkt í pöntunarlínunum.")) return;
       btn.disabled = true; msg.textContent = "Keyri…";
       var before = (SIG.orders || []).length;
       apiPatch(TAEKIFAERI + "/" + proj.id, { "🔄 Keyra Pöntunarlista 4.0": false })
@@ -1207,7 +1213,7 @@
     var sent = recs.filter(function (r) { return /^(Sent|Komið)/.test((r.fields || {})["Staða"] || ""); }).length;
     var cards = [["Innkaup samtals", isk(total), total ? "" : "ekkert verð komið"], ["Tilboð (án vsk)", quote ? isk(exVat) : "—", ""],
       ["Innkaup af tilboði", quote && total ? Math.round(total / exVat * 100) + " %" : "—", "áætlaður kostnaður ÷ tilboð án vsk"], ["Pantanir sendar", sent + " af " + recs.length, ""],
-      ["Línur án verðs", lines === null ? "?" : String(noPrice), noPrice ? "skoðaðu þær fyrst" : ""]];
+      ["Línur án verðs", lines == null ? "?" : String(noPrice), noPrice ? "skoðaðu þær fyrst" : ""]];
     var dirtyAny = Object.keys(dirtyOrders).length;
     var html = '<div class="costStrip">' + cards.map(function (c) { return '<div class="costCard' + (c[0] === "Línur án verðs" && noPrice ? " bad" : "") + '"><div class="cl">' + c[0] + '</div><div class="cv">' + esc(c[1]) + '</div><div class="cs">' + esc(c[2]) + '</div></div>'; }).join("") + '</div>' +
       (dirtyAny ? '<div class="note warnNote">Þú breyttir línum — endurprentaðu PDF á pöntuninni áður en hún fer til birgja.</div>' : "") +
@@ -1227,7 +1233,7 @@
   // all lines of the project grouped by Gerð (Plötur, Kantlíming, Skúffur …): the same columns as the Airtable view
   function orderLinesHtml(lines, orderName) {
     if (lines === null) return '<div class="note err">Gat ekki lesið pöntunarlínurnar.</div>';
-    if (!lines.length) return "";
+    if (!lines || !lines.length) return ""; // undefined = still loading
     var groups = {}, order = [];
     lines.forEach(function (l) { var g = tx((l.fields || {})["Gerð"]) || "Annað"; if (!groups[g]) { groups[g] = []; order.push(g); } groups[g].push(l); });
     return '<h3 class="wSecT" style="margin-top:26px">Vörur á pöntun — lagaðu magn eða skiptu um vöru áður en PDF fer út</h3>' + order.map(function (g) {
@@ -1302,7 +1308,11 @@
     renderKlartSummary();
     document.getElementById("klartBtn").addEventListener("click", function () {
       var btn = this, f = SIG.proj.fields, msg = document.getElementById("klartMsg");
-      confirmKlart(f["Heiti tækifæris / verkefnis"], function (field) { return !!f[field]; }).then(function (ok) {
+      var us = SIG.units || [], os = SIG.orders || [], extra = [];
+      var uOpen = us.filter(function (r) { return !(r.fields || {})["Yfirfarin"]; }).length, oOpen = os.filter(function (o) { return !/^(Sent|Komið)/.test((o.fields || {})["Staða"] || ""); }).length;
+      if (!us.length) extra.push("Engar einingar"); else if (uOpen) extra.push(uOpen + " af " + us.length + " einingum óyfirfarnar");
+      if (!os.length) extra.push("Engin pöntun til"); else if (oOpen) extra.push(oOpen + " af " + os.length + " pöntunum ekki sendar");
+      confirmKlart(f["Heiti tækifæris / verkefnis"], function (field) { return !!f[field]; }, extra).then(function (ok) {
         if (!ok) return;
         btn.disabled = true; msg.textContent = "Vista…";
         apiPatch(TAEKIFAERI + "/" + proj.id, { "Staða í skipulagi": "Klárt til framleiðslu" }).then(function (r) {
@@ -1316,8 +1326,9 @@
     var el = document.getElementById("klartSum"); if (!el) return;
     var f = SIG.proj.fields, klart = f["Staða í skipulagi"] === "Klárt til framleiðslu", k2 = k ? "&k=" + encodeURIComponent(k) : "";
     var units = SIG.units || [], orders = SIG.orders || [], arrived = orders.filter(function (o) { return /Komið/.test((o.fields || {})["Staða"] || ""); }).length;
-    var rows = [["Einingar", units.length + " — allar yfirfarnar"], ["Afhending", (f["Áætlaður afhendingardagur Björninn (internal)"] ? dateIs(f["Áætlaður afhendingardagur Björninn (internal)"]) : "ekki skráð")],
-      ["Pantanir", orders.length + " sendar" + (arrived ? " · " + arrived + " komnar í hús" : "")]];
+    var uDone = units.filter(function (r) { return (r.fields || {})["Yfirfarin"]; }).length, oSent = orders.filter(function (o) { return /^(Sent|Komið)/.test((o.fields || {})["Staða"] || ""); }).length;
+    var rows = [["Einingar", uDone + " af " + units.length + " yfirfarnar"], ["Afhending", (f["Áætlaður afhendingardagur Björninn (internal)"] ? dateIs(f["Áætlaður afhendingardagur Björninn (internal)"]) : "ekki skráð")],
+      ["Pantanir", oSent + " af " + orders.length + " sendar" + (arrived ? " · " + arrived + " komnar í hús" : "")]];
     if (!setHtml(el, '<div class="list">' + rows.map(function (r) { return '<div class="prow" style="cursor:default"><div class="pn"><div class="t">' + r[0] + '</div></div><span class="stat">' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
       (klart ? '<p class="stepIntro" style="margin-top:14px">Verkið er klárt til framleiðslu. <a class="proLink" href="/framleidsla?recordId=' + SIG.proj.id + k2 + '">Opna á Framleiðslu →</a></p>' : ""))) return;
     var b = document.getElementById("klartBtn"); if (b) { b.hidden = klart; var bx = document.querySelector(".klartBox"); if (bx && klart) bx.hidden = true; }
@@ -1498,7 +1509,7 @@
     });
     el.innerHTML = shown.length ? order.map(function (g) {
       return '<details class="sgGrp" open><summary><b>' + esc(g) + '</b> <span class="cnt">' + groups[g].length + '</span></summary>' +
-        '<table class="dt"><colgroup><col><col style="width:72px"><col style="width:72px"><col style="width:60px"><col style="width:60px"><col style="width:80px"></colgroup><thead><tr><th>Partur</th><th class="n">H</th><th class="n">B</th><th class="n">Þ</th><th class="n">M</th><th class="c">Tilbúið</th></tr></thead><tbody>' +
+        '<table class="dt"><colgroup><col><col style="width:60px"><col style="width:60px"><col style="width:44px"><col style="width:44px"><col style="width:72px"></colgroup><thead><tr><th>Partur</th><th class="n">H</th><th class="n">B</th><th class="n">Þ</th><th class="n">M</th><th class="c">Tilbúið</th></tr></thead><tbody>' +
         groups[g].map(function (r) {
           var f = r.fields || {}, on = !!f["Tilbúið 🔒"];
           readyState["sog:" + r.id] = on;
@@ -1557,10 +1568,10 @@
   var readyState = {};
   function updateApproveGate() {
     var ids = Object.keys(readyState);
-    var allReady = ids.length > 0 && ids.every(function (id) { return readyState[id]; });
+    var allReady = ids.every(function (id) { return readyState[id]; }); // a unit with no rows at all can still be approved (the flags above say so)
     var btn = document.getElementById("approveBtn");
     btn.disabled = !allReady;
-    btn.title = allReady ? "" : "Merktu alla hluti í Sögunarlista og Pöntun tilbúna fyrst";
+    btn.title = allReady ? (ids.length ? "" : "Engir hlutar á þessari einingu — yfirfarin eins og hún er") : "Merktu alla hluti í Sögunarlista og Pöntun tilbúna fyrst";
   }
 })();
 </script>
