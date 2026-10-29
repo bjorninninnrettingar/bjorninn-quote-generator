@@ -117,7 +117,7 @@
 
   // the editable state of one cabinet — from the Eyðublað's previous Smíðagögn when it has one, else /cnc's defaults
   function initEdit(cab) {
-    var ex = cab.existing || {}, e = { hinge: null, doors: null, shelves: null, oven: null, inner: null, rails: null, reviewed: !!ex.ready };
+    var ex = cab.existing || {}, e = { hinge: null, doors: null, shelves: null, oven: null, inner: null, rails: null, noJey: { drawers: [], doors: [] }, reviewed: !!ex.ready };
     if (!editable(cab)) return e; // FRE / no usable side: nothing /cnc would drill from here
     var nd = (cab.base.doors || []).length;
     if (nd) e.hinge = ex.hinge || cab.base.hingeSide || null;
@@ -130,6 +130,7 @@
       var ok = sl && sl.filter(function (x) { return x.fixed; }).length === cab.nFixed && sl.length === cab.nLoose + cab.nFixed;
       e.shelves = ok ? clone(sl) : defaultShelves(cab);
     }
+    if (ex.noJey && typeof ex.noJey === "object") e.noJey = { drawers: clone(ex.noJey.drawers || []), doors: clone(ex.noJey.doors || []) };
     if (cab.fataslar && cab.fataslar.magn) e.rails = Array.isArray(ex.rails) && ex.rails.length ? clone(ex.rails) : defaultRails(cab, e);
     if (innerEditable(cab)) e.inner = Array.isArray(ex.inner) && ex.inner.length === cab.inner.length ? clone(ex.inner) : defaultInner(cab);
     return e;
@@ -138,7 +139,7 @@
   // edit → Smíðagögn object (what Vista writes). `ready` only while marked reviewed.
   function smidaOf(cab, e) {
     var o = Object.assign({}, clone(cab.existing) || {});
-    ["doors", "hinge", "shelves", "oven", "inner", "rails", "ready"].forEach(function (k) { delete o[k]; });
+    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "ready"].forEach(function (k) { delete o[k]; });
     o.v = 1;
     if (o.w == null && cab.B) o.w = cab.B;
     if (o.h == null && cab.base.LPX) o.h = cab.base.LPX;
@@ -155,6 +156,7 @@
     }
     if (e.inner && e.inner.length) o.inner = clone(e.inner);
     if (e.rails && e.rails.length) o.rails = clone(e.rails);
+    if (e.noJey && ((e.noJey.drawers || []).length || (e.noJey.doors || []).length)) o.noJey = { drawers: clone(e.noJey.drawers || []).sort(), doors: clone(e.noJey.doors || []).sort() };
     if (e.reviewed) o.ready = true;
     return o;
   }

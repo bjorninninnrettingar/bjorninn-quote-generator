@@ -169,6 +169,10 @@
     }
     if (grip && by.drawer) info.push("Skúffuhólf = front + " + grip + " mm grip");
     drawers.sort(function (a, b) { return CODE_ORDER.indexOf(a.code) - CODE_ORDER.indexOf(b.code) || b.H - a.H; });
+    // Jey off on a front (Smíða "Jey-grip" rofi, 2026-10-29): Smíðagögn noJey = { drawers:[i bottom→top], doors:[i top→bottom] }.
+    // That front has no profile on it, so its slot is the cut front alone (a Fræst grip zone still shrinks it as above).
+    var noJey = (parseSmida(opts.smida) || {}).noJey || {}, njD = Array.isArray(noJey.drawers) ? noJey.drawers : [], njR = Array.isArray(noJey.doors) ? noJey.doors : [];
+    drawers.forEach(function (d, i) { if (grip && njD.indexOf(i) >= 0) { d.H = r1(d.front + zoneShrink(d.code)); d.noJey = true; } });
     var sys = {}; drawers.forEach(function (d) { sys[d.sys] = 1; });
     if (Object.keys(sys).length > 1) { stop.push("Merivo og Legra í sama skáp"); plan.status = "stop"; return plan; }
     var y = 0, runners = [], drawerTop = 0;
@@ -206,7 +210,8 @@
     // applies, any height. The old "fræst grip" branch here (a negative Höldur-1 Grip mm, zeroed above 900mm) is
     // retired (2026-10-14) — Fræst grip no longer goes through Höldur 1 at all, so `grip` itself is never negative
     // any more; see the Grip svæði block below instead. Drawer fronts are unconditional either way (set above).
-    function doorGrip(d) { return grip; }
+    function doorGrip(d) { return d.noJey ? 0 : grip; }
+    doors.forEach(function (d, i) { if (grip && njR.indexOf(i) >= 0) d.noJey = true; });
     var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     var sumDoors = doors.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     if (doors.length > 1 && (sumDoors > room + 5 || doors.some(function (d) { return /væng/i.test(d.partur); }))) {
@@ -222,7 +227,7 @@
     // (d.fb/d.ft = where the front itself sits), not from its own ends — those were 18–46 mm off the plates.
     doors.forEach(function (d) {
       var zs = splitNo(d) ? zoneShrink("front" + splitNo(d)) : 0; // a split front's "alla" zone (see zoneShrink)
-      var g = (d.H + grip + BOX_GAP <= top - drawerTop + 0.5 ? doorGrip(d) : 0) + zs;
+      var g = (d.H + doorGrip(d) + BOX_GAP <= top - drawerTop + 0.5 ? doorGrip(d) : 0) + zs;
       d.g = g; // the grip profile (e.g. Jey 27) sits in this reveal above the front
       d.to = r1(top - g); d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP));
       d.ft = r1(d.to - HINGE_FRONT_OFFSET); d.fb = r1(d.ft - d.H);

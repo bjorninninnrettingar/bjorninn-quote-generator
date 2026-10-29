@@ -249,3 +249,23 @@ test("grip = the Eyðublað's Grip? (as the cut list), not the handle: PRO stack
   assert.equal(CD.gripFor(CD.sideInput(mk("JEY lárétt")), null, "recU2aaaaaaaaaaaa", null).mm, 27);
   assert.equal(CD.gripFor(CD.sideInput(mk("JEY lóðrétt")), null, "recU2aaaaaaaaaaaa", null).mm, 0);
 });
+
+test("Jey off on one front (T-15 Sk 2, 2026-10-29): that slot is the front alone, the rest keep the profile; round-trips through Smíðagögn", () => {
+  const c = cab("recSk2aaaaaaaaaaaa", "Sk 2", SK2, { Hæð: 2300, Breidd: 600, Dýpt: 600 }, 27);
+  const e = M.initEdit(c);
+  assert.deepEqual(e.noJey, { drawers: [], doors: [] });
+  const p0 = M.planOf(c, M.smidaOf(c, e));
+  assert.equal(p0.drawers.length, 2);
+  assert.equal(p0.drawers[1].H, p0.drawers[1].front + 27);
+  e.noJey.drawers.push(1); // the upper drawer (bottom → top) has no Jey
+  const o = M.smidaOf(c, e);
+  assert.deepEqual(o.noJey, { drawers: [1], doors: [] });
+  const p1 = M.planOf(c, o);
+  assert.equal(p1.drawers[1].H, p1.drawers[1].front);
+  assert.equal(p1.drawers[0].H, p0.drawers[0].H);
+  assert.equal(p1.drawers[0].to, p0.drawers[0].to); // nothing below it moves
+  // saved and re-opened: the switch is still off, and an untouched cabinet writes no noJey at all
+  const again = M.initEdit(Object.assign({}, c, { existing: o }));
+  assert.deepEqual(again.noJey, { drawers: [1], doors: [] });
+  assert.equal("noJey" in M.smidaOf(c, M.initEdit(c)), false);
+});
