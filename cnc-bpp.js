@@ -81,6 +81,7 @@
     }
     // Note: fronts also carry GLB=HS_HLID (renderSide stamps every file it writes the same way), so TOPP_BOTN/
     // SLA_HLID — ops every side gets unconditionally and no front master has — are the only reliable "side" signal.
+    if (names.indexOf("URTAK_F_VATNSLAS") >= 0) return "botn-urtak"; // the drawer bottom with the water-trap notch
     if (names.indexOf("TOPP_BOTN") >= 0 || names.indexOf("SLA_HLID") >= 0) return "hlid";
     if (has(Object.keys(FRONT_EXTRA_MM)) || names.indexOf("HARDVIDAR_GRIP_ENDA_TIL_ENDA") >= 0 || names.indexOf("K_M_NEDSTI_FRONTUR_MERIVO") >= 0 || names.indexOf("K_M_NEDSTI_FRONTUR_LEGRABOX") >= 0) return "front-skuffa";
     if (names.indexOf("IKEALOM") >= 0) return "front-hurd";
@@ -89,7 +90,7 @@
   }
   var KIND_LABEL = { "hlid": "Hlið", "front-skuffa": "Skúffufrontur", "front-hurd": "Hurðafrontur",
     "hurdablad": "Hurðablað", "karmur-lamir": "Karmur — lamir", "karmur-slut": "Karmur — slúttjárn",
-    "karmur-topp": "Karmur — toppstykki", "unknown": "Óþekkt" };
+    "karmur-topp": "Karmur — toppstykki", "botn-urtak": "Skúffubotn — úrtak", "unknown": "Óþekkt" };
 
   // ── side / door-front feature reconstruction (mirrors cnc-sides.js unitPlan's own math) ───────────────
   function hingeFeature(op, vars) {
@@ -534,6 +535,7 @@
     if (kind === "hlid" || kind === "front-hurd") built = buildSideFeatures(parsed.ops, vars);
     else if (kind === "front-skuffa") built = buildFrontSkuffaFeatures(parsed.ops, vars);
     else if (kind === "hurdablad" || kind === "karmur-lamir" || kind === "karmur-slut" || kind === "karmur-topp") built = buildDoorFeatures(kind, parsed.ops, parsed.glb);
+    else if (kind === "botn-urtak") built = { features: [], unknown: [], info: ["Úrtak fyrir vatnslás (URTAK_F_VATNSLAS) — teiknað í /smida, ekki hér."] };
     else built = { features: [], unknown: parsed.ops.filter(function (o) { return o.active; }), info: [] };
 
     // calm view on top (only for what it can draw: sides and door fronts); the full window below, one click away

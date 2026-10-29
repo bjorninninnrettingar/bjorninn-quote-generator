@@ -333,3 +333,15 @@ test("Úthlið becomes a /smida unit (no carcass side) and its LED edit round-tr
   // a cabinet without any end panel rows is not affected
   assert.equal(M.cabinet(unit("recX", "Sk1", {}), [{ Partur: "Plinta", H: 100, B: 2000, "Þ": 16, M: 1, "Tegund einingu": ["Plinta"] }], {}), null);
 });
+
+test("Úrtak fyrir vatnslás round-trips through the editor into the plan (drawer E, left, 300 mm)", () => {
+  const rows = [gr("Skápur hlið", 800, 580, 16, 2), gr("Skúffufrontur E - Merivo", 397, 1197, 19, 1), gr("Skúffubotn - Merivo", 432, 1132, 16, 1)];
+  const c = cab("recS", "Sk4 | Vaskskápur", rows, { "Hæð": 800 });
+  const e = M.initEdit(c); assert.equal(e.urtak, undefined);
+  e.urtak = { drawer: "E", place: "vinstri", x: 300 };
+  const sm = M.smidaOf(c, e); assert.deepEqual(sm.urtak, { drawer: "E", place: "vinstri", x: 300 });
+  const again = M.initEdit(M.cabinet(unit("recS", "Sk4 | Vaskskápur", { "Hæð": 800, "Smíðagögn (JSON) 🔧": JSON.stringify(sm) }), rows, {}));
+  assert.deepEqual(again.urtak, { drawer: "E", place: "vinstri", x: 300 });
+  assert.ok(M.planOf(c, sm).fronts.some((f) => f.master === "urtak"));
+  delete e.urtak; assert.equal(M.smidaOf(c, e).urtak, undefined);
+});

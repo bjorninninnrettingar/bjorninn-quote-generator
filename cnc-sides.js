@@ -562,6 +562,31 @@
 
     plan.frontCheck = []; // front notes stay out of the side status
     plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves, opts.grip);
+    // Úrtak fyrir vatnslás (Smíða, 2026-10-29): Smíðagögn urtak = { drawer:"E", place:"midja"|"vinstri"|"haegri", x?: mm from the
+    // board's left edge }. The macro URTAK_F_VATNSLAS (PLACEMENT, REFRENCE, TYPE_) cuts a 150.1 wide notch from the board's Y = 0 edge,
+    // 236.2 deep (Merivo) / 252.2 (Legra); REFRENCE = which edge of the notch sits at PLACEMENT (the finished file: lpx/2, midja =
+    // centred), TYPE_ = the drawer system (Merivo 0 / Legra 16 — the file's own LOC variables). The board is the drawer's
+    // "Skúffubotn - <kerfi>" row in Sögunarlisti (B = width = LPX, H = depth = LPY); one per cabinet.
+    if (sms.urtak && sms.urtak.drawer) {
+      var ud = drawers.filter(function (d) { return d.code === sms.urtak.drawer; })[0];
+      if (!ud) check.push("Úrtak fyrir vatnslás: skúffa " + sms.urtak.drawer + " finnst ekki í Sögunarlista — ekkert úrtak gert");
+      else {
+        var bots = rows.filter(function (r) { return /^skúffubotn\b/i.test(String(r.Partur).trim()) && lc(r.Partur).indexOf(ud.sys) >= 0; });
+        var bot = bots.filter(function (r) { return /úrtak/i.test(r.Partur); })[0] || bots[0];
+        if (!bot || num(bot.H) == null || num(bot.B) == null) check.push("Úrtak fyrir vatnslás: enginn „Skúffubotn - " + (ud.sys === "legra" ? "Legra" : "Merivo") + "“ í Sögunarlista — ekkert úrtak gert");
+        else {
+          var uw = num(bot.B), udp = num(bot.H), ut = num(bot["Þ"]) || 16, place = ["vinstri", "midja", "haegri"].indexOf(sms.urtak.place) >= 0 ? sms.urtak.place : "midja";
+          var ux = num(sms.urtak.x), px = ux > 0 ? r1(ux) : null, NW = 150.1, NDEP = (ud.sys === "legra" ? 16 : 0) + 240 - 3.8;
+          var cx = px != null ? px : uw / 2, nx0 = r1(place === "vinstri" ? cx : place === "haegri" ? cx - NW : cx - NW / 2);
+          if (nx0 < 0 || nx0 + NW > uw) check.push("Úrtak fyrir vatnslás: úrtakið (" + nx0 + "–" + r1(nx0 + NW) + " mm) nær út fyrir botninn (" + r1(uw) + " mm breiður)");
+          if (udp < NDEP + 30) check.push("Úrtak fyrir vatnslás: botninn er of stuttur (" + r1(udp) + " mm) fyrir " + r1(NDEP) + " mm úrtak");
+          plan.fronts.push({ name: "Skúffubotn " + ud.code + " úrtak", master: "urtak", LPX: r1(uw), LPY: r1(udp), LPZ: ut, count: plan.cabinets,
+            notch: { x0: nx0, x1: r1(nx0 + NW), depth: r1(NDEP) },
+            ops: [{ name: "URTAK_F_VATNSLAS", label: "Úrtak fyrir vatnslás", params: (px != null ? px : "lpx/2") + ", " + place + ", " + ud.sys }] });
+          info.push("Úrtak fyrir vatnslás í skúffubotni " + ud.code + " (" + (ud.sys === "legra" ? "Legra" : "Merivo") + "): " + place + (px != null ? ", " + px + " mm frá vinstri brún" : ", í miðju"));
+        }
+      }
+    }
     // GUARD (2026-10-27, after T-15): every hinge cup the door-front file drills must sit on a plate the side file
     // drills (≤ 1.5 mm; the 79/80 convention is 1 mm), and every plate needs its cup. The front's position is
     // reconstructed from cut sizes + rules, so a case the rules don't cover would otherwise slip through silently —
@@ -612,11 +637,14 @@
     merivo: ["[03] - Skúffur", "01 - MERIVO", "[01] - Global MERIVO Frontar.bpp"],
     legra: ["[03] - Skúffur", "02 - LEGRA", "01 - Global Frontar - LEGRABOX.bpp"],
     door: ["[02] - Frontar", "[01] - Lama frontar", "[01] - Frontur Breytiskjal.bpp"],
+    // the drawer-bottom board with the water-trap notch: a finished file in the shop's own [03] - Skúffur folder (2026-10-29)
+    urtak: ["[03] - Skúffur", "01- Botnplata - Urtak f. vatnslas.bpp"],
   };
   var FRONT_MANAGED = {
     merivo: ["K_M_NEDSTI_FRONTUR_MERIVO", "E_NEDSTI_FRONTUR_MERIVO", "HARDVIDAR_GRIP_ENDA_TIL_ENDA"],
     legra: ["K_M_NEDSTI_FRONTUR_LEGRABOX", "C_NEDSTI_FRONTUR_LEGRA", "F_NEDSTA_SKUFFA_LEGRABOX", "HARDVIDAR_GRIP_ENDA_TIL_ENDA"],
     door: ["IKEALOM", "LOM"],
+    urtak: ["URTAK_F_VATNSLAS"],
   };
   var FRONT_EXTRA = { merivo: { E: "E_NEDSTI_FRONTUR_MERIVO" }, legra: { C: "C_NEDSTI_FRONTUR_LEGRA", F: "F_NEDSTA_SKUFFA_LEGRABOX" } };
   // where each extra row sits (from the bottom of the front, as the macros on the stick drill it)

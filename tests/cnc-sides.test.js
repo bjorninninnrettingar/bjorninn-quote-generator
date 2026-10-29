@@ -570,3 +570,40 @@ test("UÞV-frontur: front file with the milled grip at the top (default) or bott
   assert.equal(S.unitPlan("Sk30 | UÞV frontur", UTHV, { smida: JSON.stringify({ v: 1, frontGrip: "ekkert" }) }).status, "skip");
   assert.equal(S.unitPlan("Sk31 | Stakur frontur", UTHV).status, "skip"); // any other single front stays as it was
 });
+
+// ── Úrtak fyrir vatnslás (skúffubotn), 2026-10-29 ───────────────────────────────────────────────────────────────
+// The finished file "[03] - Skúffur/01- Botnplata - Urtak f. vatnslas.bpp" has PAN 1132 × 432 × 16, LOC variables
+// (VINSTRI 0, MIDJA 150.1/2, HAEGRI 150.1, MERIVO 0, LEGRA 16) and ONE op: `URTAK_F_VATNSLAS lpx/2, midja, legra`.
+const URMASTER = ["[VARIABLES]", "PAN=LPX|1132||4|", "PAN=LPY|432||4|", "PAN=LPZ|16||4|", "LOC=VINSTRI|0||0|", "LOC=MIDJA|150.1/2||0|", "LOC=HAEGRI|150.1||0|", "LOC=MERIVO|0||2|", "LOC=LEGRA|16||0|",
+  "", "[PROGRAM]", "", `@ URTAK_F_VATNSLAS, "", "", 66815380, "", 0 : lpx/2, midja, legra`, "", `@ GEOTEXT, "", "", 145861948, "", 0 : "P1004", 0, "2", "0 taknar Merivo    16 taknar Legra"`, "", "[VBSCRIPT]"].join("\r\n");
+const SINK = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur K - Merivo", 397, 1197, 19, 1), row("Skúffufrontur E - Merivo", 397, 1197, 19, 1),
+  row("Skúffubotn - Merivo", 432, 1132, 16, 2), row("Skúffubak K - Merivo", 121, 1132, 16, 1)];
+
+test("Úrtak: centred notch on the E drawer's bottom = the finished file's own line; size from the Skúffubotn row, system from the drawer", () => {
+  const p = S.unitPlan("Sk4 | Vaskskápur", SINK, { smida: JSON.stringify({ v: 1, urtak: { drawer: "E", place: "midja" } }) });
+  const f = p.fronts.filter((x) => x.master === "urtak");
+  assert.equal(f.length, 1);
+  assert.deepEqual([f[0].name, f[0].LPX, f[0].LPY, f[0].LPZ, f[0].count], ["Skúffubotn E úrtak", 1132, 432, 16, 1]);
+  assert.deepEqual(f[0].ops, [{ name: "URTAK_F_VATNSLAS", label: "Úrtak fyrir vatnslás", params: "lpx/2, midja, merivo" }]);
+  assert.deepEqual(f[0].notch, { x0: 491, x1: 641.1, depth: 236.2 });
+  const r = S.renderSide(URMASTER, f[0], S.FRONT_MANAGED.urtak);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.text.includes("PAN=LPX|1132|") && r.text.includes("PAN=LPY|432|") && r.text.includes("PAN=LPZ|16|") && r.text.includes("LOC=LEGRA|16||0|"));
+  assert.equal(r.text.split("\r\n").filter((l) => l.startsWith("@ URTAK_F_VATNSLAS")).length, 1);
+  assert.ok(r.text.includes(": lpx/2, midja, merivo") && !r.text.includes(": lpx/2, midja, legra"));
+});
+
+test("Úrtak: left/right reference + x in mm, Legra = TYPE 16, bad cases are flagged not written", () => {
+  const sm = (u) => JSON.stringify({ v: 1, urtak: u });
+  const l = S.unitPlan("Sk4", SINK, { smida: sm({ drawer: "K", place: "vinstri", x: 300 }) }).fronts.find((x) => x.master === "urtak");
+  assert.equal(l.ops[0].params, "300, vinstri, merivo"); assert.deepEqual(l.notch, { x0: 300, x1: 450.1, depth: 236.2 });
+  const rr = S.unitPlan("Sk4", SINK, { smida: sm({ drawer: "K", place: "haegri", x: 1000 }) }).fronts.find((x) => x.master === "urtak");
+  assert.deepEqual(rr.notch, { x0: 849.9, x1: 1000, depth: 236.2 });
+  const LEG = [row("Grunnskápur hlið", 800, 580, 16, 2), row("Skúffufrontur C - Legra", 400, 1197, 19, 1), row("Skúffubotn - Legra", 432, 1132, 16, 1)];
+  const lg = S.unitPlan("Sk4", LEG, { smida: sm({ drawer: "C" }) }).fronts.find((x) => x.master === "urtak");
+  assert.equal(lg.ops[0].params, "lpx/2, midja, legra"); assert.equal(lg.notch.depth, 252.2);
+  assert.ok(S.unitPlan("Sk4", SINK, { smida: sm({ drawer: "M" }) }).check.some((c) => /skúffa M finnst ekki/.test(c)));
+  assert.ok(S.unitPlan("Sk4", SINK, { smida: sm({ drawer: "E", place: "vinstri", x: 1100 }) }).check.some((c) => /nær út fyrir botninn/.test(c)));
+  assert.ok(S.unitPlan("Sk4", SINK.filter((r) => !/botn/.test(r.Partur)), { smida: sm({ drawer: "E" }) }).check.some((c) => /enginn „Skúffubotn - Merivo“/.test(c)));
+  assert.ok(!S.unitPlan("Sk4", SINK).fronts.some((x) => x.master === "urtak")); // off unless chosen
+});

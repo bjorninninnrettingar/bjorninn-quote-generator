@@ -687,7 +687,10 @@
           g += "<g>" + cupSvg(hinge === "haegri" ? X(W) : X(0), hinge === "haegri" ? -1 : 1, Y(y), s, "#0071e3") + "<title>Lamaskál Ø35 + 2 × Ø8 — " + mmv + " mm frá " + (end === "2" ? "neðri" : "efri") + " enda</title></g>"; });
       }
     });
-    if (!door && f.ops.length) notes.unshift("festing úr master");
+    if (f.notch) { // the water-trap notch: cut from the board's Y = 0 edge (bottom here), 150.1 wide
+      g += '<path d="M' + X(f.notch.x0) + " " + Y(0) + " V" + Y(f.notch.depth) + " H" + X(f.notch.x1) + " V" + Y(0) + ' Z" fill="#d70015" fill-opacity=".14" stroke="#d70015" stroke-width="1"><title>Úrtak fyrir vatnslás — ' + mm(f.notch.x0) + "–" + mm(f.notch.x1) + " mm frá vinstri brún, " + mm(f.notch.depth) + " mm djúpt</title></path>"; notes.push("úrtak");
+    }
+    if (!door && f.ops.length && !f.notch) notes.unshift("festing úr master");
     var el = document.createElement("div"); el.className = "frc";
     el.innerHTML = '<svg width="' + (w + pad * 2) + '" height="' + (h + pad * 2) + '">' + g + "</svg>" +
       '<div class="frn">' + esc(f.name) + (f.count > 1 ? " ×" + f.count : "") + "</div>" + (f.ops.length ? "" : '<div class="frx">engin borun</div>');
@@ -724,7 +727,7 @@
     // the cabinet's fronts, each with what /cnc drills in it (plan.fronts = the export's own front plans), read-only
     if ((p.fronts || []).length) {
       var fsec = document.createElement("div"); fsec.className = "frsec";
-      fsec.innerHTML = '<div class="frh"><b>Frontar</b><span>' + ((p.fronts || []).some(function (f) { return f.master !== "door"; }) ? "Sama fræsing á öllum skúffufrontum (sameiginlegt master)" : "") + "</span></div>";
+      fsec.innerHTML = '<div class="frh"><b>Frontar</b><span>' + ((p.fronts || []).some(function (f) { return f.master !== "door" && !f.notch && !/^Uppþ/.test(f.name); }) ? "Sama fræsing á öllum skúffufrontum (sameiginlegt master)" : "") + "</span></div>";
       var frow = document.createElement("div"); frow.className = "frrow";
       p.fronts.forEach(function (f) { frow.appendChild(frontCard(f, ed(c).hinge || p.hingeSide)); });
       fsec.appendChild(frow); wrap.appendChild(fsec);
@@ -897,6 +900,14 @@
       h += row("rails", "Fataslá", e.rails.map(function (x) { return mm(x.mm); }).join(", "),
         e.rails.map(function (x, i) { return '<div class="line"><span class="t">Slá ' + (i + 1) + '</span><input type="number" data-rail="' + i + '" value="' + mm(x.mm) + '"><span class="u">mm ' + (i ? "" : tip("CNC borar slána ekki enn — staðsetningin fer í CNC-skrána og er boruð í höndunum.")) + "</span></div>"; }).join(""));
     }
+    if ((p.drawers || []).length) {
+      var ur = e.urtak, codes = p.drawers.map(function (d) { return d.code; }).filter(function (x, i, a) { return a.indexOf(x) === i; }), PL = { vinstri: "Vinstri", midja: "Miðja", haegri: "Hægri" };
+      h += row("urtak", "Úrtak fyrir vatnslás", ur && ur.drawer ? "Skúffa " + ur.drawer + " · " + (PL[ur.place || "midja"] || "Miðja").toLowerCase() + (ur.x ? " · " + mm(ur.x) + " mm" : "") : "Ekkert",
+        '<div class="line"><span class="u">Í botni hvaða skúffu ' + tip("Botninn fær úrtak (URTAK_F_VATNSLAS, 150 mm breitt) og kemur sem sér skrá í CNC-útflutninginn — stærðin kemur úr „Skúffubotn“ í Sögunarlista, kerfið (Merivo/Legra) úr skúffunni.") + '</span></div>' +
+        '<div class="line"><span class="seg"><button type="button" data-urd="" class="' + (ur && ur.drawer ? "" : "on") + '">Ekkert</button>' + codes.map(function (cd) { return '<button type="button" data-urd="' + cd + '" class="' + (ur && ur.drawer === cd ? "on" : "") + '">' + cd + "</button>"; }).join("") + "</span></div>" +
+        (ur && ur.drawer ? '<div class="line"><span class="seg">' + ["vinstri", "midja", "haegri"].map(function (k) { return '<button type="button" data-urp="' + k + '" class="' + ((ur.place || "midja") === k ? "on" : "") + '">' + PL[k] + "</button>"; }).join("") + "</span></div>" +
+          more("urx", '<div class="line"><span class="t">Miðað við</span><input type="number" data-urx="1" value="' + (ur.x ? mm(ur.x) : "") + '" placeholder="miðja botns"><span class="u">mm frá vinstri brún botns ' + tip("Autt = í miðju botnsins (eins og tilbúna skráin). Vinstri/Miðja/Hægri segir hvaða brún úrtaksins er á þessum stað.") + "</span></div>") : ""));
+    }
     if ((p.drawers || []).length) h += row("dw", "Skúffur", p.drawers.map(function (d) { return d.code + " " + mm(d.front); }).join(" · ") + (c.depths.length ? " · dýpt " + c.depths.map(mm).join("/") : "") + " " + tip("Dýptin er lengd skúffubotnsins í Sögunarlista (kerfislengd ≈ botn + 26). Breyttu skúffum á Eyðublaðinu og keyrðu Yfirfara."), "", true);
     h += "</div>";
     // ── what /cnc still says (real things only — the defaults go away once marked, the open questions are above)
@@ -934,6 +945,8 @@
       if (jj[2] === "0" || jj[2] === "v") { if (at < 0) l.push(n); } else if (at >= 0) l.splice(at, 1); }); return; }
     if (d.hsplit != null) { change(function (e) { var k = +d.hsplit, n = c.base.cabinets; e.hingeSplit = k === 0 || k === n ? null : { vinstri: k, haegri: n - k }; if (k === 0) e.hinge = "haegri"; else if (k === n) e.hinge = "vinstri"; }); return; }
     if (d.blind) { change(function (e) { e.blindSide = d.blind; }); return; }
+    if (d.urd != null) { change(function (e) { e.urtak = d.urd ? { drawer: d.urd, place: (e.urtak && e.urtak.place) || "midja", x: e.urtak ? e.urtak.x : null } : null; }); openRow[c.unit + "urtak"] = true; return; }
+    if (d.urp) { change(function (e) { if (e.urtak) e.urtak.place = d.urp; }); return; }
     if (d.fgrip) { change(function (e) { e.frontGrip = d.fgrip; }); return; }
     if (d.ledadd) { change(function (e) { (e.led = e.led || []).push({ where: "hlid", y: c.panel ? 50 : 57 }); }); openRow[c.unit + "led"] = true; return; }
     if (d.leddel != null) { change(function (e) { e.led.splice(+d.leddel, 1); }); return; }
@@ -971,6 +984,7 @@
       else if (d.rail != null) e.rails[+d.rail].mm = v;
       else if (d.oven) e.oven[d.oven] = v;
       else if (d.led != null) e.led[+d.led].y = Math.max(1, v);
+      else if (d.urx != null) { if (e.urtak) e.urtak.x = v > 0 ? v : null; }
       else if (d.ledlen != null) { if (v > 0) e.led[+d.ledlen].len = v; else delete e.led[+d.ledlen].len; }
       else if (d.ledfrom != null) { if (v > 0) e.led[+d.ledfrom].from = v; else delete e.led[+d.ledfrom].from; }
       else if (d.hinge) {
