@@ -471,6 +471,7 @@
         (hs === "baedi" && leaves ? '<line x1="' + mx + '" x2="' + mx + '" y1="' + y0 + '" y2="' + y1 + '" stroke="#0071e3" stroke-width="1"/>' : "") +
         (mark ? '<path d="' + mark + '" fill="none" stroke="#0071e3" stroke-width="1" stroke-dasharray="6 5" opacity=".7"/>' : "") +
         "<title>" + (leaves ? "Vænghurð — lamir báðum megin" : "Smelltu til að skipta um lamahlið") + "</title></g>";
+      if (d.vert && c.gripMm > 0) { var vg = c.gripMm * sc, vx = hs === "haegri" ? x0 : x1 - vg; s += '<rect class="pick" data-pick="jey" x="' + vx + '" y="' + y0 + '" width="' + vg + '" height="' + (y1 - y0) + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll á hlið (' + Math.round(c.gripMm) + ' mm)</title></rect>'; }
       if (d.g > 0.5) s += '<rect class="pick" data-pick="jey" x="' + (x0 + 2) + '" y="' + Y(d.to + d.g) + '" width="' + (x1 - x0 - 4) + '" height="' + d.g * sc + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll ' + Math.round(d.g) + ' mm ofan á hurðinni</title></rect>';
       if (lift) return;
       var sides = hs === "baedi" ? [0, W] : hs === "vinstri" ? [0] : hs === "haegri" ? [W] : [0, W];
@@ -552,6 +553,21 @@
         return; }
       var pk = ev.target.closest(".pick"); if (pk) { focusSection(pk.dataset.pick); return; }
       var dg = ev.target.closest(".door"); if (dg) focusSection("hinge", null, null, "d" + dg.dataset.door);
+    });
+    svg.addEventListener("contextmenu", function (ev) { // right-click a hinge = delete it, right-click a door = add one there
+      var hg = ev.target.closest('.drag[data-k="hinge"]'), dg = ev.target.closest(".door"); if (!hg && !dg) return;
+      ev.preventDefault();
+      var i = +(hg ? hg.dataset.i : dg.dataset.door), door = plan(c).doors[i]; if (!door) return;
+      var len = r1(door.to - door.from), e0 = ed(c);
+      if (e0.doors && e0.doors[i] && e0.doors[i].type === "lift") return;
+      var pos0 = door.hinges || [];
+      if (hg && pos0.length <= 1) { toast("Hurðin þarf að minnsta kosti eina löm"); return; }
+      change(function (e) {
+        ensureDoors(c, e);
+        var pos = SD.specToPositions(e.doors[i].hinges, len);
+        if (hg) pos.splice(+hg.dataset.j, 1); else pos.push(Math.max(30, Math.min(len - 30, mmAt(ev) - door.from)));
+        e.doors[i].hinges = toSpec(pos, len);
+      });
     });
     svg.addEventListener("dblclick", function (ev) { // quick: switch the hinge side right on the door
       var dg = ev.target.closest(".door"); if (!dg || ev.target.closest(".drag")) return;
@@ -781,9 +797,9 @@
       var x = e.doors && e.doors[i], lift = x && x.type === "lift", pd = (p.doors || [])[i] || d, len = r1(pd.to - pd.from), pos = pd.hinges || [];
       var val = lift ? "Lyftihurð" : plural(pos.length, "löm", "lamir") + (x ? " · færðar" : "");
       var adv = lift ? "" : more("h" + i,
-        '<div class="line"><span class="u">mm frá enda hurðar ' + tip("↓ = frá neðri brún hurðar, ↑ = frá efri brún. Sjálfgefið: 80 mm frá endum, hinar jafnt á milli, færðar frá hillum. Þú getur líka dregið lamirnar á teikningunni.") + "</span></div>" +
+        '<div class="line"><span class="u">mm frá enda hurðar ' + tip("↓ = frá neðri brún hurðar, ↑ = frá efri brún. Sjálfgefið: 80 mm frá endum, hinar jafnt á milli, færðar frá hillum. Þú getur líka dregið lamirnar á teikningunni — hægrismelltu á löm til að eyða henni, á hurð til að bæta við.") + "</span></div>" +
         pos.map(function (q, j) { var top = q > len / 2; return '<div class="line"><span class="t">' + (top ? "↑ ofan" : "↓ neðan") + '</span><input type="number" data-hinge="' + i + ":" + j + '" value="' + mm(top ? len - q : q) + '"><span class="u">mm</span></div>'; }).join("") +
-        '<div class="line"><button type="button" class="mini" data-hadd="' + i + '">Bæta við löm</button><button type="button" class="mini" data-hdel="' + i + '"' + (pos.length <= 2 ? " disabled" : "") + '>Fjarlægja löm</button>' +
+        '<div class="line"><button type="button" class="mini" data-hadd="' + i + '">Bæta við löm</button><button type="button" class="mini" data-hdel="' + i + '"' + (pos.length <= 1 ? " disabled" : "") + '>Fjarlægja löm</button>' +
         '<button type="button" class="mini" data-hreset="' + i + '"' + (x ? "" : " disabled") + ">Sjálfgefið</button></div>");
       h += row("d" + i, doors.length > 1 ? "Hurð " + (i + 1) : "Hurð", mm(d.H) + " · " + val, typeCards(e, i) + adv);
     });
@@ -792,11 +808,11 @@
     if (c.gripMm > 0 && ((p.drawers || []).length || (p.doors || []).length)) {
       var nj = e.noJey || { drawers: [], doors: [] }, fr = [];
       (p.drawers || []).forEach(function (q, i) { fr.push({ key: "d:" + i, name: "Skúffa " + q.code + " · " + mm(q.front), on: nj.drawers.indexOf(i) < 0 }); });
-      (p.doors || []).forEach(function (q, i) { fr.push({ key: "r:" + i, name: (doors.length > 1 ? "Hurð " + (i + 1) : "Hurð") + " · " + mm(q.H), on: nj.doors.indexOf(i) < 0 }); });
+      (p.doors || []).forEach(function (q, i) { var vt = ((e.jeyVert || {}).doors || []).indexOf(i) >= 0; fr.push({ key: "r:" + i, door: true, vert: vt, name: (doors.length > 1 ? "Hurð " + (i + 1) : "Hurð") + " · " + mm(q.H), on: nj.doors.indexOf(i) < 0 || vt }); });
       var nOn = fr.filter(function (f) { return f.on; }).length;
       h += row("jey", "Jey-grip", nOn === fr.length ? "Á öllum frontum" : nOn === 0 ? "Á engum fronti" : nOn + " af " + fr.length + " frontum",
         '<div class="line"><span class="u">Prófíllinn efst á fronti (' + mm(c.gripMm) + ' mm) ' + tip("Slökktu á honum á fronti sem er ekki með Jey — teikningin og hólfið miðast þá við frontinn einan. Ef frontarnir passa þá ekki við hliðina segir CNC það.") + "</span></div>" +
-        fr.slice().reverse().map(function (f) { return '<div class="line"><span class="t" style="width:130px">' + esc(f.name) + '</span><span class="seg"><button type="button" data-jey="' + f.key + ':1" class="' + (f.on ? "on" : "") + '">Með Jey</button><button type="button" data-jey="' + f.key + ':0" class="' + (f.on ? "" : "on") + '">Án</button></span></div>'; }).join(""));
+        fr.slice().reverse().map(function (f) { return '<div class="line"><span class="t" style="width:130px">' + esc(f.name) + '</span><span class="seg"><button type="button" data-jey="' + f.key + ':1" class="' + (f.on && !f.vert ? "on" : "") + '">' + (f.door ? "Efst" : "Með Jey") + "</button>" + (f.door ? '<button type="button" data-jey="' + f.key + ':v" class="' + (f.vert ? "on" : "") + '">Á hlið</button>' : "") + '<button type="button" data-jey="' + f.key + ':0" class="' + (f.on ? "" : "on") + '">Án</button></span></div>'; }).join(""));
     }
     if (c.blind && (p.doors || []).length) {
       h += row("blind", "Blindlok", mm(c.blind.B) + " × " + mm(c.blind.H) + " · " + (e.blindSide === "vinstri" ? "vinstra megin" : "hægra megin"),
@@ -869,8 +885,10 @@
     if (d.hinge) { change(function (e) { e.hinge = d.hinge; }); return; }
     if (d.dtype) { var dt = d.dtype.split(":"), di = +dt[0]; change(function (e) { ensureDoors(c, e); e.doors[di].type = dt[1];
       if (dt[1] === "hinged" && !e.doors[di].hinges.length) e.doors[di].hinges = SD.defaultHingeSpec(r1(c.base.doors[di].to - c.base.doors[di].from), []); }); return; }
-    if (d.jey) { var jj = d.jey.split(":"); change(function (e) { var l = (e.noJey = e.noJey || { drawers: [], doors: [] })[jj[0] === "d" ? "drawers" : "doors"], at = l.indexOf(+jj[1]);
-      if (jj[2] === "0" && at < 0) l.push(+jj[1]); else if (jj[2] === "1" && at >= 0) l.splice(at, 1); }); return; }
+    if (d.jey) { var jj = d.jey.split(":"); change(function (e) { var l = (e.noJey = e.noJey || { drawers: [], doors: [] })[jj[0] === "d" ? "drawers" : "doors"], at = l.indexOf(+jj[1]), n = +jj[1];
+      var vl = (e.jeyVert = e.jeyVert || { doors: [] }).doors, vat = vl.indexOf(n);
+      if (jj[0] === "r") { if (jj[2] !== "v" && vat >= 0) vl.splice(vat, 1); if (jj[2] === "v" && vat < 0) vl.push(n); }
+      if (jj[2] === "0" || jj[2] === "v") { if (at < 0) l.push(n); } else if (at >= 0) l.splice(at, 1); }); return; }
     if (d.blind) { change(function (e) { e.blindSide = d.blind; }); return; }
     if (d.ledadd) { change(function (e) { (e.led = e.led || []).push({ where: "hlid", y: 57 }); }); openRow[c.unit + "led"] = true; return; }
     if (d.leddel != null) { change(function (e) { e.led.splice(+d.leddel, 1); }); return; }

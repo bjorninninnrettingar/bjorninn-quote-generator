@@ -173,6 +173,7 @@
     drawers.sort(function (a, b) { return CODE_ORDER.indexOf(a.code) - CODE_ORDER.indexOf(b.code) || b.H - a.H; });
     // Jey off on a front (Smíða "Jey-grip" rofi, 2026-10-29): Smíðagögn noJey = { drawers:[i bottom→top], doors:[i top→bottom] }.
     // That front has no profile on it, so its slot is the cut front alone (a Fræst grip zone still shrinks it as above).
+    var jeyV = (parseSmida(opts.smida) || {}).jeyVert || {}, jvR = Array.isArray(jeyV.doors) ? jeyV.doors : []; // a door's Jey on its side (vertical) takes no height reveal
     var noJey = (parseSmida(opts.smida) || {}).noJey || {}, njD = Array.isArray(noJey.drawers) ? noJey.drawers : [], njR = Array.isArray(noJey.doors) ? noJey.doors : [];
     drawers.forEach(function (d, i) { if (grip && njD.indexOf(i) >= 0) { d.H = r1(d.front + zoneShrink(d.code)); d.noJey = true; } });
     var sys = {}; drawers.forEach(function (d) { sys[d.sys] = 1; });
@@ -213,7 +214,7 @@
     // retired (2026-10-14) — Fræst grip no longer goes through Höldur 1 at all, so `grip` itself is never negative
     // any more; see the Grip svæði block below instead. Drawer fronts are unconditional either way (set above).
     function doorGrip(d) { return d.noJey ? 0 : grip; }
-    doors.forEach(function (d, i) { if (grip && njR.indexOf(i) >= 0) d.noJey = true; });
+    doors.forEach(function (d, i) { if (grip && njR.indexOf(i) >= 0) d.noJey = true; if (grip && jvR.indexOf(i) >= 0) { d.noJey = true; d.vert = true; } });
     var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     var sumDoors = doors.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     if (doors.length > 1 && (sumDoors > room + 5 || doors.some(function (d) { return /væng/i.test(d.partur); }))) {

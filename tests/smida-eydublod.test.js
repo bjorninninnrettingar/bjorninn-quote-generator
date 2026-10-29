@@ -298,3 +298,16 @@ test("shelf depth from Sögunarlisti (2026-10-29): a shelf that is not side dept
   assert.deepEqual(p.shelfD, { fixed: 500, loose: 540 });
   assert.ok(opsOf(p, "FOST_HILLA").every((x) => /, 2, 500, lpz\+5$/.test(x)));
 });
+
+test("Jey on the side of a door (T-15 Sk 5-8 shape, 2026-10-29): no height reveal, vertical flag for the drawing, round-trips", () => {
+  const c = cab("recSk5jeyaaaaaaaa", "Sk 5-8", SK5, { Hæð: 880, Breidd: 400, Dýpt: 300, "Fjöldi eininga": 4 }, 27);
+  const e = M.initEdit(c);
+  const p0 = M.planOf(c, M.smidaOf(c, e));
+  e.noJey.doors.push(0); e.jeyVert = { doors: [0] };
+  const o = M.smidaOf(c, e), p1 = M.planOf(c, o);
+  assert.deepEqual(o.jeyVert, { doors: [0] });
+  assert.equal(p1.doors[0].vert, true);
+  assert.equal(p1.doors[0].g, 0);
+  assert.ok(p1.doors[0].to >= p0.doors[0].to);
+  assert.deepEqual(M.initEdit(Object.assign({}, c, { existing: o })).jeyVert, { doors: [0] });
+});
