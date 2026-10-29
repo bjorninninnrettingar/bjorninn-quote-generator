@@ -693,3 +693,13 @@ test("LED í hillu: a shelf file with the master's LED line (Y default 50), Rast
   assert.match(S.renderSide(SHMASTER, short, []).text, /"LED 4x8 \(Smíða Y 40, 100–400\)".*: 0, "1", 100, 40, 0, 8\+\.5, 300,/);
   assert.ok(!S.unitPlan("Sk6", rows).fronts.some((x) => x.master === "hilla"));
 });
+
+test("Vænghurð (hinge baedi): no Jey on the doors at all — no top/bottom/side reveal, the grip is not added to the slot", () => {
+  const rows = [row("Skápur hlið", 800, 300, 16, 2), row("Frontur vænghurð", 797, 297, 19, 2)];
+  const none = S.unitPlan("Sk9", rows, { gripMm: 27, smida: JSON.stringify({ v: 1, hinge: "baedi", jey: 27, jeyBot: { doors: [0] }, jeyVert: { doors: [0] } }) });
+  assert.ok(none.doors.every((d) => d.g === 0 && !d.gb && !d.vert));
+  assert.ok(none.info.some((i) => /ekkert Jey á hurðunum/.test(i)));
+  assert.ok(!none.check.some((c) => /passa ekki við hlið/.test(c)), none.check.join("|"));
+  // a single door in the same cabinet still gets it
+  assert.equal(S.unitPlan("Sk9", [rows[0], row("Frontur", 770, 597, 19, 1)], { gripMm: 27, smida: JSON.stringify({ v: 1, hinge: "vinstri" }) }).doors[0].g, 27);
+});

@@ -1528,6 +1528,34 @@
     return interiorBounds(geoms, ROOM_DEPTH_M, extra);
   }
 
+  // "Rúmgott" (PRO, owner 2026-10-29): the room shown larger only on screen, so a small or sketchy room does not feel boxed in. The drawing,
+  // quote and work drawings never change — the real floor stays as the customer chose it, with a thin line on the real boundary; the extra
+  // ground beyond it is a light grey concrete grid (SPACIOUS_M metres more on every side). The real walls stay.
+  var SPACIOUS = false, SPACIOUS_M = 1.5, spaciousTex = null;
+  function setSpacious(on){ SPACIOUS = !!on; }
+  function spaciousTexture(THREE){
+    if (spaciousTex) return spaciousTex;
+    var c = document.createElement("canvas"); c.width = c.height = 256; var g = c.getContext("2d");
+    g.fillStyle = "#dcdee1"; g.fillRect(0, 0, 256, 256);
+    for (var i = 0; i < 1400; i++){ g.fillStyle = "rgba(0,0,0," + (Math.random() * 0.035).toFixed(3) + ")"; g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); }
+    g.strokeStyle = "rgba(90,96,104,.28)"; g.lineWidth = 2; g.strokeRect(1, 1, 254, 254); // a 1.2 m slab joint
+    spaciousTex = new THREE.CanvasTexture(c); spaciousTex.wrapS = spaciousTex.wrapT = THREE.RepeatWrapping; if (THREE.SRGBColorSpace) spaciousTex.colorSpace = THREE.SRGBColorSpace;
+    return spaciousTex;
+  }
+  function addSpacious(THREE, scene, geoms, b){
+    if (!SPACIOUS) return;
+    var m = SPACIOUS_M, w = (b.maxX - b.minX) + m * 2, d = (b.maxZ - b.minZ) + m * 2, cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    var tex = spaciousTexture(THREE).clone(); tex.needsUpdate = true; tex.repeat.set(w / 1.2, d / 1.2);
+    var ground = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map:tex, roughness:1, metalness:0 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(cx, -0.006, cz); ground.receiveShadow = true; ground.userData.spacious = true;
+    scene.add(ground);
+    // the real room's edge, a thin dark line just above the floor
+    var pts = [];
+    if (geoms.closed && geoms.length >= 3) geoms.forEach(function(g){ pts.push(new THREE.Vector3(g.origin.x, 0.004, g.origin.z)); });
+    else [[b.minX, b.minZ], [b.maxX, b.minZ], [b.maxX, b.maxZ], [b.minX, b.maxZ]].forEach(function(q){ pts.push(new THREE.Vector3(q[0], 0.004, q[1])); });
+    var line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color:0x4b5563 }));
+    line.userData.spacious = true; scene.add(line);
+  }
   function addFloor(THREE, scene, geoms, floorMat, b){
     var margin = geoms.closed ? 0 : 0.3;
     var w = (b.maxX - b.minX) + margin * 2, d = (b.maxZ - b.minZ) + margin * 2;
@@ -1546,7 +1574,7 @@
       pm.rotation.x = -Math.PI / 2;
       pm.receiveShadow = true;
       scene.add(pm);
-      return { cx:cx, cz:cz, w:w, d:d };
+      addSpacious(THREE, scene, geoms, b); return { cx:cx, cz:cz, w:w, d:d };
     }
     var mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
     if (floorMat.map && floorMat.userData.tile){ // one 2 m tile of oak planks, repeated to the room size
@@ -1557,7 +1585,7 @@
     mesh.position.set(cx, 0, cz);
     mesh.receiveShadow = true;
     scene.add(mesh);
-    return { cx:cx, cz:cz, w:w, d:d };
+    addSpacious(THREE, scene, geoms, b); return { cx:cx, cz:cz, w:w, d:d };
   }
 
   var WALL_THICKNESS_M = 0.08;
@@ -8056,7 +8084,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, setSpacious: setSpacious, isSpacious: function(){ return SPACIOUS; }, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS, WALL_TILES: WALL_TILES,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
