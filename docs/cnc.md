@@ -216,8 +216,7 @@ Seen, not changed: a unit with a Smíðagögn "alla" grip zone (Keyra skipulag a
 
 ### /cnc is gone — the export lives in cnc-export.js (2026-10-29, owner decision)
 - **One page: /smida.** `/cnc` and `/hurdir` are now Vercel redirects to `/smida` (query kept: `?recordId=&k=` and `t=`/`unit=` still work). PRO's
-  "Opna CNC-útflutning" and /framleidsla's tool link point at `/smida?recordId=` directly; /ferli already did. [cnc.html](cnc.html) stays in the repo
-  as a fallback file only (no route; `/cnc.html` still serves it) — delete it once the shop has used the new path for a while.
+  "Opna CNC-útflutning" and /framleidsla's tool link point at `/smida?recordId=` directly; /ferli already did. cnc.html was **deleted 2026-10-29** (/smida replaced it; `/cnc` and `/hurdir` still redirect to /smida in vercel.json).
 - **[cnc-export.js](cnc-export.js)** (`window.CNCEXPORT`) is everything cnc.html's inline script did around the files: `loadProject` (Airtable read +
   door plans), `planSides(P, gripOverride)` (one entry per cabinet), `gripInfo`, and `writeUsb(P, dir, {groups, doors, overwriteJamb, log})` — sides,
   fronts, door leaf + karmar (jamb-wins rule), `Hurðaskrá.txt` append, `<T-xx> CNC skrá.txt`, the `6. CNC yfirfarið` PATCH (only when nothing is ⛔),
