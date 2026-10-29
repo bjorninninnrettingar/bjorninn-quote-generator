@@ -26,10 +26,12 @@
     ".og-editing .og-w{overflow:hidden !important;outline:2px dashed rgba(127,127,127,.45);outline-offset:-2px;border-radius:14px;}" +
     ".og-editing .og-w[data-og-force]:not(.og-off){display:block !important;}" +
     ".og-editing .og-w>*:not(.og-chrome):not(.og-rz){pointer-events:none;opacity:.55;}" +
-    ".og-w.og-dragging{opacity:.5;outline-color:var(--accent,#0f6cbd);}" +
+    ".og-editing .og-w{cursor:grab;touch-action:none;}" +
+    ".og-w.og-dragging{opacity:.55;outline-color:var(--accent,#0f6cbd);cursor:grabbing;z-index:40;box-shadow:0 10px 30px rgba(0,0,0,.2);}" +
+    ".og-w.og-target{outline:3px solid var(--accent,#0f6cbd) !important;}" +
     ".og-chrome{display:none;position:absolute;left:8px;right:8px;top:8px;z-index:30;align-items:center;gap:6px;background:var(--surface,#fff);border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.18);padding:5px 6px;font:600 .78rem var(--font,system-ui);color:var(--text,#111);}" +
     ".og-editing .og-chrome{display:flex;}" +
-    ".og-grip{cursor:grab;touch-action:none;display:flex;align-items:center;gap:6px;flex:1;min-width:0;padding:3px 4px;border-radius:6px;user-select:none;}" +
+    ".og-grip{cursor:inherit;touch-action:none;display:flex;align-items:center;gap:6px;flex:1;min-width:0;padding:3px 4px;border-radius:6px;user-select:none;}" +
     ".og-grip:active{cursor:grabbing;}" +
     ".og-grip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}" +
     ".og-grip svg{flex:none;opacity:.55;}" +
@@ -127,26 +129,36 @@
         if (b.dataset.w) { state.size[id].w = +b.dataset.w; save(); apply(); }
         else if (b.dataset.hide) { hide(id); }
       });
-      // reorder: the dragged widget hops over whichever widget the pointer is over (before/after by position)
-      var grip = ch.querySelector(".og-grip");
-      grip.addEventListener("pointerdown", function (e) {
-        if (e.button) return; e.preventDefault();
-        grip.setPointerCapture(e.pointerId); el.classList.add("og-dragging");
+      // reorder by SWAP: dragging a widget over another swaps their places (stable even when sizes differ —
+      // the old "hop before/after" flip-flopped when the layout reflowed under the pointer). The whole widget
+      // is the handle in edit mode (not only the grip); buttons and the resize corner keep their own clicks.
+      function startDrag(e) {
+        if (e.button) return;
+        if (e.target.closest(".og-chrome button") || e.target.closest(".og-rz")) return;
+        e.preventDefault();
+        el.setPointerCapture(e.pointerId); el.classList.add("og-dragging");
+        var last = null, target = null;
+        function mark(t) { if (target && target !== t) target.classList.remove("og-target"); target = t; if (t) t.classList.add("og-target"); }
         function move(ev) {
-          var under = document.elementsFromPoint(ev.clientX, ev.clientY).filter(function (n) { return n.classList && n.classList.contains("og-w") && n !== el && !n.classList.contains("og-off"); })[0];
-          if (!under) return;
-          var r = under.getBoundingClientRect();
-          var after = ev.clientY > r.top + r.height / 2 && ev.clientX > r.left + r.width * 0.25 ? true : ev.clientX > r.left + r.width / 2;
-          if (after) box.insertBefore(el, under.nextSibling); else box.insertBefore(el, under);
+          var under = document.elementsFromPoint(ev.clientX, ev.clientY).filter(function (n) { return n.classList && n.classList.contains("og-w") && !n.classList.contains("og-off"); })[0];
+          if (!under || under === el) { last = null; mark(null); return; }
+          mark(under);
+          if (under === last) return;
+          last = under;
+          var ph = document.createComment("og");
+          box.insertBefore(ph, el); box.insertBefore(el, under); box.insertBefore(under, ph); box.removeChild(ph);
+          // after the swap the dragged widget sits where `under` was; the pointer is usually over it again
+          // (then `last` is reset above), so the next swap only happens when the pointer moves onto another widget.
         }
         function up() {
-          grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
-          el.classList.remove("og-dragging");
+          el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up);
+          el.classList.remove("og-dragging"); mark(null);
           state.order = Array.prototype.map.call(box.querySelectorAll(":scope > .og-w"), function (n) { return n.dataset.ogId; });
           save();
         }
-        grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
-      });
+        el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+      }
+      el.addEventListener("pointerdown", function (e) { if (el.closest(".og-editing")) startDrag(e); });
       // resize: corner drag snaps to columns/rows
       rz.addEventListener("pointerdown", function (e) {
         if (e.button) return; e.preventDefault(); e.stopPropagation();
@@ -179,7 +191,7 @@
     var editing = false;
     function renderBar() {
       var hidden = state.hidden;
-      bar.innerHTML = '<div class="og-hint">Dragðu kubb á gripið til að færa hann, dragðu hornið til að stækka, eða veldu breidd. Þetta er bara þín uppsetning.</div>' +
+      bar.innerHTML = '<div class="og-hint">Gríptu kubb hvar sem er og dragðu yfir annan til að víxla þeim, dragðu hornið til að stækka, eða veldu breidd. Þetta er bara þín uppsetning.</div>' +
         (hidden.length ? '<select class="og-add"><option value="">Bæta við…</option>' + hidden.map(function (id) { return '<option value="' + id + '">' + (defs[id].title || id) + "</option>"; }).join("") + "</select>" : "") +
         '<button type="button" class="og-reset">Endurstilla</button><button type="button" class="og-done">Klára</button>';
       bar.classList.toggle("open", editing);
