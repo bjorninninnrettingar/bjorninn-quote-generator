@@ -592,6 +592,20 @@
 
     plan.frontCheck = []; // front notes stay out of the side status
     plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves, opts.grip);
+    // Skúffudýpt (Smíða, 2026-10-29): information + a fit check, NO drilling change — MERIVOBOX_V2 / LEGRABOX_* have no depth parameter
+    // (their .ini: slot heights + FRONTUR + TYPE_ only; the .vbs never reads LPY for the box). Default = the "Skúffubotn - <kerfi>" length in
+    // Sögunarlisti + 26 (nominal depth); Smíðagögn drawerDepth {K: mm} overrides it per drawer code. A drawer that does not fit
+    // the side's depth (back needs ~20 mm before the masonite) is flagged.
+    plan.drawerDepth = {};
+    drawers.forEach(function (d) {
+      if (plan.drawerDepth[d.code]) return;
+      var bs = rows.filter(function (r) { return /^skúffubotn\b/i.test(String(r.Partur).trim()) && lc(r.Partur).indexOf(d.sys) >= 0 && num(r.H) > 0; }), nom = bs.length ? Math.max.apply(null, bs.map(function (r) { return num(r.H); })) + 26 : null;
+      var set = num((sms.drawerDepth || {})[d.code]), mmv = set > 0 ? set : nom;
+      if (!(mmv > 0)) return;
+      plan.drawerDepth[d.code] = { mm: r1(mmv), def: nom != null ? r1(nom) : null, set: set > 0 && set !== nom };
+      if (set > 0 && nom != null && set !== nom) info.push("Skúffa " + d.code + ": dýpt " + r1(set) + " mm (Sögunarlisti " + r1(nom) + ") — breytir ekki borun, skúffubotn/-bak í Sögunarlista fylgja ekki, keyra Yfirfara");
+      if (mmv > B - 20) check.push("Skúffa " + d.code + ": dýpt " + r1(mmv) + " mm kemst ekki fyrir í skápnum (hliðin er " + r1(B) + " mm djúp)");
+    });
     // Úrtak fyrir vatnslás (Smíða, 2026-10-29): Smíðagögn urtak = { drawer:"E", place:"midja"|"vinstri"|"haegri", x?: mm from the
     // board's left edge }. The macro URTAK_F_VATNSLAS (PLACEMENT, REFRENCE, TYPE_) cuts a 150.1 wide notch from the board's Y = 0 edge,
     // 236.2 deep (Merivo) / 252.2 (Legra); REFRENCE = which edge of the notch sits at PLACEMENT (the finished file: lpx/2, midja =

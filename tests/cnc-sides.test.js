@@ -660,3 +660,14 @@ test("Jey by hand: no Grip? on the Eyðublað → smida.jey is the grip; on top 
   // the Eyðublað's own grip wins over smida.jey
   assert.equal(S.unitPlan("Sk15", WALL, { gripMm: 20, smida: JSON.stringify({ v: 1, jey: 27 }) }).doors[0].g, 20);
 });
+
+test("Skúffudýpt: default from Skúffubotn + 26, per-code override is information only (same ops), too deep is flagged", () => {
+  const base = S.unitPlan("Sk4", SINK);
+  assert.deepEqual(base.drawerDepth, { K: { mm: 458, def: 458, set: false }, E: { mm: 458, def: 458, set: false } });
+  const sm = (o) => JSON.stringify({ v: 1, drawerDepth: o });
+  const p = S.unitPlan("Sk4", SINK, { smida: sm({ K: 500 }) });
+  assert.deepEqual(p.drawerDepth.K, { mm: 500, def: 458, set: true });
+  assert.deepEqual(p.ops, base.ops); // no drilling change: the macros have no depth parameter
+  assert.ok(p.info.some((i) => /Skúffa K: dýpt 500 mm \(Sögunarlisti 458\) — breytir ekki borun/.test(i)));
+  assert.ok(S.unitPlan("Sk4", SINK, { smida: sm({ E: 570 }) }).check.some((c) => /Skúffa E: dýpt 570 mm kemst ekki fyrir í skápnum \(hliðin er 580 mm djúp\)/.test(c)));
+});

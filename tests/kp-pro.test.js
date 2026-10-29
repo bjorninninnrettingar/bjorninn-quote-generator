@@ -50,6 +50,7 @@ test("cabinets without a Line Item get one (same fields as a submission); lines 
   assert.deepEqual(post.body.records, [{ fields: { "Tækifæri 📣 (projects)": [OPP], "Rými 🏡": "Eldhús", "Magn": 1, "Vöru reitur 1": ["recV1V1V1V1V1V1V1"], "🔑": "Sk4", "Smíðagögn (JSON) 🔧": '{"v":1,"w":600}' } }]);
   assert.ok(!f.calls.some((c) => c.method === "DELETE"));
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, lineItems: [{ "🔑": "Sk 1" }] }), "Ógilt 🔑 á línu");
+  assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, lineItems: [{ "🔑": "UH1" }, { "🔑": "Sk1" }] }), null); // úthliðar (2026-10-29)
   assert.equal(validate({ recordId: OPP, state: { walls: [] }, smida: {}, lineItems: [{ "🔑": "Sk1", "Vöru reitur 1": ["nope"] }] }), "Ógild tenging");
 });
 

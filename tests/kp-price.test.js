@@ -46,6 +46,9 @@ test("validates input and needs the office key", async () => {
   assert.equal(validate({ recordId: A, lines: [{ key: "Sk1", v1: [A] }] }), null);
   assert.equal(validate({ recordId: "x", lines: [] }), "Ógilt recordId");
   assert.equal(validate({ recordId: A, lines: [{ key: "Sk1; DROP" }] }), "Ógilt 🔑");
+  // úthliðar are numbered UH1… (since 2026-10-28) and their Line Items carry that key — a rejected key made EVERY price / Vista / submit
+  // call fail on any project with an úthlið (T-248, 2026-10-29)
+  assert.equal(validate({ recordId: A, lines: [{ key: "UH1", v1: [A] }, { key: "Sk2" }] }), null);
   assert.equal(validate({ recordId: A, lines: [{ key: "Sk1", v1: ["') OR TRUE()"] }] }), "Ógild tenging");
   assert.equal(validate({ recordId: A, lines: [], materials: { front: "nope" } }), "Ógilt efni");
   process.env.AIRTABLE_TOKEN = "t"; process.env.VERK_KEY = "secret";

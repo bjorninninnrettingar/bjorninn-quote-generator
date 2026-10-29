@@ -396,7 +396,7 @@
         var ry = from + (sys === "legra" ? 62.5 : 80); // runner over its slot, as cnc-sides.js plans it
         var sideH = (BOX_SIDE[sys] || BOX_SIDE.merivo)[code.toUpperCase()] || 90;
         el.appendChild(svgEl("rect", { x: L + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f7f7f9" }));
-        var bx = XR(Math.min(12, LPY / 20), LPY - Math.min(22, LPY / 12));
+        var dep = opts.depths && opts.depths[code.toUpperCase()], bx = XR(Math.min(12, LPY / 20), dep > 0 ? Math.min(LPY - 2, dep) : LPY - Math.min(22, LPY / 12)); // box as deep as its drawerDepth (Smíða) when known
         el.appendChild(svgEl("rect", { x: bx.x, y: Y(ry + sideH), width: bx.w, height: sideH * s, rx: 2, fill: "#fff", stroke: SOFT, "stroke-width": 1.1 }));
         el.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(ry), y2: Y(ry), stroke: SOFT, "stroke-width": 1.6, "stroke-linecap": "round" }));
         if (code && sideH * s > 9) { var tl = svgEl("text", { x: X(LPY / 2), y: Y(ry + sideH / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(12, sideH * s * .55), fill: SOFT }); tl.textContent = code.toUpperCase(); el.appendChild(tl); }
@@ -586,7 +586,7 @@
       if (outEl) { var cx = document.createElement("button"); cx.type = "button"; cx.textContent = "Fjarlægja"; cx.style.color = "#8e8e93"; cx.onclick = rm.onclick; ch.appendChild(cx); }
       calm.appendChild(ch);
       var cbody = document.createElement("div"); cbody.className = "bpp-calm-body";
-      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts, mirror: opts.mirror, fre: opts.fre }));
+      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts, mirror: opts.mirror, fre: opts.fre, depths: opts.depths }));
       calm.appendChild(cbody);
       card.insertBefore(calm, win);
       setView(opts.view === "tech" ? "tech" : "calm");

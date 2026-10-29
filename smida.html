@@ -449,7 +449,7 @@
       s += runnerSvg(Y(d.from + (d.sys === "merivo" ? 80 : 62.5)), "#8e8e93", "Braut skúffu " + d.code + " — " + (d.sys === "merivo" ? 80 : 62.5) + " mm frá botni hólfsins");
       var y0 = Y(d.to - 3), h = Math.max(2, (d.to - 3 - d.from) * sc);
       s += '<g class="pick" data-pick="dw"><rect x="' + (X(0) + 4) + '" y="' + y0 + '" width="' + (W * sc - 8) + '" height="' + h + '" rx="2" fill="#f2f2f4" stroke="#d2d2d7"/>' +
-        '<text x="' + X(W / 2) + '" y="' + (y0 + h / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + d.code + "</text></g>";
+        '<text x="' + X(W / 2) + '" y="' + (y0 + h / 2 + 4) + '" text-anchor="middle" font-size="12" fill="#a1a1a6">' + d.code + ((p.drawerDepth || {})[d.code] ? " · " + mm(p.drawerDepth[d.code].mm) : "") + "</text></g>";
       var gp = d.H - d.front; // the grip profile (Jey 27) on top of the front, true scale, aluminium
       if (gp > 0.5) s += '<rect class="pick" data-pick="jey" x="' + (X(0) + 4) + '" y="' + Y(d.from + d.H) + '" width="' + (W * sc - 8) + '" height="' + gp * sc + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll ' + Math.round(gp) + ' mm ofan á fronti</title></rect>';
     });
@@ -725,7 +725,7 @@
     var row = document.createElement("div"); row.className = "cncrow"; wrap.appendChild(row);
     files.forEach(function (f) {
       var r = SD.renderSide(MASTER, f.plan);
-      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: compact ? (files.length > 1 ? 130 : 220) : files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, shelfD: p.shelfD, fronts: fronts, mirror: /^Hægri/.test(f.name), fre: !!p.fre });
+      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: compact ? (files.length > 1 ? 130 : 220) : files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, shelfD: p.shelfD, fronts: fronts, mirror: /^Hægri/.test(f.name), fre: !!p.fre, depths: Object.keys(p.drawerDepth || {}).reduce(function (a, k) { a[k] = p.drawerDepth[k].mm; return a; }, {}) });
       var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
       row.appendChild(card);
       var sv = card.querySelector(".bpp-calm-svg"); if (sv && canEdit(c)) wireCalm(sv, c, p);
@@ -935,7 +935,12 @@
         (ur && ur.drawer ? '<div class="line"><span class="seg">' + ["vinstri", "midja", "haegri"].map(function (k) { return '<button type="button" data-urp="' + k + '" class="' + ((ur.place || "midja") === k ? "on" : "") + '">' + PL[k] + "</button>"; }).join("") + "</span></div>" +
           more("urx", '<div class="line"><span class="t">Miðað við</span><input type="number" data-urx="1" value="' + (ur.x ? mm(ur.x) : "") + '" placeholder="miðja botns"><span class="u">mm frá vinstri brún botns ' + tip("Autt = í miðju botnsins (eins og tilbúna skráin). Vinstri/Miðja/Hægri segir hvaða brún úrtaksins er á þessum stað.") + "</span></div>") : ""));
     }
-    if ((p.drawers || []).length) h += row("dw", "Skúffur", p.drawers.map(function (d) { return d.code + " " + mm(d.front); }).join(" · ") + (c.depths.length ? " · dýpt " + c.depths.map(mm).join("/") : "") + " " + tip("Dýptin er lengd skúffubotnsins í Sögunarlista (kerfislengd ≈ botn + 26). Breyttu skúffum á Eyðublaðinu og keyrðu Yfirfara."), "", true);
+    if ((p.drawers || []).length) {
+      var dcodes = p.drawers.map(function (d) { return d.code; }).filter(function (x, i, a) { return a.indexOf(x) === i; }), dd = p.drawerDepth || {};
+      h += row("dw", "Skúffur", p.drawers.map(function (d) { return d.code + " " + mm(d.front); }).join(" · ") + (Object.keys(dd).length ? " · dýpt " + dcodes.map(function (k) { return dd[k] ? mm(dd[k].mm) : "?"; }).join("/") : ""),
+        '<div class="line"><span class="u">Dýpt skúffu (mm) ' + tip("Sjálfgefið úr „Skúffubotn“ í Sögunarlista (lengd + 26). Dýptin breytir EKKI borun — Merivo/Legra macroin hafa enga dýptarbreytu — hún er upplýsing og CNC varar við ef skúffan kemst ekki fyrir í skápnum. Til að skera botn og bak í aðra dýpt: breyttu á Eyðublaðinu og keyrðu Yfirfara.") + "</span></div>" +
+        dcodes.map(function (k) { var x = dd[k]; return x ? '<div class="line"><span class="t">' + k + '</span><input type="number" data-ddepth="' + k + '" value="' + mm(x.mm) + '"><span class="u">mm' + (x.def != null && x.set ? " (Sögunarlisti " + mm(x.def) + ")" : "") + "</span></div>" : ""; }).join(""));
+    }
     h += "</div>";
     // ── what /cnc still says (real things only — the defaults go away once marked, the open questions are above)
     var notes = (p.check || []).filter(function (t) { return t.indexOf("Skápur yfirfarinn") < 0 && (p.defaults || []).indexOf(t) < 0 && !/amahlið óþekkt/.test(t); }); // the hinge side is asked above
@@ -1025,6 +1030,7 @@
       else if (d.rail != null) e.rails[+d.rail].mm = v;
       else if (d.oven) e.oven[d.oven] = v;
       else if (d.led != null) e.led[+d.led].y = Math.max(1, v);
+      else if (d.ddepth != null) { var pd = plan(c).drawerDepth[d.ddepth]; e.drawerDepth = e.drawerDepth || {}; if (pd && v === Math.round(pd.def)) delete e.drawerDepth[d.ddepth]; else e.drawerDepth[d.ddepth] = v; }
       else if (d.kloss != null) e.klossMm = +t.value > 0 ? +t.value : M.KLOSS_MM;
       else if (d.raily != null) e.rails[+d.raily].y = Math.max(0, v);
       else if (d.urx != null) { if (e.urtak) e.urtak.x = v > 0 ? v : null; }
