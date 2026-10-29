@@ -284,7 +284,11 @@
     // retired (2026-10-14) — Fræst grip no longer goes through Höldur 1 at all, so `grip` itself is never negative
     // any more; see the Grip svæði block below instead. Drawer fronts are unconditional either way (set above).
     function doorGrip(d) { return d.noJey ? 0 : grip; }
-    doors.forEach(function (d, i) { if (grip && njR.indexOf(i) >= 0) d.noJey = true; if (grip && jvR.indexOf(i) >= 0) { d.noJey = true; d.vert = true; } else if (grip && !d.noJey && jbR.indexOf(i) >= 0) d.bot = true; });
+    // Two leaves hung side by side (hinge "baedi" / "Frontur vænghurð"): both vertical edges carry hinges, so a door has no Jey at all —
+    // not on top, not under, not on the side (a side profile would run into the hinge plates). The slot takes no grip height (owner 2026-10-29).
+    var twoLeaf = (parseSmida(opts.smida) || {}).hinge === "baedi" || doors.some(function (d) { return /væng/i.test(d.partur); });
+    if (twoLeaf && grip && doors.length) { doors.forEach(function (d) { d.noJey = true; d.baedi = true; }); info.push("Vænghurð: lamir báðum megin — ekkert Jey á hurðunum"); }
+    doors.forEach(function (d, i) { if (d.baedi) return; if (grip && njR.indexOf(i) >= 0) d.noJey = true; if (grip && jvR.indexOf(i) >= 0) { d.noJey = true; d.vert = true; } else if (grip && !d.noJey && jbR.indexOf(i) >= 0) d.bot = true; });
     var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     var sumDoors = doors.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     if (doors.length > 1 && (sumDoors > room + 5 || doors.some(function (d) { return /væng/i.test(d.partur); }))) {
