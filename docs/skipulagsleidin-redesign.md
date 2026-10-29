@@ -70,3 +70,9 @@ A. Rammi: fullscreen snap-skrun, rail, læsing á raunverulegum merkjum, **Pönt
 - **D Pöntun:** kostnaðaryfirlit (innkaup samtals, tilboð án vsk, innkaup af tilboði %, pantanir sendar, línur án verðs) + spjald á birgja (staða, afhending óskuð, PDF, línutafla með „vantar“ í rauðu). *Óstaðfest:* að `Áætlaður kostnaður` sé m/o vsk og `💰 Tilboðsupphæð` m/vsk (útreikningurinn gerir ráð fyrir því).
 - **E Forskipulag:** hönnuðurinn (PRO) innbyggður (`?pro=<id>&embedded=1`, hlaðinn við skrun) + forprófun úr Line Items (`⚠️ Skipulagsvilla`, `Eyðublað búið til ✏️`, `⚠️ Breytt eftir stofnun`).
 - **Eftir:** kveikja lásana og prófa á lifandi verki (T-32); samstilling Eyðublaða eftir breytingu í hönnuði (bíður); senda pöntun á birgja héðan (nú í gegnum /pontun).
+
+## 2026-10-29 — review round 1 (owner notes)
+- No auto-scroll on load (rail click still scrolls).
+- Einingar: Kassi + Sögunarlisti side by side, Pöntun einingar below; "Skúffur og hillur" removed. Sögunarlisti = Airtable-style groups by Efni with Partur/H/B/Þ/M/Tilbúið columns and the Allt/þykkt/Óklárt filters (Óklárt drops a row as soon as it is ticked). Pöntun einingar = table like the Airtable view (Tegund, Vara, Skúffu dýpt, Magn, Mynd, Rétt …; Vörulisti names resolved via RECORD_ID() OR query). "Yfirfarin — næsta →" no longer waits: the unit is marked "…" (inReview) and the poll finishes in the background with a toast.
+- Loka yfirferð: tabs removed, every part (3a–3f) folds; finished parts fold by themselves unless opened by hand; lazy iframes load on expand.
+- Pöntun: PDF viewed inline (iframe) + "Endurprenta PDF" (/api/pontun-print) per order; all lines grouped by Gerð with Magn editable and "Skipta um vöru" (Vörulisti link search). API: tbloXR7f9Q943O9el writable `Magn` + `Vörulisti 🚪` (key-gated), `Dýpt (mm)` readable. A full recompute rebuilds the lines and overwrites hand edits (warning shown). NOT done: adding a brand-new line, email send (later automation).

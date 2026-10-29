@@ -442,7 +442,7 @@ const VERK_ONLY_FIELDS = {
     "Pönt.NR", "Tækifæri 📣", "Verkheiti", "Vörulisti 🚪", "Efnislisti 🧱",
     "Vörulisti txt", "Gerð", "Athugasemd", "Magn", "Mynd af vöru", "Mynd af efni",
     "Litur", "Birgir 👴", "Stemmir 🔒 Skipulag 2.0📝", "Pantaðir listar",
-    "Einingaverð 🔍", "Áætlaður kostnaður", "Breidd (mm)", "Hæð (mm)",
+    "Einingaverð 🔍", "Áætlaður kostnaður", "Breidd (mm)", "Hæð (mm)", "Dýpt (mm)",
   ],
   "tblSccfV2lBp4FiFU": [ // Pantaðir listar — one record per (project, supplier)
     "Stöðu kenni", "Staða", "Afhending óskuð", "Sent dags.", "Raunkostnaður",
@@ -755,7 +755,7 @@ export function pieceGetAllowed(scope, tableId, recordId, fml) {
   return tableId === UNIT_TBL && PIECE_UNITS_FILTER.test(fml);
 }
 
-const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU", "tbl3e5o0Klv9RcNQ4"]);
+const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU", "tbl3e5o0Klv9RcNQ4", "tbloXR7f9Q943O9el"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
 // the client sends — applied after CREATABLE_FIELDS filtering, so these
@@ -831,6 +831,10 @@ const WRITABLE_FIELDS = {
   // plays the same "this row is confirmed ready" role here, so that's what the per-row checkbox
   // on this table's tab is bound to.
   "tblszHaBrwhYNV68z": ["Rétt"],
+  // ferli.html step 4 (2026-10-29): the office fixes an order line before the PDF goes out — quantity and a
+  // different product (link). Key-gated (PATCH_REQUIRES_KEY). A full recompute of the
+  // order list rebuilds the lines, so hand edits only live until the next "Búa til / endurreikna".
+  "tbloXR7f9Q943O9el": ["Magn", "Vörulisti 🚪"],
   // /yfirferd's "samþykkja" action — the ONLY writable field on Eyðublað, on
   // purpose: flips a dedicated checkbox false→true to retrigger "Yfirfara 3.0"
   // (the Interface button it used to require has no API equivalent — see
