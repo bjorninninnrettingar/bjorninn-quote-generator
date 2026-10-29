@@ -3130,6 +3130,7 @@
       if (state.closed === undefined) state.closed = false;
       if (state.floor === undefined || (state.floor && !KP3D.FLOORS[state.floor])) state.floor = null;
       if (state.waterWall === undefined) state.waterWall = null;
+      if (state.waterIsland === undefined) state.waterIsland = false;
       if (state.seeded === undefined) state.seeded = false;
       state.islands.forEach(function(isl){
         isl.a = (isl.a || []).filter(function(b){ return CATALOG[b.type]; });
@@ -3522,7 +3523,7 @@
       return w;
     });
     state.windows = []; state.doors = []; state.islands = []; state.obstacles = [];
-    state.waterWall = null; state.waterAlongMm = null; state.seeded = false; state.openingsDone = false;
+    state.waterWall = null; state.waterAlongMm = null; state.waterIsland = false; state.seeded = false; state.openingsDone = false;
     selectedEdge = null;
     save();
     renderShapeStep();
@@ -3540,7 +3541,7 @@
     state.closetSpans = {}; // a wardrobe's part-of-the-wall belongs to the old walls
     state.closetSeeded = false; state.closetFillDeclined = false; // new walls: offer to fill them again
     state.windows = []; state.doors = []; state.islands = []; state.obstacles = [];
-    state.waterWall = null; state.waterAlongMm = null; state.seeded = false; state.openingsDone = false;
+    state.waterWall = null; state.waterAlongMm = null; state.waterIsland = false; state.seeded = false; state.openingsDone = false;
     selectedEdge = null;
     shapePhase = "size";
     if (SHAPE_TEMPLATES[key].group === "bath"){ state.waterWall = state.walls[0].id; shapePhase = isLaundry() && !PRO ? "machine" : "water"; }
@@ -4451,8 +4452,24 @@
     if (k && SHAPE_TEMPLATES[k].closetWalls){ var uw0 = state.walls[SHAPE_TEMPLATES[k].closetWalls[0]]; if (uw0 && !uw0.open) return uw0; }
     return solid.reduce(function(a, x){ return !a || x.lengthMm > a.lengthMm ? x : a; }, null);
   }
+  // Water in an island (owner, 2026-10-29): the sink stands in its own island instead of against a wall
+  function waterIslandOk(){ return !PRO && catBase() === "eldhus" && !isLaundry() && !bathShape(); }
+  function seedIslandSink(){
+    state.seeded = true;
+    if (state.walls.some(function(x){ return x.floor.length || x.wall.length; }) || state.islands.length) return;
+    var wi = state.walls.findIndex(function(x){ return !x.open; }); if (wi < 0) return;
+    var w0 = state.walls[wi], g = KP3D.wallGeoms(state)[wi], b = newBlock("vaskaskapur"); b.autoSeed = true;
+    var wallRot = [{ x:1, z:0 }, { x:0, z:-1 }, { x:-1, z:0 }, { x:0, z:1 }].findIndex(function(a){ return Math.abs(a.x - g.axis.x) < 0.01 && Math.abs(a.z - g.axis.z) < 0.01; });
+    var isl = { id:"I" + (islandSeq++), label:"Eyja " + (state.islands.length + 1), lengthMm:b.widthMm,
+      xMm:Math.round(g.origin.x * 1000 + g.axis.x * w0.lengthMm / 2 + g.normal.x * 2200), zMm:Math.round(g.origin.z * 1000 + g.axis.z * w0.lengthMm / 2 + g.normal.z * 2200),
+      rot:(Math.max(0, wallRot) * 90 + 180) % 360, two:false, a:[b], back:true };
+    state.islands.push(isl);
+    clampIslands(); normalizeIslands(); landedBlockId = b.id;
+    save();
+  }
   function seedSink(){
     if (state.seeded) return;
+    if (state.waterIsland && !state.waterWall && waterIslandOk()){ seedIslandSink(); return; }
     var w = state.waterWall ? state.walls.find(function(x){ return x.id === state.waterWall; }) : sinkFallbackWall();
     if (!w) return;
     state.seeded = true;
@@ -5314,7 +5331,7 @@
   // before any water: what it is for + that it can be skipped
   function setWaterWall(id){
     if (state.waterWall !== id) state.waterAlongMm = null;
-    state.waterWall = id; state.seeded = false;
+    state.waterWall = id; state.waterIsland = false; state.seeded = false;
     save(); renderWaterList(); renderShapeCanvas();
   }
   // Bað's "Veggurinn og vatnið" (user, 2026-10-26): the wall(s) + ceiling in cm above the water — one page, not three
@@ -5346,12 +5363,20 @@
       renderBathSize(document.getElementById("bathSize"));
       box = document.getElementById("waterInner");
     }
+    var islBtn = function(on){ return waterIslandOk() ? '<button type="button" class="tab-btn' + (on ? ' active' : '') + '" id="waterIslandBtn" style="margin-top:14px;">' + (on ? __("Vatnið er í eyju ✓") : __("Vatnið er í eyju")) + '</button>' : ''; };
+    var wireIsl = function(){ var ib = document.getElementById("waterIslandBtn"); if (ib) ib.addEventListener("click", function(){
+      state.waterIsland = !state.waterIsland; if (state.waterIsland){ state.waterWall = null; state.waterAlongMm = null; } state.seeded = false;
+      save(); renderWaterList(); renderShapeCanvas(); }); };
     if (!cur){
+      if (state.waterIsland && waterIslandOk()){
+        box.innerHTML = '<p class="water-lead">' + __("Vatnið er í eyju.") + '</p><p class="water-hint">' + __("Vaskurinn kemur í eyju sem þú getur fært til og stækkað í næsta skrefi. Smelltu á vegg ef vatnið kemur þar í staðinn.") + '</p>' + islBtn(true);
+        wireIsl(); return;
+      }
       // 2026-10-24: no "＋ Merkja vatn" step — a click on the wall puts it there (a faint droplet shows where)
       box.innerHTML = '<p class="water-lead">' + __("Smelltu á vegginn þar sem vatnið kemur inn.") + '</p>' +
         '<p class="water-hint">' + __((cdWat && cdWat.waterHint) || "Við notum þetta til að staðsetja vaskinn og uppþvottavélina.") + '</p>' +
-        '<p class="water-hint">' + __("Ef þú veist það ekki, haltu bara áfram.") + '</p>';
-      return;
+        '<p class="water-hint">' + __("Ef þú veist það ekki, haltu bara áfram.") + '</p>' + islBtn(false);
+      wireIsl(); return;
     }
     var num = state.walls.indexOf(cur) + 1, solidN = state.walls.filter(function(w){ return !w.open; }).length;
     box.innerHTML = (bathW ? '<p class="water-hint" style="margin:0 0 10px;">' + (isLaundry() ? __("Dragðu dropann — vaskaskápurinn fer þar sem hann er og vélin við hliðina.") : __("Dragðu dropann — vaskaskápurinn fer þar sem hann er.")) + '</p>'
@@ -5364,6 +5389,7 @@
     box.querySelectorAll("[data-wwall]").forEach(function(b){
       b.addEventListener("click", function(){ setWaterWall(b.dataset.wwall); });
     });
+    if (!bathW && waterIslandOk()){ box.insertAdjacentHTML("beforeend", islBtn(false)); wireIsl(); }
     if (!bathW) document.getElementById("waterRemoveBtn").addEventListener("click", function(){
       state.waterWall = null; state.waterAlongMm = null; state.seeded = false;
       save(); renderWaterList(); renderShapeCanvas();
@@ -5412,6 +5438,7 @@
     if (!hit) return;
     var wall = state.walls[hit.i];
     if (state.waterWall !== wall.id) state.waterWall = wall.id;
+    state.waterIsland = false;
     state.waterAlongMm = Math.max(0, Math.min(wall.lengthMm, Math.round(hit.t / 10) * 10));
     state.seeded = false;
     renderShapeCanvas();
@@ -8109,6 +8136,28 @@
   // The editor's own camera, put back when the wizard closes (the preview replaces the one 3D scene).
   var uwEditorCam = null;
   function closeFitAsk(){ var fa = document.getElementById("fitAsk"); if (fa) fa.remove(); }
+  // The wall the user is looking at when "Ný eining" opens: Veggur view = its wall; 3D = the solid wall the camera's
+  // view ray hits from inside (else the one most squarely facing the camera). Top view has no facing → null.
+  var uwFacingWallId = null;
+  function facingWallId(st){
+    if (viewMode === "wall") return wallViewId;
+    if (viewMode !== "3d" || !st || !KP3D.wallGeoms) return null;
+    var cp = st.camera.position, tg = st.controls.target, dx = tg.x - cp.x, dz = tg.z - cp.z, dl = Math.hypot(dx, dz);
+    if (dl < 1e-6) return null;
+    dx /= dl; dz /= dl;
+    var geoms = KP3D.wallGeoms(state), best = null, bestT = Infinity, fb = null, fbDot = 0;
+    geoms.forEach(function(g, i){
+      var w = state.walls[i]; if (!w || w.open) return;
+      var dot = dx * g.normal.x + dz * g.normal.z; // < 0: the wall's room side faces the camera
+      if (dot >= -0.05) return;
+      if (-dot > fbDot){ fbDot = -dot; fb = w.id; }
+      var den = dx * g.axis.z - dz * g.axis.x; if (Math.abs(den) < 1e-6) return;
+      var ox = g.origin.x - cp.x, oz = g.origin.z - cp.z;
+      var t = (ox * g.axis.z - oz * g.axis.x) / den, s = (ox * dz - oz * dx) / den; // ray distance, distance along the wall
+      if (t > 0 && s >= -0.01 && s <= g.lenM + 0.01 && t < bestT){ bestT = t; best = w.id; }
+    });
+    return best || fb;
+  }
   function openUnitWizard(){
     closeFitAsk();
     // a full wall no longer stops it (owner, 2026-10-27): Setja inn offers to swap a cabinet or a narrower one instead
@@ -8116,6 +8165,7 @@
     uwView.frontsOff = false; uwView.open = false; // a new unit starts with its fronts on and shut (the fronts "vanished" when the last one was left see-through, owner 2026-10-27)
     uw = { step:1, hoverCat:0 }; // the first (most common) type shows on the left right away (user, 2026-10-26: it sat empty)
     var st = KP3D._three();
+    uwFacingWallId = facingWallId(st);
     uwEditorCam = st ? { p:st.camera.position.clone(), t:st.controls.target.clone() } : null;
     document.getElementById("unitWiz").hidden = false;
     KP3D.teardown3D(true); // one 3D scene at a time
@@ -8328,7 +8378,8 @@
       var w1 = closetShape() === "closetCorner" ? state.walls[SHAPE_TEMPLATES.closetCorner.closetWalls[0]] : null; if (w1){ uw.wallId = w1.id; uw.cornerUnit = true; return b; } // a Fataherbergi: placed like any unit
     }
     // default wall: the selected one if it has room, else the first that does
-    var list = uwSurfaces(c.zone), pick = list.find(function(w){ return w.id === (uwPreferWallId || selectedWallId) && uwFits(w, b); }) || list.find(function(w){ return uwFits(w, b); });
+    // (the wall being looked at comes next: Veggur view's wall, else the one the 3D camera faces — owner, 2026-10-29)
+    var list = uwSurfaces(c.zone), pick = list.find(function(w){ return w.id === (uwPreferWallId || selectedWallId || uwFacingWallId) && uwFits(w, b); }) || list.find(function(w){ return uwFits(w, b); });
     uw.wallId = pick ? pick.id : (list[0] && list[0].id);
     return b;
   }
