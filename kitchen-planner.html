@@ -863,6 +863,12 @@
   .sw-search{ width:100%; box-sizing:border-box; margin:0 0 10px; padding:9px 12px; border:1px solid var(--line, #ddd); border-radius:10px; font:inherit; font-size:14px; background:#fff; }
   /* ---- PRO home (2026-10-23) ---- */
   .ph-wrap{ max-width:560px; }
+  /* PRO picker (2026-10-29): the whole width — the groups sit side by side, a search result fills columns, instead of one narrow column */
+  body.pro #screen-pro-home .ph-wrap { max-width:none; }
+  body.pro #screen-pro-home #phSearch { max-width:560px; margin-bottom:6px; }
+  body.pro #screen-pro-home .ph-results { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:8px 22px; max-width:none; align-items:start; }
+  body.pro #screen-pro-home .ph-col { display:flex; flex-direction:column; gap:6px; min-width:0; }
+  body.pro #screen-pro-home .ph-results .ph-empty { grid-column:1 / -1; }
   .ph-results{ display:flex; flex-direction:column; gap:6px; max-width:560px; }
   .ph-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 14px; border:1px solid var(--line); border-radius:10px; background:var(--panel); text-decoration:none; color:var(--ink); font-size:14px; }
   .ph-row:hover{ border-color:var(--blue); }
@@ -1527,7 +1533,12 @@
   /* Tilboð open: the panel slides over the right of the page, header included — keep the bar clear of it (the brand gives way first) */
   body.pro.tp-open .top { padding-right:calc(var(--tp-w) - 24px); }
   body.pro.tp-open #mainWrap .top { padding-right:0; } /* inside #mainWrap the drawer's width is already taken off — twice cut the bar off on the left (2026-10-26) */
-  body.pro.tp-open .top > div:first-child { display:none; }
+  body.pro.tp-open .top > div:first-child, body.pro.pc-open .top > div:first-child, body.pro.mp-open .top > div:first-child { display:none; } /* the wordmark gives way while a panel is docked */
+  /* Yfirferð and Mæling dock like Tilboð (2026-10-29): the editor narrows instead of the panel covering the toolbar, Áfram and the room;
+     the toolbar may wrap onto a second row while a panel is open */
+  body.pro.pc-open #mainWrap { padding-right:480px; }
+  body.pro.mp-open #mainWrap { padding-right:378px; }
+  body.pro.tp-open .ed-toolbar, body.pro.pc-open .ed-toolbar, body.pro.mp-open .ed-toolbar { flex-wrap:wrap !important; }
   #proBar .pb-stat { min-width:128px; text-align:right; }
   #proBar button.pb-unlock.pb-stat { text-align:center; }
   #proBar button:disabled { cursor:not-allowed; }
@@ -19770,6 +19781,7 @@
     pc.badge = all ? "✓" : n + "/" + items.length;
     var pg = document.getElementById("proProg"); if (pg){ pg.textContent = pc.badge; pg.classList.toggle("all", all); }
     var el = document.getElementById("proCheck");
+    document.body.classList.toggle("pc-open", !!pc.open);
     if (!pc.open){ if (el){ el.hidden = true; el.innerHTML = ""; } return; } // no stale (hidden) "Klár til framleiðslu" left behind (T-248)
     if (!el){ el = document.createElement("div"); el.id = "proCheck"; document.body.appendChild(el); }
     el.hidden = false;
@@ -21284,7 +21296,7 @@
       var plan = active.filter(function(r){ var f = r.fields || {}; return !f["Staða í framleiðslu"] && f["Staða í skipulagi"] && !/for-skipulag/i.test(f["Staða í skipulagi"]); }).sort(byT);
       var waiting = active.filter(function(r){ return prod.indexOf(r) < 0 && plan.indexOf(r) < 0; }).sort(byT);
       var selling = (phRecords || []).filter(function(r){ return !phActive(r) && /hönnun|ráðgjöf|tilboð sent/i.test((r.fields || {})["Staða í söluferli"] || ""); }).sort(byT).slice(0, 12);
-      var group = function(title, rs){ return rs.length ? '<h4 class="ph-group">' + title + ' · ' + rs.length + '</h4>' + rs.map(row).join("") : ''; };
+      var group = function(title, rs){ return rs.length ? '<div class="ph-col"><h4 class="ph-group">' + title + ' · ' + rs.length + '</h4>' + rs.map(row).join("") + '</div>' : ''; };
       host.innerHTML = group("Í framleiðslu", prod) + group("Í skipulagi", plan) + group("Unnið — ekki byrjað", waiting) + group("Í sölu", selling) +
         '<p class="ph-empty">Leitaðu til að finna önnur verkefni (nafn eða T-númer).</p>';
       return;
