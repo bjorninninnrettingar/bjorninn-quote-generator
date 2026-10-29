@@ -984,7 +984,7 @@
     padding:7px 18px; font-size:16px; font-weight:700;
   }
   .ed-stage.wall-mode #wallMiniMap{
-    position:absolute; right:18px; bottom:18px; z-index:5; width:260px; height:192px;
+    position:absolute; right:14px; bottom:14px; z-index:5; width:150px; height:112px; /* small enough to stay clear of the wall's right end and its length dimension */
     border:1.5px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:0 6px 20px rgba(0,0,0,.16);
     background:var(--panel,#fff);
   }
@@ -1231,6 +1231,18 @@
     .shape-wiz .shape-canvas{ min-height:300px; }
     .shape-side{ min-height:0; overflow-y:auto; padding-right:6px; scrollbar-gutter:stable; } /* a scrollbar coming and going must not resize what's in it */
     .shape-side.more-below{ -webkit-mask-image:linear-gradient(#000 calc(100% - 44px), transparent); mask-image:linear-gradient(#000 calc(100% - 44px), transparent); } /* "there's more below" (walls 6–8 on a small screen, morning scan) */
+    @media (max-height:820px){ /* Útlit rýmisins on a 1280×720 laptop: height, wall colour and floor incl. the Lögn row fit without a scroll */
+      .shape-side .mat-section{ margin-bottom:10px; }
+      #shapeExtras.look-sec.open{ margin-bottom:0; }
+      #shapeExtras .look-head{ margin:0 0 4px; }
+      #shapeExtras .wallcolor-row{ margin-bottom:8px; }
+      #shapeExtras .wallcolor-swatch{ width:34px; height:34px; }
+      #shapeExtras .mat-section{ margin-bottom:8px; }
+      #shapeExtras #floorCards .sw-tile img, #shapeExtras #floorCards .sw-fill{ height:38px; }
+      #shapeExtras #floorCards .sw-tile .sw-name{ padding:4px 8px 5px; }
+      #shapeExtras .tabs-row{ margin-bottom:6px; }
+      #shapeExtras .fl-var{ margin:2px 0 4px; }
+    }
     #screen-materials .mat-wiz{ flex:1; min-height:0; align-items:stretch; }
     #screen-materials .mat-stage{ position:static; display:flex; flex-direction:column; min-height:0; }
     #screen-materials .cab-preview-wrap{ flex:1; min-height:0; }
@@ -1370,6 +1382,9 @@
   .uw-card small{ color:var(--ink-soft); font-size:12.5px; }
   .uw-chips{ display:flex; flex-wrap:wrap; gap:4px; }
   .uw-chips .hw-btn{ min-width:38px; }
+  .uw-chips .hw-btn.active{ background:var(--blue); border-color:var(--blue); color:#fff; } /* the picked size reads clearly (white on blue 5.9:1) */
+  .uw-chips .hw-btn.suggest:not(.active){ background:#fff; color:var(--blue-deep); }
+  .uw-custom input::placeholder{ color:#6b6b6b; }
   /* the open group reads a little bigger than the folded ones (user, 2026-10-25) */
   .uw-sec.open .uw-sec-head b{ font-size:15.5px; }
   .uw-sec.open .uw-chips{ gap:6px; }
@@ -2959,7 +2974,7 @@
     // three more (user, 2026-10-26): install + measure go into Skilaboð, source onto the contact (api/kp-submit.js)
     { key:"install", q:"Viltu að við setjum upp?", options:["Já", "Nei, ég set upp sjálf/ur"] },
     { key:"measure", q:"Viltu að við komum og mælum?", options:["Já", "Ég mæli sjálf/ur"] },
-    { key:"source", q:"Hvernig fréttir þú af okkur?", options:["Instagram", "Facebook", "Google", "Meðmæli", "Annað"] }
+    { key:"source", q:"Hvernig heyrðir þú af okkur?", options:["Instagram", "Facebook", "Google", "Meðmæli", "Annað"] }
     // "Hvaða rými?" is gone until wardrobes / bathrooms exist (2026-10-12)
   ];
   // the budget brackets follow the project's biggest room (2026-10-26): any kitchen with cabinets → the kitchen's
@@ -4406,7 +4421,7 @@
     mm = Math.max(b.min, Math.min(b.max, Math.round(mm / 10) * 10)); // whole cm
     if (mm === b.last) return;
     b.last = mm; setClosetDim(b.key, mm);
-    if (b.water0 != null){ var nw = state.walls[b.wallIdx]; state.waterAlongMm = Math.max(0, Math.min(nw.lengthMm, b.fromEnd ? b.water0 + (mm - b.base) : b.water0)); }
+    if (b.water0 != null){ var nw = state.walls[b.wallIdx]; state.waterAlongMm = Math.max(0, Math.min(nw.lengthMm, b.fromEnd ? b.water0 + (mm - b.base) : b.water0)); var bc = waterClampAlong(nw, state.waterAlongMm); if (bc != null) state.waterAlongMm = bc; }
     renderShapeCanvas();
     var inp = document.querySelector('[data-bdim="' + b.key + '"], [data-cdim="' + b.key + '"]'); if (inp) inp.value = Math.round(mm / 10);
   }
@@ -4859,6 +4874,8 @@
   document.getElementById("shapeSide").addEventListener("scroll", syncShapeScrollCue, { passive:true });
   window.addEventListener("resize", syncShapeScrollCue);
   function renderShapeStep(){
+    var staleHint = document.getElementById("hintPop"); // a hint from the size page must not follow us to the next page (QA 2026-10-29)
+    if (staleHint && (staleHint.dataset.hint === "veggir" || staleHint.dataset.hint === "veggur") && shapePhase !== "size" && shapePhase !== "water") staleHint.remove();
     setTimeout(shapeHints, 800);
     setTimeout(syncShapeScrollCue, 0);
     if (PRO){ // PRO: one "Rýmið" page (2026-10-26) — the room starts as the usual shape, the table beside the drawing does the rest
@@ -5443,9 +5460,24 @@
   }
   // 2026-10-11: header "Vatn · Veggur N" like the openings page, wall buttons, position, a quiet "Fjarlægja vatn";
   // before any water: what it is for + that it can be skipped
+  // Bað / Þvottahús: the sink cabinet stands at the droplet, so the droplet may not sit under a door or a low window
+  // (the mirror of openingClear). Returns the nearest clear spot to `want`, or null when the wall has none.
+  function waterClampAlong(wall, want){
+    if (PRO || !wall || !bathShape()) return want;
+    var sw = isLaundry() ? 600 : 800, ops = openingsOnWall(wall.id).filter(function(o){ return openingVSpan(o).lo < 900; });
+    var clear = function(a){ return ops.every(function(o){ return a + sw / 2 <= o.offsetMm || a - sw / 2 >= o.offsetMm + o.widthMm; }); };
+    if (clear(want)) return want;
+    var cands = [0, wall.lengthMm];
+    ops.forEach(function(o){ cands.push(o.offsetMm - sw / 2, o.offsetMm + o.widthMm + sw / 2); });
+    var best = null;
+    cands.forEach(function(c){ c = Math.round(c / 10) * 10; if (c < 0 || c > wall.lengthMm || !clear(c)) return; if (best === null || Math.abs(c - want) < Math.abs(best - want)) best = c; });
+    return best;
+  }
   function setWaterWall(id){
     if (state.waterWall !== id) state.waterAlongMm = null;
     state.waterWall = id; state.waterIsland = false; state.seeded = false;
+    var sw0 = state.walls.find(function(w){ return w.id === id; });
+    if (sw0){ var a0 = waterAlong(sw0), c0 = waterClampAlong(sw0, a0); if (c0 != null && c0 !== a0){ state.waterAlongMm = c0; toast(OVERLAP_MSG); } }
     save(); renderWaterList(); renderShapeCanvas();
   }
   // Bað's "Veggurinn og vatnið" (user, 2026-10-26): the wall(s) + ceiling in cm above the water — one page, not three
@@ -5521,7 +5553,10 @@
     pos.addEventListener("change", function(){
       var v = Math.round(parseFloat(String(pos.value).replace(",", ".")) * 10); // typed in cm
       if (isNaN(v) || v < 0 || v > cur.lengthMm){ toast(__("Staðsetningin þarf að vera á milli 0 og {n} cm.", { n:Math.floor(cur.lengthMm / 10) })); pos.value = Math.round(waterAlong(cur) / 10); return; }
-      state.waterAlongMm = v; state.seeded = false; save(); renderShapeCanvas();
+      var vc = waterClampAlong(cur, v);
+      if (vc == null){ toast(OVERLAP_MSG); pos.value = Math.round(waterAlong(cur) / 10); return; }
+      if (vc !== v){ toast(OVERLAP_MSG); pos.value = Math.round(vc / 10); }
+      state.waterAlongMm = vc; state.seeded = false; save(); renderShapeCanvas();
     });
   }
   var waterDrag = null;
@@ -5557,7 +5592,10 @@
     var wall = state.walls[hit.i];
     if (state.waterWall !== wall.id) state.waterWall = wall.id;
     state.waterIsland = false;
-    state.waterAlongMm = Math.max(0, Math.min(wall.lengthMm, Math.round(hit.t / 10) * 10));
+    var wv = Math.max(0, Math.min(wall.lengthMm, Math.round(hit.t / 10) * 10)), wc = waterClampAlong(wall, wv);
+    if (wc == null) return; // nowhere clear on that wall
+    if (wc !== wv) waterDrag.clamped = true;
+    state.waterAlongMm = wc;
     state.seeded = false;
     renderShapeCanvas();
     var pos = document.getElementById("waterPos");
@@ -5571,6 +5609,7 @@
   }
   function onWaterUp(){
     window.removeEventListener("pointermove", onWaterMove);
+    if (waterDrag && waterDrag.clamped) toast(OVERLAP_MSG);
     waterDrag = null;
     save(); renderWaterList(); renderShapeCanvas();
   }
@@ -5587,7 +5626,10 @@
     function apply(){
       var v = Math.round(parseFloat(inp.value));
       if (isNaN(v) || v < 0 || v > w.lengthMm){ toast(__("Þarf að vera á milli 0 og {n}.", { n:uLen(w.lengthMm) })); return; }
-      state.waterAlongMm = key === "start" ? v : w.lengthMm - v; state.seeded = false;
+      var wv2 = key === "start" ? v : w.lengthMm - v, wc2 = waterClampAlong(w, wv2);
+      if (wc2 == null){ toast(OVERLAP_MSG); return; }
+      if (wc2 !== wv2) toast(OVERLAP_MSG);
+      state.waterAlongMm = wc2; state.seeded = false;
       pop.hidden = true; save(); renderWaterList(); renderShapeCanvas();
     }
     document.getElementById("wpGo").addEventListener("click", apply);
@@ -7005,20 +7047,21 @@
         list.splice(i, 1);
       }
     }); });
-    var k = 0;
+    var k = 0, shrunk = 0;
     missingEndPanels().forEach(function(m){
       var ok = addEndPanel(m.wall, m.zone, m.b, m.dir);
       // no room for it (the laundry's tower at the open end of a full wall showed its bare carcass side, morning scan
       // 2026-10-27): one of our own seeded low units on that wall gives up 2 cm, then once more
       if (!ok){
         var sh = m.wall[m.zone].find(function(x){ var c = CATALOG[x.type]; return x !== m.b && x.autoSeed && !x.locked && !c.panel && !c.thvo && c.cls === "floor" && x.widthMm - 20 >= (c.minW || 0); });
-        if (sh){ sh.widthMm -= 20; ok = addEndPanel(m.wall, m.zone, m.b, m.dir); if (!ok) sh.widthMm += 20; }
+        if (sh){ sh.widthMm -= 20; ok = addEndPanel(m.wall, m.zone, m.b, m.dir); if (!ok) sh.widthMm += 20; else shrunk++; }
       }
       if (!ok) return;
       var p = m.wall[m.zone].find(function(x){ return CATALOG[x.type].panel && !x.autoPanel && x.lockTo && x.lockTo.id === m.b.id && x.lockTo.dir === m.dir; });
       if (p){ p.autoPanel = true; p.id = "ap_" + m.b.id + (m.dir < 0 ? "L" : "R"); } // a stable id: the same panel each time
       k++;
     });
+    if (shrunk) toast(__("Minnkaði skáp um 2 cm til að koma fyrir úthlið.")); // said, not silent (owner, 2026-10-29)
     blockSeq = Math.max(seq0, blockSeq);
     var changed = sig() !== before;
     return changed;
@@ -8667,7 +8710,7 @@
           '<div class="edit-field"><label>' + __("Hæð frá gólfi") + '</label>' + hungGapChips(hg, "data-uw-gap") + '</div>' +
           // floor → gap + box + top, live with the chips (owner, 2026-10-27)
           (c.counter && !PRO ? '<p class="sec-note uw-toph">' + __("Toppurinn verður í {n} cm hæð", { n:Math.round((hg + hBox + (state.top && state.top !== "engin" && TOPS[state.top] ? KP3D.topThickM(state.top) * 1000 : 0)) / 10) }) + '</p>' : '')));
-      } else if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" && c.maxH <= 1200 && !isCloset() ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || c.h, c.h, "data-uw-h", "data-uw-hcustom", c.minH, uwHeightCap(c)));
+      } else if (c.minH !== c.maxH) secHtml.push(dimSec("h", c.zone === "floor" && c.cls !== "tall" && c.maxH <= 1200 && !isCloset() ? __("Hæð") + ' <small class="uw-sub">' + __("upp að borðplötu") + '</small>' : __("Hæð"), uwHeightOptions(c), b.heightMm || Math.max(c.minH, Math.min(c.h, uwHeightCap(c))), Math.max(c.minH, Math.min(c.h, uwHeightCap(c))), "data-uw-h", "data-uw-hcustom", c.minH, uwHeightCap(c))); // the suggestion never above the room (QA 2026-10-29: placeholder 250 beside "180–237")
       var bathFr = bathFrontsWiz(b), frontsFr = frontsWiz(b); // Bað: Breidd → Hæð frá gólfi → Skúffur eða hurðir → Innvols (50 cm deep; the side panel still changes it); Eldhús: Mál → Skúffur eða hurðir → Innvols
       if (c.minD !== c.maxD && !bathFr && !shortWiz && !machineOnly && !uw.smida) secHtml.push(dimSec("d", __("Dýpt"), uwDepthOptions(c), b.depthMm || c.d, c.d, "data-uw-d", "data-uw-dcustom", c.minD, c.maxD));
       if (frontsFr && !uw.smida) secHtml.push(uwSec("door", __("Skúffur eða hurðir"), b.interior && b.interior.mode === "skuffur" ? __("Skúffur") : __("Hurðir"), bathFrontsHtml(b)));
@@ -9849,6 +9892,8 @@
     landedBlockId = b.id;
     save();
     refreshAfterEdit();
+    // landed on another row (wall <-> island, or a different wall): say so, the customer may not notice where it went (2026-10-29)
+    if (found.wall.id !== targetWall.id) toastAction(__("Færður á {name}", { name:__(targetWall.label) }), __("Afturkalla"), function(){ stepHistory(-1); });
   }
 
   var blockDragState = null; // {blockId, ghostEl}
@@ -10745,7 +10790,7 @@
     sync();
   })();
   var MAT_NEED = { carcass:"Veldu lit til að halda áfram.", drawers:"Veldu skúffukerfi til að halda áfram.", fronts:"Veldu framhlið til að halda áfram.",
-    doors:"Veldu efni á hurðirnar til að halda áfram.", handle:"Veldu höldu — eða Ekkert handfang.", top:"Veldu borðplötu til að halda áfram.", machine:"Veldu hvar vélin er til að halda áfram." };
+    doors:"Veldu efni á hurðirnar til að halda áfram.", handle:"Veldu höldu — eða Þrýstiopnun undir Ekkert handfang.", top:"Veldu borðplötu til að halda áfram.", machine:"Veldu hvar vélin er til að halda áfram." };
   function renderMatActions(){
     var box = document.getElementById("matActions"), last = matPhase === matPhaseCount() - 1, ph = activeMatPhases()[matPhase];
     // a grey Áfram says why (QA 2026-10-26, E2/B2/Þ2/F5) — left of the buttons, so they never move; fronts/handles stay unpicked on purpose
@@ -11339,7 +11384,7 @@
       var plan = closetFillPlan().filter(function(x){ return !x.corner; });
       if (!plan.length) wantOffer = false;
       else {
-        var widths = plan.map(function(x){ return Math.round(x.w / 10); }), same = widths.every(function(v){ return Math.abs(v - widths[0]) <= 1; });
+        var widths = (function(){ var cum = 0, prev = 0; return plan.map(function(x){ cum += x.w; var now = Math.round(cum / 10), v = now - prev; prev = now; return v; }); })(), same = widths.every(function(v){ return v === widths[0]; });
         var byWall = []; plan.forEach(function(x){ var g = byWall.find(function(y){ return y.wall === x.wall; }); if (!g){ g = { wall:x.wall, w:[] }; byWall.push(g); } g.w.push(Math.round(x.w)); });
         var mmTxt = byWall.map(function(g){ var sm = g.w.every(function(v){ return Math.abs(v - g.w[0]) <= 1; }), t = (sm ? g.w.length + " × " + g.w[0] : g.w.join(" + ")) + " mm";
           return byWall.length > 1 ? "Veggur " + (state.walls.indexOf(g.wall) + 1) + ": " + t : t; }).join(" · ");
@@ -14125,7 +14170,7 @@
     if (tour){ setTimeout(function(){ hintOnce(k, html); }, 1500); return; }
     try{ var a = JSON.parse(localStorage.getItem(HINT_KEY) || "[]") || []; a.push(k); localStorage.setItem(HINT_KEY, JSON.stringify(a)); }catch(e){}
     var old = document.getElementById("hintPop"); if (old) old.remove();
-    var el = document.createElement("div"); el.id = "hintPop"; el.className = "hint-pop"; el.setAttribute("role", "status");
+    var el = document.createElement("div"); el.id = "hintPop"; el.dataset.hint = k; el.className = "hint-pop"; el.setAttribute("role", "status");
     el.innerHTML = html + '<button type="button" aria-label="' + __("Loka") + '">×</button>';
     el.querySelector("button").addEventListener("click", function(){ el.remove(); });
     document.body.appendChild(el);

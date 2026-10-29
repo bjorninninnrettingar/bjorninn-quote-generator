@@ -2476,7 +2476,7 @@
     // research round) doesn't clutter the way it would across a dozen kitchen cabinets; gated on
     // meta.alwaysDims (buildScene: activeCategory "fataskapar" or "fataskapar:N"), not a per-type flag, so it
     // covers every Fataskápar piece (floor and wall) uniformly.
-    if (meta && meta.alwaysDims && meta.zone !== "opening" && !isPanel && geom && geom.axis) addUnitDims(geom, offsetM, widthM, baseYM + heightM, depthM, dimLen(Math.round(widthM * 1000)));
+    if (meta && meta.alwaysDims && meta.zone !== "opening" && !isPanel && geom && geom.axis) addUnitDims(geom, offsetM, widthM, baseYM + heightM, depthM, meta.dimText || dimLen(Math.round(widthM * 1000)));
     if (art) addArticulated(THREE, scene, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta, useFrontMat, pickables);
     else if (meta && meta.zone !== "opening" && !isPanel && !meta.appliance) addFrontDetails(THREE, group, geom, offsetM, widthM, bodyH, bodyBase, depthM, interior, meta.handle, !!meta.tall, meta.zone === "wall" || !!meta.handleBottom || (bodyBase >= HIGH_DOOR_M && !(interior && interior.mode === "skuffur")), meta.split || 0, meta, useFrontMat);
     if (meta && meta.appliance && !meta.applModel) addApplianceDetails(THREE, group, geom, offsetM, widthM, heightM, depthM, meta.appliance);
@@ -5807,6 +5807,9 @@
       if (!g || (iso && !isoHas(wall.id) && !neighborOnly)) return;
       var fStarts = blockStartsMm(wall.floor, cornerClearanceMm(surfaces, wi, "floor")), wStarts = blockStartsMm(wall.wall, 0);
       var islandId = wall.island ? wall.island.id : undefined;
+      // whole-cm width labels that add up to the run (QA 2026-10-29: 3 × "79" on 2 360 mm = 237): round the running total
+      var dimTxts = {};
+      [wall.floor, wall.wall].forEach(function(list){ var cum = 0, prev = 0; (list || []).forEach(function(b){ var cc = CATALOG[b.type]; if (!cc || cc.panel || !unitCm()) return; cum += b.widthMm; var now = Math.round(cum / 10); dimTxts[b.id] = dimNum((now - prev) * 10) + " cm"; prev = now; }); });
       // This wall/island's own plinth (Sökkulhæð) — same resolver buildPlan2D's dimension chain already uses
       // (plinthMmOf in kitchen-planner.html); floor-unit geometry below used to hardcode 100 regardless, so a
       // custom Sökkulhæð changed the numbers shown but never what was actually drawn.
@@ -5847,7 +5850,7 @@
             fridgeKind:c.fridge ? (b.type === "frystir" ? "freezer" : "fridge") : null,
             bins:!!(c.rusl || (c.sink && b.interior && b.interior.mode === "skuffur") || binsWanted(b, c, state.drawerSystem)), // RUSL60/80 in the bottom drawer
             ovenInner:c.oven && !c.lowOven ? (String(b.ovenCombo == null ? OVEN_DEFAULT[state.drawerSystem === "merivo" ? "merivo" : "legra"] : b.ovenCombo).split("+")[1] || null) : null,
-            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")), hung:!!state.hungUnits, basin:!!c.sink && !!state.hungUnits, applModel:!!applMdl };
+            washerDrawerM:c.thvo && b.thvo !== "hurdir" ? 0.40 : 0, alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")), dimText:dimTxts[b.id], hung:!!state.hungUnits, basin:!!c.sink && !!state.hungUnits, applModel:!!applMdl };
         // Þvottavélaskápur "Skúffa undir vélinni + skápur ofan við" (round 3, user 2026-10-26): a drawer at the bottom, the
         // washer + dryer in an open niche, a cabinet above — what's built and what the "Hvar er vélin?" preview shows
         var nicheTower = c.thvo && b.thvo !== "hurdir" && !applMat;
@@ -5901,7 +5904,7 @@
         var selected = opts.selectedId === b.id;
         var elevM = elevOf(b) / 1000;
         var metaBase = { lockToId:b.lockTo && c.panel ? b.lockTo.id : null, locked:!!b.locked || !!opts.xray, suppressBadge:!!opts.xray, slabFronts:jeyOn, drawerSystem:state.drawerSystem, carcassKey:state.carcass, warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"wall", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d),
-          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000), alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")) };
+          heightMm:hM * 1000, elevMm:elevM * 1000, handle:state.handle, splitFr:c.open ? null : splitFractions(b, hM * 1000), alwaysDims:/^fataskapar(:|$)/.test(String(state.activeCategory || "")), dimText:dimTxts[b.id] };
         if (c.shelfStack){ // 1–5 boards of 38 mm above each other: one pickable box per board, all sharing the block id
           var n = Math.max(1, Math.min(SHELF_STACK_MAX, b.count || 3)), gap = b.vgapMm != null ? b.vgapMm : SHELF_GAP_DEFAULT;
           for (var k = 0; k < n; k++){
@@ -6524,14 +6527,25 @@
       var svg = "";
       // an úthlið is its own segment, labelled with its thickness in mm (owner, 2026-10-27: 60 | 19 | 60 adds up to
       // the real total) — "19 mm" for a customer, whose chain is otherwise in cm
-      function segTxt(u){ return u.panel ? String(Math.round(u.widthMm)) : dimNum(u.widthMm); }
-      floorU.forEach(function(u){
+      // whole-cm labels must add up to the real run (QA 2026-10-29: 3 × "79" for 2 360 mm = 237): round the running
+      // total, not each piece, so 786,7 + 786,7 + 786,7 reads 79 + 78 + 79 = 236
+      function chainTxts(list){
+        var cum = 0, prev = 0, out = [];
+        list.forEach(function(u){
+          if (u.panel || !unitCm()){ out.push(u.panel ? String(Math.round(u.widthMm)) : dimNum(u.widthMm)); return; }
+          cum += u.widthMm; var now = Math.round(cum / 10), v = now - prev; prev = now;
+          out.push(dimNum(v * 10));
+        });
+        return out;
+      }
+      var floorTxt = chainTxts(floorU), wallTxt = chainTxts(wallU);
+      floorU.forEach(function(u, i){
         var p0 = P(u.a0, -0.12), p1 = P(u.a1, -0.12);
-        svg += dimTick(p0.x, p0.y, p1.x, p1.y, segTxt(u), false, color);
+        svg += dimTick(p0.x, p0.y, p1.x, p1.y, floorTxt[i], false, color);
       });
-      wallU.forEach(function(u){
+      wallU.forEach(function(u, i){
         var p0 = P(u.a0, focusBounds.yHi - 0.22), p1 = P(u.a1, focusBounds.yHi - 0.22);
-        svg += dimTick(p0.x, p0.y, p1.x, p1.y, segTxt(u), false, color);
+        svg += dimTick(p0.x, p0.y, p1.x, p1.y, wallTxt[i], false, color);
       });
       // the wall's own full width/height, always shown (not just the cabinet run) — a bare wall still gets
       // dimensioned, same as the room's own wall-length label does on the 2D plan
@@ -7853,7 +7867,7 @@
     var surfaces = surfacesOf(state), allGeoms = geoms.concat(islandGeoms(state)).concat(milliveggGeoms(state));
 
     var b = stateBounds(state, geoms);
-    var margin = 0.8;
+    var margin = 0.9; // the wall names sit 58 px outside the wall (~12 px tall): 0.8 m (64 px) cut the top one at the sheet's edge
     var minX = b.minX - margin, maxX = b.maxX + margin;
     var minZ = b.minZ - margin, maxZ = b.maxZ + margin;
     var svgW = (maxX - minX) * PX_PER_M, svgH = (maxZ - minZ) * PX_PER_M;
