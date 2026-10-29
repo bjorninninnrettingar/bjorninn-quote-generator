@@ -2805,7 +2805,18 @@
           var cx0 = (t.x0 || 0) - t.px, cz0 = t.z0 - t.pz, ca = Math.cos(a), sa = Math.sin(a);
           var bx = t.px + cx0 * ca + cz0 * sa, bz = t.pz - cx0 * sa + cz0 * ca;
           bx += -Math.sin(t.a1) * t.step * k2s; bz += -Math.cos(t.a1) * t.step * k2s; // away from the post
-          t.group.position.set(bx, t.y, bz + t.out * k3);
+          bz += t.out * k3;
+          // the tray must never pass through the cabinet's sides while it is still inside (owner, 2026-10-29): measure its turned
+          // footprint and slide it back in by whatever sticks out — in front of the cabinet too, where a neighbour or a wall stands beside it
+          if (t.hw){
+            var hx = t.tw / 2, hz = t.td / 2, lo = 0, hi = 0;
+            [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]].forEach(function(c){
+              var wx = bx + c[0] * ca + c[1] * sa, wz = bz - c[0] * sa + c[1] * ca, lim = t.hw - 0.03;
+              if (wx > lim) hi = Math.max(hi, wx - lim); if (wx < -lim) lo = Math.max(lo, -lim - wx);
+            });
+            bx += lo - hi;
+          }
+          t.group.position.set(bx, t.y, bz);
           t.group.rotation.y = a;
           return;
         }
@@ -3441,7 +3452,7 @@
         // the real motion: the tray first turns about the column out through the opening, then slides out —
         // open it stands out of the opening, pointing away from the cabinet at a slight angle (how a LeMans II stands open)
         trays.push({ group:g, real:true, y:bodyBase + bodyH * f, x0:xIn, z0:zIn, px:pivotX, pz:pz,
-          a1:inward * Math.PI / 2, step:0.07, out:d * 0.75, xEnd:pivotX - inward * (d * 0.55 + 0.04), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
+          a1:inward * Math.PI / 2, step:0.07, out:d * 0.75, hw:hw, CD:CD, tw:innerW, td:d, xEnd:pivotX - inward * (d * 0.55 + 0.04), zEnd:zIn + d / 2 + innerW * 0.42, aEnd:inward * 1.3 });
       });
     } else {
       var w = Math.max(0.3, hw - 0.07), d2 = Math.max(0.3, Math.min(0.5, CD - 0.08));
