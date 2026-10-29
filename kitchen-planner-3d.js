@@ -229,6 +229,10 @@
     var c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function(v){ return Math.round(v + (255 - v) * k); });
     return "#" + c.map(function(v){ return ("0" + v.toString(16)).slice(-2); }).join("");
   }
+  function planFloorTint(key){ // the top-view sheet: only a hint of the floor (architect's drawing)
+    var n = parseInt(floorPlanColor(key).slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function(v){ return Math.round(v + (255 - v) * 0.8); });
+    return "#" + c.map(function(v){ return ("0" + v.toString(16)).slice(-2); }).join("");
+  }
   var TOP_GROUPS = [ // most chosen first (user, 2026-10-24)
     { key:"hardplast",label:"Harðplast", blurb:"Hagkvæm og endingargóð — einlitt, viðar-, stein- og marmaraútlit." },
     { key:"compact",  label:"Compact",   blurb:"Þéttar og sterkbyggðar harðkjarna plötur — þola raka og daglega notkun vel." },
@@ -7808,18 +7812,18 @@
     var topDef2 = state.top && TOPS[state.top] ? TOPS[state.top] : null;
     var counterFill = topDef2 ? topDef2.color3d : "#e6e1d8";
 
-    // Drawing-board look: warm paper, a 0.5 m grid, soft drop shadows under
-    // the cabinets, real door-swing arcs and window symbols.
+    // Architect's drawing (owner, 2026-10-29): white sheet, a faint 0.5 m grid, thin black lines, light grey cabinets (no shadows,
+    // no front colours), wall units dashed, openings as drawn symbols; real door-swing arcs and window symbols.
     var gridPx = PX_PER_M * 0.5;
     var svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" xmlns="http://www.w3.org/2000/svg" ' +
-      'style="width:100%;height:100%;display:block;background:#f7f4ed;font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
+      'style="width:100%;height:100%;display:block;background:#ffffff;font-family:\'Kumbh Sans\',Arial,sans-serif;">' +
       '<defs><pattern id="kpGrid" width="' + gridPx + '" height="' + gridPx + '" patternUnits="userSpaceOnUse">' +
-        '<path d="M ' + gridPx + ' 0 L 0 0 0 ' + gridPx + '" fill="none" stroke="#ebe6da" stroke-width="1"/></pattern>' +
+        '<path d="M ' + gridPx + ' 0 L 0 0 0 ' + gridPx + '" fill="none" stroke="#f1f1ef" stroke-width="1"/></pattern>' +
       '<filter id="kpShadow" x="-10%" y="-10%" width="130%" height="140%"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".22"/></filter></defs>' +
       '<rect width="100%" height="100%" fill="url(#kpGrid)"/>';
 
     if (geoms.closed && geoms.length >= 3){ // the room's floor
-      svg += '<polygon points="' + geoms.map(function(g){ return X(g.origin.x) + "," + Y(g.origin.z); }).join(" ") + '" fill="' + floorPlanColor(state.floor) + '" stroke="none" style="pointer-events:none;"/>';
+      svg += '<polygon points="' + geoms.map(function(g){ return X(g.origin.x) + "," + Y(g.origin.z); }).join(" ") + '" fill="' + planFloorTint(state.floor) + '" stroke="none" style="pointer-events:none;"/>';
     }
     geoms.forEach(function(g, gi){
       var x1 = X(g.origin.x), y1 = Y(g.origin.z);
@@ -7829,7 +7833,7 @@
       var isOpen = !!(state.walls[gi] && state.walls[gi].open);
       svg += isOpen
         ? '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#6f6d66" stroke-width="2.4" stroke-dasharray="8,6"/>'
-        : '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (opts.selectedWallId === wallId ? "#3d61c1" : "#2b2b2e") + '" stroke-width="' + (opts.selectedWallId === wallId ? 18 : 9) + '" stroke-linecap="square"' + (opts.onWallSelect ? ' style="cursor:pointer;"' : '') + '/>';
+        : '<line data-wall-line-id="' + wallId + '" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (opts.selectedWallId === wallId ? "#3d61c1" : "#111111") + '" stroke-width="' + (opts.selectedWallId === wallId ? 18 : 7) + '" stroke-linecap="square"' + (opts.onWallSelect ? ' style="cursor:pointer;"' : '') + '/>';
       var sw = state.walls[gi];
       // an open edge with nothing on it isn't a wall to the customer (a "Beinn veggur" wardrobe's 3 room edges) — no label
       if (!opts.mini && !(sw && sw.open && !(sw.floor || []).length && !(sw.wall || []).length)){
@@ -7854,39 +7858,39 @@
       var bx = g.origin.x + g.axis.x * (offsetM + widthM), bz = g.origin.z + g.axis.z * (offsetM + widthM);
       var sel = opts.selectedId === o.id;
       // gap in the wall + the symbol
-      svg += '<line x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(bx) + '" y2="' + Y(bz) + '" stroke="#f7f4ed" stroke-width="11" stroke-linecap="butt" style="pointer-events:none;"/>';
+      svg += '<line x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(bx) + '" y2="' + Y(bz) + '" stroke="#ffffff" stroke-width="11" stroke-linecap="butt" style="pointer-events:none;"/>';
       if (o.gap){ // a plain opening: just the two wall ends, no leaf or glazing
         [0, widthM].forEach(function(al){
           var px = g.origin.x + g.axis.x * (offsetM + al), pz = g.origin.z + g.axis.z * (offsetM + al);
-          svg += '<line x1="' + (X(px) - g.normal.x * 6) + '" y1="' + (Y(pz) - g.normal.z * 6) + '" x2="' + (X(px) + g.normal.x * 6) + '" y2="' + (Y(pz) + g.normal.z * 6) + '" stroke="#8a6a4a" stroke-width="2" style="pointer-events:none;"/>';
+          svg += '<line x1="' + (X(px) - g.normal.x * 6) + '" y1="' + (Y(pz) - g.normal.z * 6) + '" x2="' + (X(px) + g.normal.x * 6) + '" y2="' + (Y(pz) + g.normal.z * 6) + '" stroke="#222222" stroke-width="2" style="pointer-events:none;"/>';
         });
       } else if (isDoor && doorSwingOf(o) === "slide"){ // a sliding leaf: drawn parked (open) beside the opening, the opening itself dashed
         var sdir = doorHingeOf(o) === "right" ? -1 : 1, so = 0.035;
         var s0 = { x:(sdir > 0 ? bx : ax) + g.normal.x * so, z:(sdir > 0 ? bz : az) + g.normal.z * so }; // open = parked beside the opening
         var s1 = { x:s0.x + g.axis.x * sdir * widthM, z:s0.z + g.axis.z * sdir * widthM };
-        svg += '<line x1="' + X(s0.x) + '" y1="' + Y(s0.z) + '" x2="' + X(s1.x) + '" y2="' + Y(s1.z) + '" stroke="#8a6a4a" stroke-width="3" style="pointer-events:none;"/>' +
-          '<line x1="' + X(ax + g.normal.x * so) + '" y1="' + Y(az + g.normal.z * so) + '" x2="' + X(bx + g.normal.x * so) + '" y2="' + Y(bz + g.normal.z * so) + '" stroke="#8a6a4a" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
+        svg += '<line x1="' + X(s0.x) + '" y1="' + Y(s0.z) + '" x2="' + X(s1.x) + '" y2="' + Y(s1.z) + '" stroke="#222222" stroke-width="3" style="pointer-events:none;"/>' +
+          '<line x1="' + X(ax + g.normal.x * so) + '" y1="' + Y(az + g.normal.z * so) + '" x2="' + X(bx + g.normal.x * so) + '" y2="' + Y(bz + g.normal.z * so) + '" stroke="#222222" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
       } else if (isDoor){
         var sw = doorSweep(state, o);
         if (sw){ // leaf drawn open at 90°, its path a quarter circle; a light fill = the floor it needs, red if a cabinet is in it
           var tip = { x:sw.h.x + sw.v.x * sw.r, z:sw.h.z + sw.v.z * sw.r }, latch = { x:sw.h.x + sw.u.x * sw.r, z:sw.h.z + sw.u.z * sw.r };
           var crossS = sw.v.x * sw.u.z - sw.v.z * sw.u.x, rp = sw.r * PX_PER_M, bad = doorHits[o.id];
-          svg += '<path d="M ' + X(sw.h.x) + ' ' + Y(sw.h.z) + ' L ' + X(tip.x) + ' ' + Y(tip.z) + ' A ' + rp + ' ' + rp + ' 0 0 ' + (crossS > 0 ? 1 : 0) + ' ' + X(latch.x) + ' ' + Y(latch.z) + ' Z" fill="' + (bad ? "#d64545" : "#8a6a4a") + '" fill-opacity="' + (bad ? 0.22 : (sw.inward ? 0.08 : 0.04)) + '" stroke="none" style="pointer-events:none;"/>' +
-            '<line x1="' + X(sw.h.x) + '" y1="' + Y(sw.h.z) + '" x2="' + X(tip.x) + '" y2="' + Y(tip.z) + '" stroke="' + (bad ? "#c0392b" : "#8a6a4a") + '" stroke-width="2" style="pointer-events:none;"/>' +
-            '<path d="M ' + X(tip.x) + ' ' + Y(tip.z) + ' A ' + rp + ' ' + rp + ' 0 0 ' + (crossS > 0 ? 1 : 0) + ' ' + X(latch.x) + ' ' + Y(latch.z) + '" fill="none" stroke="' + (bad ? "#c0392b" : "#8a6a4a") + '" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
+          svg += '<path d="M ' + X(sw.h.x) + ' ' + Y(sw.h.z) + ' L ' + X(tip.x) + ' ' + Y(tip.z) + ' A ' + rp + ' ' + rp + ' 0 0 ' + (crossS > 0 ? 1 : 0) + ' ' + X(latch.x) + ' ' + Y(latch.z) + ' Z" fill="' + (bad ? "#d64545" : "#222222") + '" fill-opacity="' + (bad ? 0.22 : (sw.inward ? 0.08 : 0.04)) + '" stroke="none" style="pointer-events:none;"/>' +
+            '<line x1="' + X(sw.h.x) + '" y1="' + Y(sw.h.z) + '" x2="' + X(tip.x) + '" y2="' + Y(tip.z) + '" stroke="' + (bad ? "#c0392b" : "#222222") + '" stroke-width="2" style="pointer-events:none;"/>' +
+            '<path d="M ' + X(tip.x) + ' ' + Y(tip.z) + ' A ' + rp + ' ' + rp + ' 0 0 ' + (crossS > 0 ? 1 : 0) + ' ' + X(latch.x) + ' ' + Y(latch.z) + '" fill="none" stroke="' + (bad ? "#c0392b" : "#222222") + '" stroke-width="1.2" stroke-dasharray="4,3" style="pointer-events:none;"/>';
         }
       } else {
-        [-3, 3].forEach(function(d){
-          svg += '<line x1="' + (X(ax) + g.normal.x * d) + '" y1="' + (Y(az) + g.normal.z * d) + '" x2="' + (X(bx) + g.normal.x * d) + '" y2="' + (Y(bz) + g.normal.z * d) + '" stroke="#5b8fae" stroke-width="1.6" style="pointer-events:none;"/>';
+        [-3, 0, 3].forEach(function(d){
+          svg += '<line x1="' + (X(ax) + g.normal.x * d) + '" y1="' + (Y(az) + g.normal.z * d) + '" x2="' + (X(bx) + g.normal.x * d) + '" y2="' + (Y(bz) + g.normal.z * d) + '" stroke="#111111" stroke-width="1" style="pointer-events:none;"/>';
         });
       }
       // wide, mostly-invisible hit target that also shows the selection
       svg += '<line ' + dataAttr + '="' + o.id + '" x1="' + X(ax) + '" y1="' + Y(az) + '" x2="' + X(bx) + '" y2="' + Y(bz) +
-        '" stroke="' + (sel ? "#3d61c1" : color) + '" stroke-opacity="' + (sel ? 1 : 0.35) + '" stroke-width="' + (sel ? 11 : 9) + '" stroke-linecap="butt" style="cursor:pointer;"/>';
+        '" stroke="' + (sel ? "#3d61c1" : color) + '" stroke-opacity="' + (sel ? 1 : 0.01) + '" stroke-width="' + (sel ? 11 : 9) + '" stroke-linecap="butt" style="cursor:pointer;"/>';
     }
-    (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#5b8fae", false); });
+    (state.windows || []).forEach(function(w){ openingSegment(w, 'data-window-id', "#111111", false); });
     var doorHits = {}; roomDoorConflicts(state).forEach(function(cf){ doorHits[cf.doorId] = cf.ids; });
-    (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#8a6a4a", true); });
+    (state.doors || []).forEach(function(d){ openingSegment(d, 'data-door-id', "#222222", true); });
     (state.obstacles || []).forEach(function(o){
       var q = obstacleQuad(state, o), def = OBSTACLES[o.kind]; if (!q || !def) return;
       var sel = opts.selectedId === o.id, fill = def.look === "wall" ? "#9a958a" : def.look === "radiator" ? "#ffffff" : def.look === "sill" ? "#e6e2da" : def.look === "fixture" ? "#e8ebed" : "#c4c6c9";
@@ -7900,28 +7904,28 @@
       var dash = isWallRow ? ' stroke-dasharray="5,3"' : '';
       var selected = opts.selectedId === bl.id;
       var warned = opts.warnIds && opts.warnIds.indexOf(bl.id) >= 0;
-      var stroke = selected ? "#3d61c1" : (warned ? "#d9822b" : "#3a3a3d");
-      var strokeW = selected ? 3 : (warned ? 3 : 1.2);
+      var stroke = selected ? "#3d61c1" : (warned ? "#d9822b" : (isWallRow ? "#6b6b6b" : "#1a1a1a"));
+      var strokeW = selected ? 3 : (warned ? 3 : (isWallRow ? 0.9 : 1.1));
       // top view: worktop stone on base units, steel/black on appliances, the
       // kitchen's front colour on towers; wall units drawn lighter + dashed
-      var fill = c.fridge ? "#c9ccd1" : c.oven ? "#4a4c52" : c.counter ? counterFill : fillColor;
-      var op = isWallRow ? 0.5 : 1;
+      var fill = c.fridge ? "#ececea" : c.oven ? "#e0e0dd" : c.cls === "tall" ? "#e6e6e3" : "#f5f5f3";
+      var op = isWallRow ? 0.01 : 1; // a wall unit is an outline only (dashed), still clickable
       var thin = bl.widthMm < 100; // úthlið: a hairline on the plan, so it gets a wider invisible hit target
       svg += '<polygon ' + (thin ? '' : 'data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" ') +
-        'points="' + poly + '" fill="' + (thin ? fillColor : fill) + '" fill-opacity="' + op + '" ' +
-        'stroke="' + stroke + '" stroke-width="' + (thin ? Math.max(strokeW, 2.4) : strokeW) + '"' + dash + (isWallRow || thin ? '' : ' filter="url(#kpShadow)"') + (thin ? ' style="pointer-events:none;"' : ' style="cursor:pointer;"') + '/>';
+        'points="' + poly + '" fill="' + (thin ? "#111111" : fill) + '" fill-opacity="' + op + '" ' +
+        'stroke="' + stroke + '" stroke-width="' + (thin ? Math.max(strokeW, 2.4) : strokeW) + '"' + dash + '' + (thin ? ' style="pointer-events:none;"' : ' style="cursor:pointer;"') + '/>';
       if (thin){
         svg += '<polygon data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" points="' + poly + '" fill="none" stroke="transparent" stroke-width="14" style="cursor:pointer;pointer-events:stroke;"/>';
       }
       // front edge in the kitchen's front colour
       if (!isWallRow && c.counter){
-        svg += '<line x1="' + X(corners[3].x) + '" y1="' + Y(corners[3].z) + '" x2="' + X(corners[2].x) + '" y2="' + Y(corners[2].z) + '" stroke="' + fillColor + '" stroke-width="4" style="pointer-events:none;"/>';
+        svg += '<line x1="' + X(corners[3].x) + '" y1="' + Y(corners[3].z) + '" x2="' + X(corners[2].x) + '" y2="' + Y(corners[2].z) + '" stroke="#1a1a1a" stroke-width="1.8" style="pointer-events:none;"/>';
       }
       if (c.sink){ // basin
         var m = function(a, o2){ return { x:g.origin.x + g.axis.x * (offsetMm / 1000 + a) + g.normal.x * o2, z:g.origin.z + g.axis.z * (offsetMm / 1000 + a) + g.normal.z * o2 }; };
         var bw = Math.min(0.6, widthM * 0.72), bd = Math.min(0.4, (bl.depthMm || c.d) / 1000 * 0.62), oc = (bl.depthMm || c.d) / 2000;
         var q = [m(widthM / 2 - bw / 2, oc - bd / 2), m(widthM / 2 + bw / 2, oc - bd / 2), m(widthM / 2 + bw / 2, oc + bd / 2), m(widthM / 2 - bw / 2, oc + bd / 2)];
-        svg += '<polygon points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="#b9bec4" stroke="#7d848b" stroke-width="1" style="pointer-events:none;"/>';
+        svg += '<polygon points="' + q.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" ") + '" fill="#ffffff" stroke="#555" stroke-width="0.9" style="pointer-events:none;"/>';
       }
       if (widthM * PX_PER_M > 30 && !thin && !opts.mini){
         // a wall unit's label near the wall, a floor unit's toward its front, the wall one smaller and grey — they sat
@@ -7930,7 +7934,7 @@
         var cx = X(bx0 + (fx0 - bx0) * tF), cy = Y(bz0 + (fz0 - bz0) * tF);
         // just the width, readable (was "78,8 · 3sk" — user, 2026-10-26); PRO keeps its Sk-number in front
         var label = (bl.sk && planIsPro() ? bl.sk + " · " : "") + dimNum(bl.widthMm);
-        svg += '<text x="' + cx + '" y="' + cy + '" font-size="' + (isWallRow ? 10.5 : 12) + '" font-weight="' + (isWallRow ? 500 : 600) + '" fill="' + (c.oven ? "#fff" : isWallRow ? "#6f6d66" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
+        svg += '<text x="' + cx + '" y="' + cy + '" font-size="' + (isWallRow ? 10 : 11) + '" font-weight="400" fill="' + (isWallRow ? "#6f6d66" : "#191919") + '" text-anchor="middle" dominant-baseline="middle" style="pointer-events:none;">' + label + '</text>';
       }
     }
 
