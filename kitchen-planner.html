@@ -16621,6 +16621,11 @@
   });
   document.addEventListener("click", function(e){ var m = document.getElementById("helpMenu"); if (m && !m.hidden && !e.target.closest(".help-wrap")) m.hidden = true; });
   document.getElementById("helpMenu").addEventListener("click", function(){ this.hidden = true; });
+  document.addEventListener("keydown", function(e){ // Escape closes the Hjálp menu and gives the focus back to its button (QA 2026-10-29)
+    var m = document.getElementById("helpMenu"), hb = document.getElementById("helpBtn");
+    if (e.key !== "Escape" || !m || m.hidden) return;
+    m.hidden = true; if (hb){ hb.setAttribute("aria-expanded", "false"); hb.focus(); }
+  });
   document.getElementById("intakeBackBtn").addEventListener("click", function(){ if (state.home) openHome(); else if (!state.closed && (state.doorList || []).length) openDoors("review"); else goto("editor"); });
   document.getElementById("toMaterialsBtn").addEventListener("click", function(){ goto("contact"); renderPreviews(); });
 
