@@ -54,10 +54,11 @@ test("tall cabinet: inner drawers behind the door default from the bottom (front
   assert.ok(p.check.some((c) => c.startsWith("Lamir")));
 });
 
-test("plumbing side: no masonite groove; plinths/end panels are skipped, FRE stops", () => {
+test("plumbing side: no masonite groove; plinths/end panels are skipped, FRE is a side like any other", () => {
   assert.equal(S.unitPlan("SK 18", [row("Lagna - Hliðar", 600, 430, 16, 2)]).groove, false);
   assert.equal(S.unitPlan("Sökkull", [row("Sökkull - framstykki", 80, 2000, 16, 1)]).status, "skip");
-  assert.equal(S.unitPlan("SK 19", [row("FRE - Hlið", 450, 600, 19, 2)]).status, "stop");
+  const fre = S.unitPlan("SK 19", [row("FRE - Hlið", 450, 600, 19, 2)]);
+  assert.equal(fre.fre, true); assert.equal(fre.groove, false); assert.equal(fre.LPX, 450); assert.notEqual(fre.status, "stop");
 });
 
 test("hinges: 80 from each end, middle ones by height and moved off shelves; fronts are 79", () => {
@@ -202,7 +203,7 @@ test("a side stored rotated in Sögunarlisti is turned by the unit's height; rai
   assert.deepEqual([p.LPX, p.LPY], [2470, 580]);
   assert.equal(ops(p).filter((x) => x.startsWith("SLA_HLID")).length, 2);
   assert.equal(ops(S.unitPlan("x", [row("Grunnskápur hlið", 1040, 300, 16, 2)])).filter((x) => x.startsWith("SLA_HLID")).length, 2);
-  assert.equal(S.unitPlan("Sk 6", [row("FRE2 - Hlið", 1670, 580, 19, 2)]).status, "stop");
+  assert.equal(S.unitPlan("Sk 6", [row("FRE2 - Hlið", 1670, 580, 19, 2)]).fre, true); // FRE is planned like any cabinet (2026-10-29)
 });
 
 test("a door taller than its space (wall cabinet with a lip) hangs on the side's own length", () => {

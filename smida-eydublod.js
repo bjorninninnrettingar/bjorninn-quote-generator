@@ -44,6 +44,12 @@
     (by.inner || []).forEach(function (r) { var m = r.Partur.match(/skúffufrontur\s+([NMKCFE])\b/i); for (var i = 0; i < Math.round((num(r.M) || 0) / (cab.base.cabinets || 1)); i++) cab.inner.push({ code: m[1].toUpperCase(), h: num(r.H) }); });
     cab.oven = /ofn/i.test(cab.tegund) || rows.some(function (r) { return SD.kind(r.Partur) === "door" && /ofn/i.test(r.Partur); });
     cab.fre = !!by.freSide;
+    // Blindlok (Töfrahorn etc.): fixed on the box, no hinges — its real size from the Úthlið/Blindlok row (H × B)
+    var bl = (by.uthlid || []).filter(function (r) { return /blindlok/i.test(r.Partur); })[0];
+    cab.blind = bl ? { H: num(bl.H), B: num(bl.B), name: bl.Partur } : null;
+    // drawer box depth: the drawer-bottom boards' real length in Sögunarlisti (nominal depth = length + 26)
+    var dep = {}; rows.forEach(function (r) { if (/^(inn)?skúffubotn/i.test(r.Partur) && num(r.H)) dep[num(r.H)] = 1; });
+    cab.depths = Object.keys(dep).map(Number).sort(function (a, b) { return a - b; });
     return cab;
   }
 
@@ -104,7 +110,7 @@
     list.forEach(function (d) { out.push({ code: d.code, mm: Math.round(x) }); x += d.h + gap; });
     return out;
   }
-  function editable(cab) { return !cab.fre && !!cab.base.LPX; }
+  function editable(cab) { return !!cab.base.LPX; } // FRE cabinets too (2026-10-29): same editor, cab.fre only labels them
   // Fataslá: 60 mm under the (first) fixed shelf, else 60 under the top
   function defaultRails(cab, e) {
     var g = geom(cab), fx = (e.shelves || []).filter(function (x) { return x.fixed; })[0];
@@ -117,7 +123,7 @@
 
   // the editable state of one cabinet — from the Eyðublað's previous Smíðagögn when it has one, else /cnc's defaults
   function initEdit(cab) {
-    var ex = cab.existing || {}, e = { hinge: null, doors: null, shelves: null, oven: null, inner: null, rails: null, noJey: { drawers: [], doors: [] }, reviewed: !!ex.ready };
+    var ex = cab.existing || {}, e = { hinge: null, doors: null, shelves: null, oven: null, inner: null, rails: null, noJey: { drawers: [], doors: [] }, led: [], blindSide: "haegri", reviewed: !!ex.ready };
     if (!editable(cab)) return e; // FRE / no usable side: nothing /cnc would drill from here
     var nd = (cab.base.doors || []).length;
     if (nd) e.hinge = ex.hinge || cab.base.hingeSide || null;
@@ -130,6 +136,8 @@
       var ok = sl && sl.filter(function (x) { return x.fixed; }).length === cab.nFixed && sl.length === cab.nLoose + cab.nFixed;
       e.shelves = ok ? clone(sl) : defaultShelves(cab);
     }
+    if (Array.isArray(ex.led)) e.led = clone(ex.led);
+    if (ex.blindSide === "vinstri" || ex.blindSide === "haegri") e.blindSide = ex.blindSide;
     if (ex.noJey && typeof ex.noJey === "object") e.noJey = { drawers: clone(ex.noJey.drawers || []), doors: clone(ex.noJey.doors || []) };
     if (cab.fataslar && cab.fataslar.magn) e.rails = Array.isArray(ex.rails) && ex.rails.length ? clone(ex.rails) : defaultRails(cab, e);
     if (innerEditable(cab)) e.inner = Array.isArray(ex.inner) && ex.inner.length === cab.inner.length ? clone(ex.inner) : defaultInner(cab);
@@ -139,7 +147,7 @@
   // edit → Smíðagögn object (what Vista writes). `ready` only while marked reviewed.
   function smidaOf(cab, e) {
     var o = Object.assign({}, clone(cab.existing) || {});
-    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "ready"].forEach(function (k) { delete o[k]; });
+    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "led", "blindSide", "ready"].forEach(function (k) { delete o[k]; });
     o.v = 1;
     if (o.w == null && cab.B) o.w = cab.B;
     if (o.h == null && cab.base.LPX) o.h = cab.base.LPX;
@@ -157,6 +165,8 @@
     if (e.inner && e.inner.length) o.inner = clone(e.inner);
     if (e.rails && e.rails.length) o.rails = clone(e.rails);
     if (e.noJey && ((e.noJey.drawers || []).length || (e.noJey.doors || []).length)) o.noJey = { drawers: clone(e.noJey.drawers || []).sort(), doors: clone(e.noJey.doors || []).sort() };
+    if (e.led && e.led.length) o.led = clone(e.led);
+    if (cab.blind && e.blindSide === "vinstri") o.blindSide = "vinstri"; // "haegri" is the default and is not written
     if (e.reviewed) o.ready = true;
     return o;
   }

@@ -123,9 +123,11 @@
     var by = {}; rows.forEach(function (r) { var k = kind(r.Partur); (by[k] = by[k] || []).push(r); });
     var tegund = String([].concat((rows[0] || {})["Tegund einingu"] || "")[0] || "");
     var plan = { name: name, id: unitId(name), tegund: tegund, stop: stop, check: check, info: info, ops: [] };
-    if (by.freSide) { stop.push("FRE-skápur — bíður hönnuðar (bak, rastex) og er gerður í höndunum þangað til"); }
+    // FRE (owner 2026-10-29): an FRE cabinet works like any other — its "FRE - Hlið" rows are the sides; plan.fre marks it
+    // (no masonite groove on FRE sides)
+    if (by.freSide && !by.side) { by.side = by.freSide; plan.fre = true; info.push("FRE-skápur — hliðar úr „FRE - Hlið“"); }
     // Plinths, end panels, covers… have no carcass side — not a side program, not an error.
-    if (!by.side) { plan.status = by.freSide ? "stop" : "skip"; return plan; }
+    if (!by.side) { plan.status = "skip"; return plan; }
     if (by.side.length > 1) {
       var sz = by.side.map(function (r) { return r.H + "×" + r.B + "×" + r["Þ"]; });
       if (sz.some(function (s) { return s !== sz[0]; })) { stop.push("Hliðar af ólíkri stærð í sömu einingu (" + sz.join(", ") + ") — skipta einingunni"); plan.status = "stop"; return plan; }
@@ -146,7 +148,7 @@
     op("SLA_HLID", "Slár", 'LPZ, bora_i_gegn, lpz+1, 0, "1,4"');
     if (H > TALL_EXTRA_RAIL) op("SLA_HLID", "Auka Slár", 'LPZ, bora_i_gegn, lpz+1, lpx/3, "1,4"');
     // Masonite groove unless it's a plumbing (lagna) side — the master's own note: "Ef lagna = ekki masonit".
-    plan.groove = !/lagna/i.test(s.Partur); // and FRE sides never (they stop before this)
+    plan.groove = !/lagna/i.test(s.Partur) && !plan.fre; // and FRE sides never (they stop before this)
     var grip = num(opts.gripMm) || 0;
 
     // Drawers, bottom → top, from the real front heights.
@@ -504,6 +506,15 @@
       cups.forEach(function (c) { var b = Math.min.apply(null, plates.map(function (a) { return Math.abs(c - a); })); if (b > worst) worst = b; });
       if (worst > 1.5) stop.push("Hurð " + (i + 1) + " (" + r1(d.H) + "): lamaskálar í fronti passa ekki við lamaplötur í hlið (" + r1(worst) + " mm) — ekki skrifað, athuga hæð frontsins");
     });
+    // LED fræsing (Smíða "+ LED", 2026-10-29): Smíðagögn led = [{ where:"hlid"|"toppur", y: mm from the front edge }] — 4 mm wide,
+    // 8 mm deep. On the sides it is the master's own "LED 4x8" CUT_X line with Y replaced (renderSide); the top board's
+    // file isn't written by /cnc, so those are listed for the hand.
+    plan.led = [];
+    ((parseSmida(opts.smida) || {}).led || []).forEach(function (l) {
+      var y = num(l && l.y); if (!(y > 0)) return;
+      if (l.where === "toppur") check.push("LED í toppi, " + r1(y) + " mm frá framkanti — fræst með Topp/Botn skránni í höndunum (ekki í /cnc enn)");
+      else plan.led.push(r1(y));
+    });
     plan.drawers = drawers; plan.doors = doors; plan.loose = loose;
     plan.defaults = defaults; plan.defaultsAccepted = false;
     if (plan.reviewed && defaults.length) { // reviewed in PRO = these defaults were looked at and accepted
@@ -650,6 +661,10 @@
       }
       if (section === "PROGRAM") {
         var m = l.match(/^([@'])( +)([A-Z0-9_]+), "", "([^"]*)",(.*)$/);
+        if (m && m[3] === "CUT_X" && /^LED 4x8/.test(m[4]) && (p.led || []).length) {
+          (p.led || []).forEach(function (y) { out.push("@" + m[2] + 'CUT_X, "", "LED 4x8 (Smíða Y ' + y + ')", ' + newId() + "," + m[5].replace(/^ \d+,/, "").replace(/(: 0, "\d", -50, )[^,]+/, "$1" + y)); });
+          return;
+        }
         if (m && m[3] === "CUT_X" && lc(m[4]).indexOf(GROOVE_LABEL) >= 0) { out.push((p.groove ? "@" : "'") + m[2] + "CUT_X, \"\", \"" + m[4] + "\"," + m[5]); return; }
         if (m && managed.indexOf(m[3]) >= 0) {
           if (!foundTemplate[m[3]]) { foundTemplate[m[3]] = true; (groups[m[3]] || []).forEach(function (o) { out.push(render(o)); }); }

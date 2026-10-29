@@ -110,7 +110,7 @@
         case "TOPP_BOTN": break; // always identical, not worth drawing
         case "SLA_HLID": {
           var y = num(p[3], vars);
-          if (y != null && y > 1) features.push({ type: "rail", y: y, label: op.label || "Slá" });
+          if (y != null) features.push({ type: "rail", y: y, label: op.label || "Slá" }); // 0 = the one at the bottom (2026-10-29: drawn too)
           break;
         }
         case "LOM": case "IKEALOM": {
@@ -163,6 +163,10 @@
         }
         case "CUT_X": {
           info.push((op.label || "Sögun") + ": virk");
+          // the masonite groove (4 mm wide, 16 mm from the back edge, Y = its centre from the front edge) and the LED routs (4 × 8):
+          // vertical lines on the side, Y = mm from the front edge (2026-10-29)
+          var cy = num(p[3], vars), isLed = /^LED/i.test(op.label || ""), isMas = /masonit/i.test(op.label || "");
+          if (cy != null && (isLed || isMas)) features.push({ type: "groove", y: cy, led: isLed, label: isLed ? "LED-fræsing 4 × 8 mm — " + cy + " mm frá framkanti" : "Masonít-rauf 4 mm — 16 mm frá bakbrún" });
           break;
         }
         case "GEO": case "ENDPATH": case "GEOTEXT": case "STAT_BLOCK": case "BG": case "RECTANGLE": case "MOVENTO_BAKKI":
@@ -370,7 +374,14 @@
         var eh = g(f.label || "Löm", "hinge", f.y);
         drawPlate(eh, X(front), Y(f.y), s, acc.hinge ? BLUE : INK, mir ? -1 : 1);
       } else if (f.type === "rail") {
-        var er = g(f.label, "rail", f.y); er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
+        // a slá (SLA_HLID) is a back rail: dashed across, and a solid block at the back edge where it is screwed in
+        var er = g(f.label + " — í bakinu, " + Math.round(f.y) + " mm frá botni", "rail", f.y);
+        if (f.y > 1) er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
+        var rb = XR(LPY - 18, LPY); er.appendChild(svgEl("rect", { x: rb.x, y: Y(f.y + 9), width: rb.w, height: Math.max(4, 18 * s), fill: "#8e8e93", stroke: INK, "stroke-width": .8 }));
+        er.appendChild(svgEl("rect", { x: rb.x - 6, y: Y(f.y + 9) - 6, width: rb.w + 12, height: Math.max(4, 18 * s) + 12, fill: "transparent" }));
+      } else if (f.type === "groove") {
+        var egr = g(f.label), gx = X(f.y), gw = Math.max(2, 4 * s);
+        egr.appendChild(svgEl("rect", { x: gx - gw / 2, y: Y(LPX), width: gw, height: h, fill: f.led ? "#fff4e5" : "#e6dcc8", stroke: f.led ? "#e8903a" : "#9c8a6b", "stroke-width": .9 }));
       }
     });
     (opts.hits || []).forEach(function (hh) {

@@ -108,7 +108,7 @@ test("T-15 Sk 30.2: inner drawers that /cnc couldn't stack get positions → no 
   assert.equal(opsOf(p, "MERVIBOX_INNSKUFFA").length, 4);
 });
 
-test("previous Smíðagögn keys are kept, FRE is read-only, unchanged = not dirty", () => {
+test("previous Smíðagögn keys are kept, FRE edits like any cabinet, unchanged = not dirty", () => {
   const prev = { v: 1, w: 600, h: 2530, d: 600, fronts: [{ code: "K", mm: 200 }], hinge: "vinstri", shelves: { loose: 0, fixed: 1, list: [{ mm: 1400, fixed: true }] }, ready: true };
   const c = cab("recSk23bbbbbbbbbb", "Sk 23", SK23, { Hæð: 2530, Breidd: 600, Dýpt: 600, "Smíðagögn (JSON) 🔧": JSON.stringify(prev) });
   const e = M.initEdit(c);
@@ -120,8 +120,8 @@ test("previous Smíðagögn keys are kept, FRE is read-only, unchanged = not dir
   e.inner = null; // (prev had no inner list; the editor adds one)
   assert.ok(M.same(M.smidaOf(c, e), prev));
   const fre = cab("recSk14aaaaaaaaaa", "SK 14", [row("Skápur úr FRE")("FRE - Hlið", 1260, 400, 19, 2), row("Skápur úr FRE")("FRE - Föst Hilla", 379, 581, 19, 2)], { Hæð: 1260 });
-  assert.equal(M.editable(fre), false);
-  assert.deepEqual(M.blockers(fre, M.initEdit(fre), fre.base), []);
+  assert.equal(M.editable(fre), true);
+  assert.equal(fre.fre, true);
 });
 
 test("cnc-data: a project whose Eyðublöð no Line Item made is legacy", () => {
@@ -268,4 +268,24 @@ test("Jey off on one front (T-15 Sk 2, 2026-10-29): that slot is the front alone
   const again = M.initEdit(Object.assign({}, c, { existing: o }));
   assert.deepEqual(again.noJey, { drawers: [1], doors: [] });
   assert.equal("noJey" in M.smidaOf(c, M.initEdit(c)), false);
+});
+
+test("LED, blindlok and drawer depth (2026-10-29): Smíðagögn led → master's LED 4x8 line with Y replaced; FRE and Töfrahorn read like any cabinet", () => {
+  const c = cab("recSk3aaaaaaaaaaaa", "Sk 3", SK2.concat([of("Úthlið/Blindlok", 700, 90, 19, 1), of("Innskúffubotn - Merivo", 474, 517, 16, 1)]), { Hæð: 2300, Breidd: 600, Dýpt: 600 }, 27);
+  assert.deepEqual(c.blind && [c.blind.H, c.blind.B], [700, 90]);
+  assert.deepEqual(c.depths, [474]);
+  const e = M.initEdit(c);
+  e.led.push({ where: "hlid", y: 45 }, { where: "toppur", y: 60 });
+  e.blindSide = "vinstri";
+  const o = M.smidaOf(c, e);
+  assert.equal(o.blindSide, "vinstri");
+  const p = M.planOf(c, o);
+  assert.deepEqual(p.led, [45]);
+  assert.ok(p.check.some((t) => /LED í toppi, 60 mm/.test(t)));
+  const master = ["[VARIABLES]", "PAN=LPX|0||4|", "PAN=LPY|0||4|", "PAN=LPZ|0||4|", "", "[PROGRAM]",
+    `' CUT_X, "", "LED 4x8 (default Y 57)", 144058572, "", 0 : 0, "2", -50, 60, 0, 8+.5, lpx+50+50, 0, 100, "", 1, 4`, `' CUT_X, "", "LED 6x6 (default Y 57)", 68794028, "", 0 : 0, "2", -50, 60, 0, 6+.5`].join("\r\n");
+  const out = S.renderSide(master, p).text;
+  assert.match(out, /^@ CUT_X, "", "LED 4x8 \(Smíða Y 45\)", \d+, "", 0 : 0, "2", -50, 45, 0, 8\+\.5/m);
+  assert.match(out, /^' CUT_X, "", "LED 6x6/m);
+  assert.equal(M.same(M.smidaOf(c, M.initEdit(c)).led, undefined), true);
 });
