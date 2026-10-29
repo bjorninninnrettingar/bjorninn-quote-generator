@@ -42,7 +42,7 @@
   .sidebar nav a:hover { background:#242e3b; }
   .sidebar nav a.active { background:var(--accent); color:#fff; }
 
-  .main { flex:1; min-width:0; padding:44px 48px 80px; max-width:1180px; }
+  .main { flex:1; min-width:0; padding:36px 40px 60px; max-width:none; }
   .back { display:inline-block; color:var(--accent); text-decoration:none; font-size:.9rem; margin-bottom:14px; }
   .back:hover { text-decoration:underline; }
   .back[hidden] { display:none; }
@@ -136,7 +136,6 @@
   .lb button:hover { background:rgba(255,255,255,.28); }
   .lb .x { top:18px; right:18px; } .lb .pv { left:18px; } .lb .nx { right:18px; }
 
-  @media (max-width:980px) { .cols { grid-template-columns:1fr; } }
   @media (max-width:760px) {
     #shell { display:block; } .sidebar { display:none; }
     .main { padding:28px 16px 60px; } h1 { font-size:1.6rem; }
@@ -162,6 +161,7 @@
 <div class="lb" id="lb"><button class="x" id="lbX" aria-label="Loka">&times;</button><button class="pv" id="lbP" aria-label="Fyrri">&lsaquo;</button><img id="lbI" alt="" /><button class="nx" id="lbN" aria-label="Næsta">&rsaquo;</button><div class="cap" id="lbC"></div></div>
 
 <script src="/office-shell.js"></script>
+<script src="/office-grid.js"></script>
 <script>
 (function () {
   "use strict";
@@ -331,32 +331,37 @@
 
     $("view").innerHTML =
       '<div class="hero"><div class="sub"><span class="chip acc">' + esc(stageLabel(st)) + "</span>" +
-        '<span class="' + due.c + '">' + esc(due.t) + "</span>" + (prio ? "<span>Forgangur " + esc(prio.replace(/^(\d).*/, "$1")) + "</span>" : "") + "</div></div>" +
-      '<div class="cols"><div>' +
-        '<div class="card"><h3>Staða</h3><div class="stats">' +
+        '<span class="' + due.c + '">' + esc(due.t) + "</span>" + (prio ? "<span>Forgangur " + esc(prio.replace(/^(\d).*/, "$1")) + "</span>" : "") + '<button class="link" id="layoutBtn" type="button" style="margin-left:auto">Breyta útliti</button></div></div>' +
+      '<div id="projGrid">' +
+        '<div class="card" id="g-stada"><h3>Staða</h3><div class="stats">' +
           stat("Heild", pct + "%", "", pct) +
           stat("Sögun", sawT ? sawD : "—", sawT ? "/ " + sawT : "", sawT ? sawD / sawT * 100 : 0) +
           stat("Fræsing", milT ? milD : "—", milT ? "/ " + milT : "", milT ? milD / milT * 100 : 0) + "</div></div>" +
-        (watch ? '<div class="card watch"><h3>Athugið</h3>' + watch + "</div>" : "") +
-        (dHtml ? '<div class="card"><h3>Teikningar</h3><div class="draws">' + dHtml + "</div></div>" : '<div class="card"><h3>Teikningar</h3><div class="note" style="padding:0">Engar teikningar skráðar á verkið.</div></div>') +
-        '<div class="card"><h3>Saga verksins</h3><ul class="feed" id="feed"><li><span class="tx" style="color:var(--muted)">Sæki…</span></li></ul></div>' +
-        (plain ? '<div class="card plain"><h3>Nánar</h3>' + plain + "</div>" : "") +
-      "</div><div>" +
-        '<div class="card"><h3>Undirbúningur</h3><ul class="chk" id="chk">' +
+        (watch ? '<div class="card watch" id="g-athugid"><h3>Athugið</h3>' + watch + "</div>" : "") +
+        (dHtml ? '<div class="card" id="g-teikn"><h3>Teikningar</h3><div class="draws">' + dHtml + "</div></div>" : '<div class="card" id="g-teikn"><h3>Teikningar</h3><div class="note" style="padding:0">Engar teikningar skráðar á verkið.</div></div>') +
+        '<div class="card" id="g-saga"><h3>Saga verksins</h3><ul class="feed" id="feed"><li><span class="tx" style="color:var(--muted)">Sæki…</span></li></ul></div>' +
+        (plain ? '<div class="card plain" id="g-nanar"><h3>Nánar</h3>' + plain + "</div>" : "") +
+        '<div class="card" id="g-undirb"><h3>Undirbúningur</h3><ul class="chk" id="chk">' +
           chk(!!f["5. Efni lent í húsi"], "Efni komið í hús") +
           chk(!!f["6. CNC yfirfarið"], "CNC á USB") +
           chk(!!f["3. Teikningar prentaðar 2x"], "Teikningar prentaðar") +
           chk(!!f["4. Verkfundur tekinn"], "Verkfundur tekinn") +
           '<li id="cuttyLi">' + OPEN + "<span>Cutty keyrt</span></li></ul>" +
           '<div id="orders" style="margin-top:6px"></div></div>' +
-        '<div class="card"><h3>Opna</h3><div class="tools">' +
+        '<div class="card" id="g-opna"><h3>Opna</h3><div class="tools">' +
           tool("/verk?t=" + rid + kq, "Fullt yfirlit (eins og á gólfinu)") +
           tool("/labels?recordId=" + rid, "Merkingar") +
           tool("/fraesing?recordId=" + rid, "Fræsing") +
           tool("/saga?recordId=" + rid, "Saga — æðar") +
           tool("/pontun?recordId=" + rid + kq, "Efni og pantanir") +
           tool("/cnc?recordId=" + rid, "CNC útflutningur") + "</div></div>" +
-      "</div></div>";
+      "</div>";
+
+    var W = [["g-stada", "Staða", 4, 3], ["g-athugid", "Athugið", 4, 3], ["g-undirb", "Undirbúningur", 4, 5], ["g-teikn", "Teikningar", 8, 3], ["g-saga", "Saga verksins", 4, 3], ["g-opna", "Opna", 4, 4], ["g-nanar", "Nánar", 4, 3]]
+      .filter(function (w) { return $(w[0]); })
+      .map(function (w) { return { id: w[0], el: $(w[0]), title: w[1], w: w[2], h: w[3] }; });
+    var grid = window.OfficeGrid.mount({ container: $("projGrid"), key: "framleidsla-verk", user: (shellInfo.record && shellInfo.record.name) || "", widgets: W });
+    $("layoutBtn").addEventListener("click", function () { grid.toggleEdit(); });
 
     $("view").querySelectorAll(".dr[data-i]").forEach(function (b) { b.addEventListener("click", function () { openLb(+b.dataset.i); }); });
 

@@ -300,7 +300,13 @@
   #lpModalBg { z-index:260; }
 
   /* ---- Apple pass (2026-10-28): quiet panels, one primary action, rare things under "Meira" ---- */
-  .wrap { padding:44px 48px 80px; }
+  .wrap { padding:36px 40px 60px; max-width:none; }
+  #wKpi { overflow:visible; }
+  #crmGrid > .panel { margin-bottom:0; }
+  .pipelinePanel { display:flex; flex-direction:column; }
+  .pipelinePanel .board { flex:1 1 auto; min-height:0; overflow:auto; align-items:flex-start; }
+  .pipelineReport { margin-top:0; padding:14px 18px; background:var(--surface); border-radius:14px; }
+  #pipelineReport .prRow { flex-wrap:wrap; }
   .hd { margin-bottom:28px; }
   .title { font-size:2rem; font-weight:700; letter-spacing:-.02em; }
   .searchBox { background:var(--surface); border:none; width:230px; padding:8px 16px; }
@@ -327,7 +333,6 @@
   .panel h2.toReviewHead .cnt { background:var(--bad-bg); color:var(--bad); padding:1px 9px; border-radius:999px; font-weight:600; }
   .panel h2.nextStepsHead .cnt { background:var(--acc-bg); color:var(--accent); padding:1px 9px; border-radius:999px; font-weight:600; }
   /* the three "needs me" lists stay short: scroll inside, header stays put */
-  #toReview, #inquiries, #nextSteps { max-height:240px; overflow:auto; }
   #toReview h2, #inquiries h2, #nextSteps h2 { position:sticky; top:0; z-index:1; }
   .reviewTable th { background:transparent; text-transform:none; font-size:.74rem; font-weight:500; }
   .reviewTable td { border-top:1px solid var(--line); }
@@ -361,6 +366,7 @@
           <button type="button" id="newUtfBtn">Ný útfærsla</button>
           <button type="button" id="newEfniBtn">Nýtt efni</button>
           <hr />
+          <button type="button" id="layoutBtn">Breyta útliti</button>
           <button type="button" id="toggleClosed">Sýna líka unnin/töpuð</button>
           <button type="button" id="statsBtn">Tölfræði söluferlis</button>
           <hr />
@@ -373,6 +379,8 @@
     </div>
   </div>
 
+  <div id="crmGrid">
+  <div id="wKpi">
   <div class="kpiRow" id="kpiRow">
     <div class="kpi" id="kpiTotalBox" data-size="M"><div class="lbl">Heildarvirði</div><div class="val" id="kpiTotal">—</div><div class="sub" id="kpiTotalSub"></div></div>
     <div class="kpi" id="kpiTargetBox" data-size="M"><div class="lbl">Sölumarkmið mánaðarins</div><div class="val" id="kpiTarget">—</div></div>
@@ -380,17 +388,13 @@
     <div class="kpi" id="kpiTransfersBox" data-size="M"><div class="lbl">Millifærslur þennan mánuð</div><div class="val" id="kpiTransfers">—</div><div class="sub">Staðfestingargjöld + eftirstöðvar</div></div>
   </div>
 
-  <div class="panel" id="toReview" style="display:none;">
-    <h2 class="toReviewHead">Til yfirferðar — sjálfsafgreiðsla <span class="cnt" id="toReviewCnt"></span></h2>
-    <table class="reviewTable">
-      <thead><tr><th>Verkefni</th><th>Staða</th><th class="num">Dagar síðan sent</th><th class="num">Tilboð</th><th></th></tr></thead>
-      <tbody id="toReviewRow"></tbody>
-    </table>
   </div>
-
-  <div class="panel" id="inquiries" style="display:none;">
-    <h2 class="toReviewHead">Fyrirspurnir af vefnum <span class="cnt" id="inqCnt"></span></h2>
-    <div id="inqRows"></div>
+  <div class="panel pipelinePanel" id="pipelinePanelBox">
+    <h2 class="pipeHead">
+      <span>Söluferli</span><span class="cnt" id="boardCnt"></span>
+    </h2>
+    <div id="loading" class="loading">Sæki verkefni…</div>
+    <div class="board" id="board" style="display:none;"></div>
   </div>
 
   <div class="panel" id="nextSteps" style="display:none;">
@@ -401,21 +405,28 @@
     </table>
   </div>
 
-  <div class="panel pipelinePanel" id="pipelinePanelBox">
-    <h2 class="pipeHead">
-      <span>Söluferli</span><span class="cnt" id="boardCnt"></span>
-    </h2>
-    <div id="loading" class="loading">Sæki verkefni…</div>
-    <div class="board" id="board" style="display:none;"></div>
+  <div class="panel" id="inquiries" style="display:none;">
+    <h2 class="toReviewHead">Fyrirspurnir af vefnum <span class="cnt" id="inqCnt"></span></h2>
+    <div id="inqRows"></div>
   </div>
 
-  <div class="pipelineReport" id="pipelineReport" style="display:none;">
+  <div class="panel" id="toReview" style="display:none;">
+    <h2 class="toReviewHead">Til yfirferðar — sjálfsafgreiðsla <span class="cnt" id="toReviewCnt"></span></h2>
+    <table class="reviewTable">
+      <thead><tr><th>Verkefni</th><th>Staða</th><th class="num">Dagar síðan sent</th><th class="num">Tilboð</th><th></th></tr></thead>
+      <tbody id="toReviewRow"></tbody>
+    </table>
+  </div>
+
+  <div class="pipelineReport" id="pipelineReport">
     <h2>Söluferli — tölfræði, allur tími</h2>
     <div class="prRow" id="prRow"></div>
     <div class="lossStats" id="lossStats" style="display:none;">
       <h3>Af hverju töpum við? <span class="cnt" id="lossStatsCnt"></span></h3>
       <div id="lossStatsRows"></div>
     </div>
+  </div>
+
   </div>
 
   <div class="detailModalBg" id="detailModalBg">
@@ -615,6 +626,7 @@
 </div>
 
 <script src="/office-shell.js"></script>
+<script src="/office-grid.js"></script>
 <script src="/office-money.js"></script>
 <script>
 (function () {
@@ -2222,12 +2234,23 @@
   menu.addEventListener("click", close);
   document.addEventListener("click", function (e) { if (!menu.contains(e.target)) close(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });
-  document.getElementById("statsBtn").addEventListener("click", function () {
-    var el = document.getElementById("pipelineReport"), show = el.style.display === "none";
-    el.style.display = show ? "" : "none";
-    this.textContent = show ? "Fela tölfræði" : "Tölfræði söluferlis";
-    if (show) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  var me = (window.OfficeShell && OfficeShell.getSession() && OfficeShell.getSession().record && OfficeShell.getSession().record.name) || "";
+  var grid = OfficeGrid.mount({
+    container: document.getElementById("crmGrid"), key: "crm", user: me,
+    widgets: [
+      { id: "kpi", el: document.getElementById("wKpi"), title: "Tölur", w: 12, h: 2 },
+      { id: "pipeline", el: document.getElementById("pipelinePanelBox"), title: "Söluferli", w: 8, h: 10 },
+      { id: "nextSteps", el: document.getElementById("nextSteps"), title: "Næstu skref", w: 4, h: 4, force: true },
+      { id: "inquiries", el: document.getElementById("inquiries"), title: "Fyrirspurnir af vefnum", w: 4, h: 3, force: true },
+      { id: "toReview", el: document.getElementById("toReview"), title: "Til yfirferðar", w: 4, h: 3, force: true },
+      { id: "pipelineReport", el: document.getElementById("pipelineReport"), title: "Tölfræði söluferlis", w: 12, h: 6, hidden: true }
+    ]
   });
+  var statsBtn = document.getElementById("statsBtn");
+  function paintStats() { statsBtn.textContent = grid.isHidden("pipelineReport") ? "Tölfræði söluferlis" : "Fela tölfræði"; }
+  paintStats();
+  statsBtn.addEventListener("click", function () { grid.toggle("pipelineReport"); paintStats(); });
+  document.getElementById("layoutBtn").addEventListener("click", function () { grid.toggleEdit(); });
 })();
 </script>
 </body>
