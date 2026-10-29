@@ -43,7 +43,11 @@
 
 
   .main { max-width:none; }
-  h2.sec { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:26px 0 10px; }
+  h2.sec { font-size:.78rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:0; }
+  .grp { margin-top:22px; } .grp:first-of-type { margin-top:4px; }
+  .grpHd { list-style:none; cursor:pointer; display:flex; align-items:center; gap:10px; padding:8px 0 10px; user-select:none; } .grpHd::-webkit-details-marker { display:none; }
+  .chev { width:8px; height:8px; border-right:2px solid var(--muted); border-bottom:2px solid var(--muted); transform:rotate(-45deg); transition:transform .15s; margin:0 4px 2px 2px; } .grp[open] > .grpHd .chev { transform:rotate(45deg); }
+  .grpHint { font-size:.76rem; color:var(--dim); margin-left:auto; } .grp[open] .grpHint { display:none; }
   .mapCard { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 14px 14px; position:relative; }
   .mapBar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; font-size:.82rem; color:var(--muted); }
   .mapBar .live { margin-left:auto; display:flex; align-items:center; gap:6px; } .mapBar .live i { width:8px; height:8px; border-radius:50%; background:var(--good); animation:pulse 2s infinite; } .mapBar .live.off i { background:var(--dim); animation:none; }
@@ -74,13 +78,13 @@
   .panel .plist a { display:block; font-size:.84rem; padding:5px 0; border-bottom:1px solid var(--line); color:var(--text); text-decoration:none; } .panel .plist a:hover { color:var(--accent); }
   .panel code { font-size:.75rem; background:var(--bg); padding:1px 6px; border-radius:5px; }
   .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:.74rem; color:var(--muted); margin-top:8px; align-items:center; } .legend .bdg { position:static; margin-right:5px; display:inline-block; }
-  .hubG { margin-bottom:6px; } .hubGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
-  .hubT { display:block; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:11px 14px; text-decoration:none; color:var(--text); transition:border-color .15s, box-shadow .15s; }
-  .hubT:hover { border-color:var(--accent); box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
-  .hubT .n { font-size:.9rem; font-weight:700; display:flex; align-items:center; gap:6px; } .hubT .n em { font-style:normal; margin-left:auto; color:var(--dim); font-size:.8rem; }
+  .hubG { margin-bottom:6px; } .hubGrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(212px,1fr)); gap:14px; }
+  .hubT { display:block; background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--gc,#9aa3ad); border-radius:12px; padding:13px 15px 12px; box-shadow:0 1px 2px rgba(10,14,20,.05); text-decoration:none; color:var(--text); transition:border-color .15s, box-shadow .15s; }
+  .hubT:hover { border-color:var(--gc,var(--accent)); box-shadow:0 4px 14px rgba(10,14,20,.12); transform:translateY(-1px); }
+  .hubT .n { font-size:.92rem; font-weight:700; display:flex; align-items:center; gap:6px; } .hubT .n em { font-style:normal; margin-left:auto; color:var(--dim); font-size:.8rem; }
   .hubT .d { font-size:.74rem; color:var(--muted); margin-top:2px; } .hubT .f { font-size:.66rem; color:var(--dim); margin-top:4px; font-family:"SF Mono",Consolas,monospace; }
-  .hubT.at { border-color:#efd58a; background:#fffaf0; } :root[data-theme="dark"] .hubT.at { background:#2b2614; border-color:#6b5a1c; }
-  .hubSub { font-size:.8rem; font-weight:700; margin:16px 0 8px; color:var(--text); }
+  .hubT.at { background:#fffaf0; } :root[data-theme="dark"] .hubT.at { background:#2b2614; }
+  .hubSub { font-size:.82rem; font-weight:700; margin:20px 0 10px; color:var(--gc,var(--text)); display:flex; align-items:center; gap:8px; } .hubSub::before { content:""; width:9px; height:9px; border-radius:50%; background:var(--gc); }
   .note { font-size:.8rem; color:var(--muted); margin-top:6px; }
 
 </style>
@@ -100,7 +104,8 @@
       </div>
     </div>
 
-    <h2 class="sec" style="margin-top:6px">Ferlið — lifandi</h2>
+    <details class="grp" id="flowGrp" open>
+    <summary class="grpHd"><span class="chev"></span><h2 class="sec">Ferlið — lifandi</h2><span class="grpHint" id="flowHint"></span></summary>
     <div class="mapCard">
       <div class="mapBar" id="mapBar">
         <button class="fchip on" data-f="all" type="button">Allt</button><button class="fchip" data-f="at" type="button">Aðeins Airtable</button><button class="fchip" data-f="ap" type="button">Aðeins síður</button><button class="fchip" data-f="ex" type="button">Aðeins ytri</button>
@@ -116,9 +121,12 @@
         <span>Græn tala = verk á stöðinni núna · dökkur ferningur með punktalínu = sjálfvirkni slökkt</span>
       </div>
     </div>
+    </details>
 
-    <h2 class="sec">Öll tól og síður</h2>
+    <details class="grp" id="hubGrp" open>
+    <summary class="grpHd"><span class="chev"></span><h2 class="sec">Öll tól og síður</h2></summary>
     <div id="hub"></div>
+    </details>
     <div class="note">Eyðublaðs ÚRVINNSLA (pörtasnið) er breytt beint í Airtable — hlekkur í „Airtable“ hér að ofan.</div>
   </div>
 </div>
@@ -328,7 +336,7 @@
       fetchAll(PANTADIR, "pageSize=100&fields%5B%5D=" + encodeURIComponent("Stöðu kenni") + "&fields%5B%5D=" + encodeURIComponent("Staða"))
     ]).then(function (res) {
       live.projects = res[0]; live.orders = res[1];
-      document.getElementById("liveTag").className = "live"; document.getElementById("liveTxt").textContent = "lifandi · uppfært " + new Date().toTimeString().slice(0, 5);
+      document.getElementById("liveTag").className = "live"; flowHint(); document.getElementById("liveTxt").textContent = "lifandi · uppfært " + new Date().toTimeString().slice(0, 5);
     }).catch(function () {
       document.getElementById("liveTag").className = "live off"; document.getElementById("liveTxt").textContent = "gat ekki sótt lifandi gögn";
     }).then(function () { draw(); if (selected) { var s = selected; selected = null; select(s); } });
@@ -337,20 +345,27 @@
   // ======================= hub =======================
   var AT = BASE;
   var HUB = [
-    ["Skrifstofan", [["Yfirlit", "/skrifstofa", "skrifstofa.html", "Mælaborð, afhendingar, sala, laun"], ["CRM", "/crm", "crm.html", "Söluferli, tengiliðir, fyrirspurnir"], ["Skipulagsferli", "/ferli", "ferli.html", "Verk frá For-skipulagi að Klárt"], ["Framleiðsla", "/framleidsla", "framleidsla.html", "Verk á gólfinu eftir flýti"], ["Pöntunarlistar", "/pontun", "pontun.html", "Pantanir, birgjar, efni í hús"], ["PRO hönnuður", "/pro", "pro.html", "Hönnuðurinn fyrir starfsfólk"], ["Starfsmenn", "/starfsmenn", "starfsmenn.html", "Tímar, fjarvistir, laun"], ["Para tæki", "/para-taeki", "para-taeki.html", "Lyklar fyrir tæki á gólfi"], ["Dagatal", "/dagatal", "dagatal.html", "Dagatal verka"], ["Yfirferð (eldri)", "/yfirferd", "yfirferd.html", "Eldri yfirferðarhjálp"]]],
-    ["Skipulag & smíði", [["Skurðarlisti (Cutty)", "/cutlist", "cutlist.html", "Skurður → USB í sögina"], ["Æðaskipulag", "/aedar", "grain.html", "Viðaræðar á fronta"], ["Smíða & CNC", "/smida", "smida.html", "Lamir, hillur, ofn → .bpp á USB"], ["BPP skoðari", "/bpp", "bpp-viewer.html", "Skoða .bpp skrá"], ["Skipulag (hub)", "/skipulag", "skipulag.html", "Cutty → Æðar → CNC"], ["Eining", "/eining", "eining.html", "Ein eining / skápur"]]],
+    ["Skrifstofan", [["Yfirlit", "/skrifstofa", "skrifstofa.html", "Mælaborð, afhendingar, sala, laun"], ["CRM", "/crm", "crm.html", "Söluferli, tengiliðir, fyrirspurnir"], ["Skipulagsferli", "/ferli", "ferli.html", "Verk frá For-skipulagi að Klárt"], ["Framleiðsla", "/framleidsla", "framleidsla.html", "Verk á gólfinu eftir flýti"], ["Pöntunarlistar", "/pontun", "pontun.html", "Pantanir, birgjar, efni í hús"], ["PRO hönnuður", "/pro", "pro.html", "Hönnuðurinn fyrir starfsfólk"], ["Starfsmenn", "/starfsmenn", "starfsmenn.html", "Tímar, fjarvistir, laun"], ["Para tæki", "/para-taeki", "para-taeki.html", "Lyklar fyrir tæki á gólfi"], ["Dagatal", "/dagatal", "dagatal.html", "Dagatal verka"]]],
+    ["Skipulag & smíði", [["Skurðarlisti (Cutty)", "/cutlist", "cutlist.html", "Skurður → USB í sögina"], ["Æðaskipulag", "/aedar", "grain.html", "Viðaræðar á fronta"], ["Smíða & CNC", "/smida", "smida.html", "Lamir, hillur, ofn → .bpp á USB"], ["BPP skoðari", "/bpp", "bpp-viewer.html", "Skoða .bpp skrá"], ["Eining", "/eining", "eining.html", "Ein eining / skápur"]]],
     ["Verkstæði & gólf", [["Verkstæðisappið", "/app", "app.html", "Heimaskjár gólfsins (PWA)"], ["Verk í gangi", "/verk-i-gangi", "verk-i-gangi.html", "Velja verk"], ["Verk", "/verk", "verk.html", "Sögunarlisti og framvinda verks"], ["Velja (QR)", "/velja", "velja.html", "QR á stykki"], ["Merkingar", "/labels", "labels.html", "Zebra miðar"], ["Fræsing", "/fraesing", "fraesing.html", "Skrá fræst"], ["Saga (gólf)", "/saga", "grain.html", "Æðar á gólfi"], ["Vélar", "/velar", "velar.html", "Leiðbeiningar fyrir vélar"], ["Verkstæði (hub)", "/verkstaedi", "verkstaedi.html", "Gólf-hub"], ["TV", "/tv", "dashboard.html", "Framleiðsluyfirlit á skjá"]]],
     ["Viðskiptavinir", [["Studio / Eldhússkipulag", "/skipuleggja", "kitchen-planner.html", "Sjálfsafgreiðsla"], ["Hanna", "/hanna", "kitchen-planner.html", "Sama síða, annar inngangur"], ["Verkefni (gátt)", "/verkefni", "verkefni.html", "Gátt viðskiptavinar (iframe í Wix)"]]],
     ["Stuðningur", [["Leiðbeiningar", "/leidbeiningar", "leidbeiningar.html", "Cutty + merkingar"], ["Aðstoð (FAQ)", "/adstod", "faq.html", "Spurt og svarað"], ["SOP", "/sop", "sop.html", "Verklag"], ["Stimpilklukka", "/klukka", "stimpilklukka.html", "Inn/Út"], ["Eigandi-klukka", "/eigandi", "stimpilklukka.html", "Sími eigenda"]]],
     ["Airtable & ytri tól", [["Björninn-baseið", AT, "", "Allar töflur", 1, 1], ["Sjálfvirkni (Automations)", AT + "/automations", "", "Allar 46 sjálfvirkni", 1, 1], ["Eyðublaðs ÚRVINNSLA", AT + "/tblR1TpicLRVTXHql", "", "Pörtasnið — breytt hér, ekki í appinu", 1, 1], ["Tækifæri", AT + "/tbl4LMXlQjp66RFKI", "", "Verkefnin", 1, 1], ["Efnislisti", AT + "/tbl8CrVWKF8CuI7HD", "", "Efni og verð", 1, 1], ["Vörulisti", AT + "/tblzuuRSRkeXaLWxC", "", "Vörur og verð", 1, 1], ["Pöntunarlisti", AT + "/tbloXR7f9Q943O9el", "", "Pöntunarlínur", 1, 1], ["Vercel", "https://vercel.com/dashboard", "", "Hýsing, logs, umhverfisbreytur", 1, 0], ["bjorninn.is (Wix)", "https://www.bjorninn.is", "", "Vefsíðan", 1, 0]]],
   ];
-  document.getElementById("hub").innerHTML = HUB.map(function (g) {
-    return '<div class="hubG"><div class="hubSub">' + esc(g[0]) + '</div><div class="hubGrid">' + g[1].map(function (t) {
+  var GC = ["#0f6cbd", "#8250df", "#d6473c", "#1a7d36", "#9a6700", "#d4a017"];
+  document.getElementById("hub").innerHTML = HUB.map(function (g, gi) {
+    return '<div class="hubG" style="--gc:' + GC[gi % GC.length] + '"><div class="hubSub">' + esc(g[0]) + '</div><div class="hubGrid">' + g[1].map(function (t) {
       var ext = t[4], atb = t[5];
       return '<a class="hubT' + (atb ? " at" : "") + '" href="' + esc(t[1]) + '"' + (ext ? ' target="_blank" rel="noopener"' : "") + '><div class="n">' + esc(t[0]) + (ext ? "<em>↗</em>" : "") + '</div><div class="d">' + esc(t[3] || "") + '</div>' + (t[2] ? '<div class="f">' + esc(t[2]) + '</div>' : (atb ? '<div class="f">AIRTABLE</div>' : "")) + '</a>';
     }).join("") + '</div></div>';
   }).join("");
 
+  ["flowGrp", "hubGrp"].forEach(function (id) {
+    var d = document.getElementById(id), key = "bakendi:" + id;
+    try { if (localStorage.getItem(key) === "0") d.open = false; } catch (e) {}
+    d.addEventListener("toggle", function () { try { localStorage.setItem(key, d.open ? "1" : "0"); } catch (e) {} if (d.open && id === "flowGrp") applyScale(); });
+  });
+  function flowHint() { var n = live.projects ? live.projects.length : null; document.getElementById("flowHint").textContent = n == null ? "" : n + " virk verk í gangi"; }
   draw(); loadLive(); setInterval(function () { if (!document.hidden) loadLive(); }, 60000);
 })();
 </script>
