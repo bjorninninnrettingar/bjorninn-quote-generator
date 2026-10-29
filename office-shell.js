@@ -55,7 +55,7 @@
   var ICON_PATHS = {
     home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
     plan: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
-    shop: '<path d="M14 6l4 4-9 9H5v-4z"/><path d="M12 8l4 4"/>',
+    shop: '<path d="M14.5 3.5l6 6-3 3-6-6z"/><path d="M11.5 9.5L4.2 16.8a2 2 0 0 0 2.9 2.9l7.3-7.3"/>',
     people: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 5.2a3.2 3.2 0 010 5.6M18 14.4c1.8.8 3 2.6 3 5.6"/>',
     pencil: '<path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/>',
     team: '<circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/>',
