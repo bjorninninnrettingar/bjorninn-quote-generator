@@ -4948,6 +4948,13 @@
           hn.closest(".field").classList.toggle("invalid", !ok);
           if (ok){ hr.value = v; setRoomHeight(v, null); save(); }
         });
+        hn.addEventListener("blur", function(){ // out of range: put the real height back — and say so (QA 2026-10-29: Áfram used to go on with the red text still showing)
+          var v = parseInt(hn.value, 10);
+          if (isNaN(v) || v < MIN_ROOM_HEIGHT_MM || v > 3200){
+            toast(__("Lofthæð þarf að vera {n}–{m} {u}.", { n:uNum(MIN_ROOM_HEIGHT_MM), m:uNum(3200), u:uUnit() }));
+            hn.value = state.roomHeightMm; hn.closest(".field").classList.remove("invalid");
+          }
+        });
       }
       document.getElementById("dimPop").hidden = true;
       renderShapeCanvas();
@@ -5862,7 +5869,9 @@
         if (key === "offsetMm"){
           var wall = state.walls.find(function(w){ return w.id === f.o.wallId; }), v = Math.round(parseFloat(inp.value));
           if (isNaN(v)) { renderOpeningsBox(); return; }
-          v = Math.max(0, Math.min((wall ? wall.lengthMm : 3000) - f.o.widthMm, v));
+          var vMax = (wall ? wall.lengthMm : 3000) - f.o.widthMm, v0 = v;
+          v = Math.max(0, Math.min(vMax, v));
+          if (v !== v0) toast(__("Staðsetningin þarf að vera á milli 0 og {n} cm.", { n:Math.floor(Math.max(0, vMax) / 10) })); // clipped to the wall — said, not silent (QA 2026-10-29)
           if (wall && !openingClear(wall.id, v, f.o.widthMm, f.o.id)){ toast(OVERLAP_MSG); renderOpeningsBox(); return; }
           f.o.offsetMm = v;
           redraw(); return;
