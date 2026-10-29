@@ -356,3 +356,14 @@ test("Jey added by hand (jey) and under a door (jeyBot) round-trip; jey is not w
   assert.deepEqual([again.jey, again.jeyBot], [27, { doors: [0] }]);
   assert.equal(M.smidaOf(cab("recW", "Sk15 | Efri", rows, { "Hæð": 800 }, 20), e).jey, undefined);
 });
+
+test("Lamaklossar on the blind panel: plate centre 21.5 mm from the edge by default, adjustable, written only when changed", () => {
+  const rows = [ef("Skápur hlið", 800, 580, 16, 2), ef("Frontur", 797, 497, 19, 1), ef("Úthlið Blindlok", 797, 380, 19, 1)];
+  const c = cab("recB", "Sk40 | Töfrahorn", rows, { "Hæð": 800 });
+  assert.equal(M.KLOSS_MM, 21.5);
+  const e = M.initEdit(c); assert.equal(M.smidaOf(c, e).klossMm, undefined);
+  e.klossMm = 21.5; assert.equal(M.smidaOf(c, e).klossMm, undefined);
+  e.klossMm = 30; assert.equal(M.smidaOf(c, e).klossMm, 30);
+  const sm = M.smidaOf(c, e);
+  assert.equal(M.initEdit(M.cabinet(unit("recB", "Sk40", { "Hæð": 800, "Smíðagögn (JSON) 🔧": JSON.stringify(sm) }), rows, {})).klossMm, 30);
+});

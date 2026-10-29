@@ -491,7 +491,7 @@
       // panel at the door's hinge heights when the door's hinge side faces it (illustration; no CNC file for it)
       if (e.hinge === (blindL ? "vinstri" : "haegri")) (p.doors || []).forEach(function (dd) { (dd.hinges || []).forEach(function (hh) {
         // the Blum mounting plate (cnc-bpp.js drawPlate, 41.8 × 56.5 mm) on the blind panel's edge next to the door, at the hinge height
-        var kx = blindL ? bx0 + blindW * sc - 14 * sc : bx0 + 14 * sc, ky = Y(dd.from + hh), gk = document.createElementNS(NS, "g");
+        var kk = (e.klossMm > 0 ? e.klossMm : M.KLOSS_MM) * sc, kx = blindL ? bx0 + blindW * sc - kk : bx0 + kk, ky = Y(dd.from + hh), gk = document.createElementNS(NS, "g");
         BPP.drawPlate(gk, kx, ky, sc, "#b25000", 1);
         s += "<g>" + gk.innerHTML + '<title>Lamaklossi á blindlokinu — fyrir löm í ' + mm(dd.from + hh) + " mm</title></g>"; }); });
     }
@@ -872,7 +872,8 @@
     if (c.blind && (p.doors || []).length) {
       h += row("blind", "Blindlok", mm(c.blind.B) + " × " + mm(c.blind.H) + " · " + (e.blindSide === "vinstri" ? "vinstra megin" : "hægra megin"),
         '<div class="line"><span class="u">Fast á kassanum, engar lamir ' + tip("Stærðin kemur úr Sögunarlista (Úthlið/Blindlok). Veldu hvoru megin það situr við hurðina.") + '</span></div><div class="line"><span class="seg">' +
-        [["vinstri", "Vinstra megin"], ["haegri", "Hægra megin"]].map(function (o) { return '<button type="button" data-blind="' + o[0] + '" class="' + ((e.blindSide || "haegri") === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + "</span></div>");
+        [["vinstri", "Vinstra megin"], ["haegri", "Hægra megin"]].map(function (o) { return '<button type="button" data-blind="' + o[0] + '" class="' + ((e.blindSide || "haegri") === o[0] ? "on" : "") + '">' + o[1] + "</button>"; }).join("") + "</span></div>" +
+        '<div class="line"><span class="t">Lamaklossar</span><input type="number" step="0.5" data-kloss="1" value="' + (e.klossMm > 0 ? e.klossMm : M.KLOSS_MM) + '"><span class="u">mm frá brún að miðju plötu ' + tip("Lamaklossarnir sitja á blindlokinu, ekki í hliðinni. Fjarlægð frá þeirri brún blindloksins sem er næst hurðinni að miðju borunar (plötumiðju). Sjálfgefið 21,5.") + "</span></div>");
     }
     var led = e.led || [];
     if (!c.dishwasher) h += row("led", "LED-fræsing", led.length ? led.map(function (x) { return (x.where === "toppur" ? "toppur " : c.panel ? "" : "hlið ") + mm(x.y) + (x.len ? " · " + mm(x.len) + " langt" : ""); }).join(" · ") : "Engin",
@@ -1024,6 +1025,7 @@
       else if (d.rail != null) e.rails[+d.rail].mm = v;
       else if (d.oven) e.oven[d.oven] = v;
       else if (d.led != null) e.led[+d.led].y = Math.max(1, v);
+      else if (d.kloss != null) e.klossMm = +t.value > 0 ? +t.value : M.KLOSS_MM;
       else if (d.raily != null) e.rails[+d.raily].y = Math.max(0, v);
       else if (d.urx != null) { if (e.urtak) e.urtak.x = v > 0 ? v : null; }
       else if (d.ledlen != null) { if (v > 0) e.led[+d.ledlen].len = v; else delete e.led[+d.ledlen].len; }

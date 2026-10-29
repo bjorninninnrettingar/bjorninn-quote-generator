@@ -18,6 +18,7 @@
   function num(v) { var n = typeof v === "number" ? v : parseFloat(String(v == null ? "" : v).replace(",", ".")); return isFinite(n) ? n : null; }
   function r1(x) { return Math.round(x * 10) / 10; }
   function clone(o) { return o == null ? o : JSON.parse(JSON.stringify(o)); }
+  var KLOSS_MM = 21.5; // hinge block on the blind panel: plate centre this far from the panel edge next to the door (owner 2026-10-29)
   var BOARD = 16, INNER_GAP = 80, INNER_FIRST = 60;
   var OVEN_HEIGHTS = [455, 595, 1050];
 
@@ -154,6 +155,7 @@
     if (num(ex.jey) > 0) e.jey = num(ex.jey);
     if (ex.jeyBot && Array.isArray(ex.jeyBot.doors)) e.jeyBot = { doors: clone(ex.jeyBot.doors) };
     if (ex.jeyVert && Array.isArray(ex.jeyVert.doors)) e.jeyVert = { doors: clone(ex.jeyVert.doors) };
+    if (num(ex.klossMm) > 0) e.klossMm = num(ex.klossMm);
     if (ex.blindSide === "vinstri" || ex.blindSide === "haegri") e.blindSide = ex.blindSide;
     if (ex.noJey && typeof ex.noJey === "object") e.noJey = { drawers: clone(ex.noJey.drawers || []), doors: clone(ex.noJey.doors || []) };
     if (cab.fataslar && cab.fataslar.magn) e.rails = Array.isArray(ex.rails) && ex.rails.length ? clone(ex.rails) : defaultRails(cab, e);
@@ -164,7 +166,7 @@
   // edit → Smíðagögn object (what Vista writes). `ready` only while marked reviewed.
   function smidaOf(cab, e) {
     var o = Object.assign({}, clone(cab.existing) || {});
-    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "frontGrip", "urtak", "jey", "jeyBot", "ready"].forEach(function (k) { delete o[k]; });
+    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "frontGrip", "urtak", "klossMm", "jey", "jeyBot", "ready"].forEach(function (k) { delete o[k]; });
     o.v = 1;
     if (o.w == null && cab.B) o.w = cab.B;
     if (o.h == null && cab.base.LPX) o.h = cab.base.LPX;
@@ -189,6 +191,7 @@
     if (e.led && e.led.length) o.led = clone(e.led);
     if (e.urtak && e.urtak.drawer) o.urtak = Object.assign({ drawer: e.urtak.drawer, place: e.urtak.place || "midja" }, num(e.urtak.x) > 0 ? { x: num(e.urtak.x) } : {});
     if (cab.dishwasher && e.frontGrip) o.frontGrip = e.frontGrip;
+    if (cab.blind && e.klossMm > 0 && Math.abs(e.klossMm - KLOSS_MM) > 0.01) o.klossMm = e.klossMm; // lamaklossar: plate centre from the blind panel's edge (default 21.5)
     if (cab.blind && e.blindSide === "vinstri") o.blindSide = "vinstri"; // "haegri" is the default and is not written
     if (e.reviewed) o.ready = true;
     return o;
@@ -225,7 +228,7 @@
 
   var api = { cabinet: cabinet, planOf: planOf, geom: geom, initEdit: initEdit, smidaOf: smidaOf, hingeSpec: hingeSpec, blockers: blockers,
     defaultShelves: defaultShelves, newRail: newRail, defaultOven: defaultOven, ovenLayout: ovenLayout, defaultInner: defaultInner, innerEditable: innerEditable, editable: editable, defaultRails: defaultRails,
-    hingedDoors: hingedDoors, same: same, parse: parse, OVEN_HEIGHTS: OVEN_HEIGHTS };
+    hingedDoors: hingedDoors, KLOSS_MM: KLOSS_MM, same: same, parse: parse, OVEN_HEIGHTS: OVEN_HEIGHTS };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.SMIDAEY = api;
 })(typeof window !== "undefined" ? window : globalThis);
