@@ -179,7 +179,7 @@ export function parseModelReply(text, linkMap = LINK_MAP) {
   return { answer: FALLBACK_ANSWER, escalate: true, links: [] };
 }
 
-function extractFirstJsonObject(text) {
+export function extractFirstJsonObject(text) {
   const start = text.indexOf("{");
   if (start === -1) return null;
   let depth = 0;

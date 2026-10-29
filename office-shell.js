@@ -65,7 +65,8 @@
     gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/>',
     out: '<path d="M10 4H5v16h5"/><path d="M14 8l4 4-4 4M18 12H9"/>',
     fold: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
-    chev: '<path d="M9 6l6 6-6 6"/>'
+    chev: '<path d="M9 6l6 6-6 6"/>',
+    ask: '<path d="M4 5h16v11H9l-5 4z"/><path d="M9 10h6"/>'
   };
   function svgIcon(name, size) {
     var sz = size || 18;
@@ -381,12 +382,21 @@
       bottomEl.className = "osBottom";
       bottomEl.innerHTML =
         '<div class="osBellRow" id="officeBellHost"></div>' +
+        '<button class="osSettingsBtn" id="officeAskBtn" type="button" title="Spyrja">' + svgIcon("ask", 17) + '<span class="osLabel">Spyrja</span></button>' +
         '<div class="osBottomRow">' +
           '<button class="osSettingsBtn" id="officeSettingsBtn" type="button">' + svgIcon("gear", 17) + '<span class="osLabel">Stillingar</span></button>' +
           '<button class="osFoldBtn" id="officeFoldBtn" type="button" title="Fela/sýna valmynd"></button>' +
         '</div>' +
         '<button class="osLogoutBtn" id="officeLogoutBtn" type="button">' + svgIcon("out", 17) + '<span class="osLabel">Útskrá</span></button>';
       document.getElementById("officeSettingsBtn").addEventListener("click", function () { openSettingsModal(record); });
+      document.getElementById("officeAskBtn").addEventListener("click", function () {
+        function go() { window.OfficeChat.toggle(); }
+        if (window.OfficeChat) return go();
+        var sc = document.createElement("script");
+        sc.src = "/office-chat.js";
+        sc.onload = go;
+        document.head.appendChild(sc);
+      });
       document.getElementById("officeLogoutBtn").addEventListener("click", function () { clearSession(); location.href = "/skrifstofa"; });
       var foldBtn = document.getElementById("officeFoldBtn");
       function paintFoldIcon() { foldBtn.innerHTML = svgIcon("fold", 17); }
