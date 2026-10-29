@@ -5428,7 +5428,7 @@
       if (!waterHoverRaf) waterHoverRaf = requestAnimationFrame(function(){ waterHoverRaf = 0; renderShapeCanvas(); });
     }
     host.addEventListener("pointermove", function(evt){
-      if (shapePhase !== "water" || state.waterWall || waterDrag){ set(null); return; }
+      if (shapePhase !== "water" || state.waterWall || state.waterIsland || waterDrag){ set(null); return; }
       var v = shapeView(host.clientWidth, host.clientHeight), hit = nearestWallAt(v, canvasPointMm(evt, v));
       set(hit ? { i:hit.i, t:Math.round(hit.t / 10) * 10 } : null);
     });
@@ -9264,7 +9264,10 @@
       (PRO && wtOn() ? '<button type="button" class="btn btn-secondary btn-small" data-wt-open="1" style="margin:8px 0 4px;" title="Stykki, samskeyti, úrtök og kantar — eða smelltu á borðplötuna í 3D">Smíða borðplötu</button>' : "") : "";
     var curOf = function(map, k){ return map[k] ? __(map[k].label) : ""; };
     var gCarcass = mg("carcass", __("Skrokkur"), curOf(CARCASS, state.carcass), carcassTiles);
-    var gDrawers = showDrawers ? mg("drawerSystem", __("Skúffukerfi"), curOf(DRAWER_SYSTEMS, state.drawerSystem), mDrawers) : "";
+    // Legra / Merivo with Blum's own pictures; a tile sets the (hidden) select so the one change handler does the confirm + conversion
+    var drawerTiles = '<div class="sw-grid">' + Object.keys(DRAWER_SYSTEMS).sort(function(a, b){ return (DRAWER_SYSTEMS[b].popular ? 1 : 0) - (DRAWER_SYSTEMS[a].popular ? 1 : 0); }).map(function(k){ var d = DRAWER_SYSTEMS[k];
+      return '<button type="button" class="sw-tile' + (state.drawerSystem === k ? ' active' : '') + '" data-edsys="' + k + '" title="' + escapeHtmlPro(__(d.label)) + '"><div class="sw-fill dc-pic" style="position:relative;background:#f4f2ee;">' + drawerSideSvg(k) + '<img src="images/blum-' + k + '.jpg" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" onerror="this.remove()"></div><div class="sw-name">' + __(d.label) + (d.popular ? ' · ' + __("Vinsælast") : '') + '</div></button>'; }).join("") + '</div>';
+    var gDrawers = showDrawers ? mg("drawerSystem", __("Skúffukerfi"), curOf(DRAWER_SYSTEMS, state.drawerSystem), drawerTiles + '<div hidden>' + mDrawers + '</div>') : "";
     var gFront = mg("look", __("Framhlið"), curOf(LOOKS, state.look), frontPick + (PRO ? mPro : ""));
     var gHandle = mg("handle", __("Höldur / opnun"), curOf(HANDLES, state.handle), handleTiles);
     var gTop = hasTop ? mg("top", __("Borðplata"), curOf(TOPS, state.top || (PRO ? "" : "steinn")), topTiles) : "";
@@ -9297,6 +9300,10 @@
         else if (openMatGrp === d.dataset.mgrp) openMatGrp = null;
       });
     });
+    host.querySelectorAll("[data-edsys]").forEach(function(b){ b.addEventListener("click", function(){
+      var sel = host.querySelector('select[data-matsel="drawerSystem"]'); if (!sel || sel.value === b.dataset.edsys) return;
+      sel.value = b.dataset.edsys; sel.dispatchEvent(new Event("change"));
+    }); });
     host.querySelectorAll("[data-edpick]").forEach(function(b){ b.addEventListener("click", function(){
       var k = b.dataset.edpick, v = b.dataset.carcass || b.dataset.handle || b.dataset.top;
       if (k === "carcass") state.carcass = v;
