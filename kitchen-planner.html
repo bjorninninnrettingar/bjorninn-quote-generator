@@ -501,7 +501,7 @@
   }
   .btn-primary{ background:var(--blue); color:#fff; }
   .btn-primary:hover{ background:var(--blue-deep); }
-  .btn-primary:disabled{ background:var(--line); color:var(--ink-soft); cursor:not-allowed; }
+  .btn-primary:disabled, .btn-primary[aria-disabled="true"]{ background:var(--line); color:var(--ink-soft); cursor:not-allowed; }
   .btn-secondary{ background:#fff; border-color:var(--line); color:var(--ink); }
   .btn-secondary:hover{ border-color:var(--blue); color:var(--blue); }
   .btn-small{ padding:7px 12px; font-size:13px; border-radius:7px; }
@@ -3093,10 +3093,15 @@
   // Snapshots of the whole state, taken on every save() while editing. Undo
   // restores one; ids stay unique because blockSeq/openingSeq never rewind.
   var undoStack = [], histIdx = -1;
+  var steppingHistory = false; // Afturkalla/Endurgera: the re-render's own sync saves (end panels, sk labels) must not push a new snapshot on top — that cut the redo tail and left Afturkalla stuck on the same state (2026-10-29)
   function pushHistory(){
-    if (state.step !== "editor") return;
+    if (state.step !== "editor" || steppingHistory) return;
     var j = JSON.stringify(state);
     if (histIdx >= 0 && undoStack[histIdx] === j) return;
+    // a snapshot that differs from the top one only by "sk" labels (assigned by the render after the save) is the same step:
+    // keep the newer one in place, else Afturkalla needed two clicks after an insert
+    var noSk = function(x){ return x.replace(/,"sk":"[^"]*"/g, "").replace(/"sk":"[^"]*",?/g, ""); };
+    if (histIdx === undoStack.length - 1 && histIdx >= 0 && noSk(undoStack[histIdx]) === noSk(j)){ undoStack[histIdx] = j; return; }
     undoStack = undoStack.slice(0, histIdx + 1);
     undoStack.push(j);
     if (undoStack.length > 60) undoStack.shift();
@@ -3116,7 +3121,8 @@
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
     if (selectedBlockId && !findBlock(selectedBlockId)) selectedBlockId = null;
     updateHistoryButtons();
-    refreshAfterEdit();
+    steppingHistory = true;
+    try{ refreshAfterEdit(); } finally { steppingHistory = false; }
   }
   // Re-derives blockSeq/wallSeq/openingSeq/islandSeq from whatever's actually in the live state —
   // used after load() and after swapping a parked category's blob into the live fields (startCategory),
@@ -4554,7 +4560,7 @@
     // machines), then one question "Viltu fá tillögu að innréttingu?"; Já fills it as before (suggestFull)
     var full = PRO || suggestFull || state.suggestAsk === "yes";
     if (!PRO && !state.suggestAsk && suggestKinds()) state.suggestAsk = "ask";
-    if (isLaundry() && !PRO){ seedLaundry(w, !full); syncBathPanels(); save(); return; } // the laundry, as "Hvar er vélin?" showed it
+    if (isLaundry() && !PRO){ seedLaundry(w, !full); fixSeedClashes(); syncBathPanels(); save(); return; } // the laundry, as "Hvar er vélin?" showed it
     var b = newBlock("vaskaskapur");
     var mid = state.waterWall ? waterAlong(w) : Math.round(w.lengthMm / 2 / 10) * 10;
     var start = Math.max(cornerClearance(w, "floor"), Math.min(w.lengthMm - b.widthMm, Math.round((mid - b.widthMm / 2) / 10) * 10)); // centred on the water marker
@@ -4563,9 +4569,29 @@
     if (catBase() === "eldhus" && !PRO && full) seedKitchenRun(w, b, start);
     if (catBase() === "bad" && !PRO && full) seedBathExtras(w, b, start);
     if (catBase() === "thvottahus") placeLaundryMachine(w, b);
+    fixSeedClashes();
     syncBathPanels();
     save();
     if (PRO) toast("Vaskaskápur settur á vatnið á " + w.label + " — eyddu honum ef hann á ekki að vera þar."); // G7: never silent
+  }
+  // A suggestion never stands on a door, window or opening, nor in a door's swing (QA 2026-10-29): every unit we placed that
+  // collides is moved to the nearest free spot on its wall, or left out when nothing fits (0 clashes beats a full wall).
+  function fixSeedClashes(){
+    if (PRO) return;
+    var swingHits = function(id){ return KP3D.roomDoorConflicts(state).some(function(cf){ return cf.ids.indexOf(id) >= 0; }); };
+    var bad = function(w, zone, b){ return crossOverlap(w, zone, b) || (zone === "floor" && swingHits(b.id)); };
+    state.walls.forEach(function(w){
+      if (w.island || w.partition || w.open) return;
+      ["floor", "wall"].forEach(function(zone){
+        w[zone].slice().sort(function(a, b){ return (CATALOG[b.type].sink ? 1 : 0) - (CATALOG[a.type].sink ? 1 : 0); }).forEach(function(b){
+          if (b.locked || !(b.autoSeed || b.autoMachine) || !bad(w, zone, b)) return;
+          var me = spansOf(w, zone).find(function(sp){ return sp.b.id === b.id; }), mid = me ? (me.start + me.end) / 2 : w.lengthMm / 2;
+          detachBlock(w, zone, b.id);
+          var pl = placeInWall(w, zone, b.widthMm, mid, null, probeSpan(zone, b));
+          if (pl.fits){ insertBlockAt(w, zone, b, pl.offsetMm); if (!bad(w, zone, b)) return; detachBlock(w, zone, b.id); }
+        });
+      });
+    });
   }
   // ---- "Viltu fá tillögu að innréttingu?" (owner, 2026-10-27) — customers only ----
   var suggestFull = false;
@@ -6678,13 +6704,18 @@
       return false;
     }
     if (key === "widthMm"){
-      if (v !== b.widthMm && !growBlock(f.wall, f.zone, b, v)){
+      var oldW = b.widthMm, listB = f.wall[f.zone], nxB = listB[listB.indexOf(b) + 1], gapB = nxB ? (nxB.gapMm || 0) : 0, grew = false;
+      if (v !== b.widthMm && !(grew = growBlock(f.wall, f.zone, b, v))){
         var room = growRoom(f.wall, f.zone, b), fitW = Math.min(c.maxW, Math.floor((room.hi - room.lo) / 10) * 10);
         if (fitW >= c.minW && fitW > b.widthMm) offerFit(__("{item} {v} passar ekki á {wall}.", { item:__(c.label), v:uLen(v), wall:KPI18N.lang === "en" ? __(f.wall.label).toLowerCase() : wallDat(f.wall) }), fitW, function(){
           if (growBlock(f.wall, f.zone, b, fitW)){ save(); refreshAfterEdit(); }
         });
         else toast(__("Ekki nóg pláss á {wall} fyrir þessa breidd.", { wall:__(f.wall.label).toLowerCase() }));
         return false;
+      }
+      if (grew && v < oldW && !f.wall.island && nxB && (nxB.gapMm || 0) - gapB >= 10){ // narrower: a hole opened before the next cabinet — offer to close it (owner, 2026-10-29)
+        var wId = f.wall.id, zN = f.zone, bId = b.id;
+        setTimeout(function(){ offerCompactRow(wId, zN, bId); }, 120);
       }
     } else {
       var def = key === "heightMm" ? c.h : c.d, prevVal = b[key];
@@ -6697,6 +6728,30 @@
       }
     }
     return true;
+  }
+  // "Þétta skáparöðina?" (owner, 2026-10-29): after a cabinet got narrower the cabinets to its right can slide left to close the hole.
+  // Never a locked cabinet, a corner cabinet, the sink over the water point, or anything that would run into a window/door/other row.
+  function compactPlan(wall, zone, bId){
+    var list = wall[zone], i = list.findIndex(function(x){ return x.id === bId; });
+    if (i < 0 || i >= list.length - 1 || wall.island || wall.partition) return null;
+    var gap = list[i + 1].gapMm || 0; if (gap < 10) return null;
+    var spans = spansOf(wall, zone), start = runStartMm(wall, zone);
+    for (var k = i + 1; k < list.length; k++){
+      var m = list[k], c = CATALOG[m.type];
+      if (m.locked || c.cls === "corner" || (c.sink && state.waterWall === wall.id)) return null;
+      var ns = spans[k].start - gap, ne = spans[k].end - gap;
+      if (ns < start - 0.5) return null;
+      if (crossSpans(wall, zone, probeSpan(zone, m)).some(function(o){ return Math.min(o.end, ne) - Math.max(o.start, ns) > 1; })) return null;
+    }
+    return { list:list, next:list[i + 1], gap:gap };
+  }
+  function offerCompactRow(wallId, zone, bId){
+    var wall = surfaces().find(function(w){ return w.id === wallId; }); if (!wall || !compactPlan(wall, zone, bId)) return;
+    toastAction(__("Þétta skáparöðina?"), __("Já"), function(){
+      var w2 = surfaces().find(function(w){ return w.id === wallId; }), pl = w2 && compactPlan(w2, zone, bId); if (!pl) return;
+      pl.next.gapMm = Math.max(0, pl.next.gapMm - pl.gap); if (!pl.next.gapMm) delete pl.next.gapMm;
+      save(); refreshAfterEdit();
+    });
   }
   function setBlockDim(blockId, key, raw){
     if (!applyBlockDim(blockId, key, raw)){ renderEditPanel(); return; }
@@ -7784,10 +7839,18 @@
     return state.windows.concat(state.doors).filter(function(o){ return o.wallId === wallId && o.id !== excludeId; });
   }
   // vspan = the opening's own height range; defaults to the opening being moved (excludeId)
+  function waterSinkSpan(wall){
+    if (PRO || !state.waterWall || state.waterWall !== wall.id || !bathShape()) return null;
+    var sw = isLaundry() ? 600 : 800, a = waterAlong(wall);
+    return { s:a - sw / 2, e:a + sw / 2 };
+  }
   function openingClear(wallId, off, widthMm, excludeId, vspan){
     if (!openingsOnWall(wallId, excludeId).every(function(o){ return off + widthMm <= o.offsetMm || off >= o.offsetMm + o.widthMm; })) return false;
     var self = state.windows.concat(state.doors).find(function(o){ return o.id === excludeId; });
     var v = vspan || (self ? openingVSpan(self) : null), wall = state.walls.find(function(w){ return w.id === wallId; });
+    // the water point of a bath / laundry: the sink cabinet stands there, so nothing at its height may (QA 2026-10-29)
+    var ws = wall && waterSinkSpan(wall);
+    if (ws && (v ? v.lo : 0) < 900 && Math.min(ws.e, off + widthMm) - Math.max(ws.s, off) > 0) return false;
     if (!v || !wall) return true;
     // …and no cabinet on this wall in the way at that height (see openingSpans for the other direction)
     return ["floor", "wall"].every(function(zone){
@@ -7802,6 +7865,7 @@
     var maxOff = wall.lengthMm - widthMm;
     if (maxOff < 0) return null;
     var cands = [Math.max(0, Math.min(maxOff, want)), 0, maxOff];
+    var wsp = waterSinkSpan(wall); if (wsp) cands.push(wsp.e, wsp.s - widthMm);
     openingsOnWall(wall.id, excludeId).forEach(function(o){ cands.push(o.offsetMm + o.widthMm, o.offsetMm - widthMm); });
     ["floor", "wall"].forEach(function(z){ spansOf(wall, z).forEach(function(sp){ cands.push(sp.end, sp.start - widthMm); }); }); // just past a cabinet
     var best = null;
@@ -10688,12 +10752,13 @@
     var asking = !PRO && !!state.matAsk;
     var need = asking ? "Svaraðu spurningunni til að halda áfram." : !matPhaseDone(matPhase) && ph ? (MAT_NEED[ph.key] || "Veldu eitt til að halda áfram.") : "";
     box.innerHTML = (need ? '<span class="nav-need">' + __(need) + '</span>' : '') + '<button class="btn btn-secondary" id="mtBack" type="button">' + __("← Til baka") + '</button>' +
-      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) && !asking ? "" : " disabled") + (last ? ' title="' + __("Áfram í skipulag →") + '"' : '') + '>' + __("Áfram →") + '</button>'; // the same button on every page (round 3: the longer last label pushed Til baka aside); the stepper says where it goes
+      '<button class="btn btn-primary" id="mtNext" type="button"' + (matPhaseDone(matPhase) && !asking ? "" : ' aria-disabled="true"') + (last ? ' title="' + __("Áfram í skipulag →") + '"' : '') + '>' + __("Áfram →") + '</button>'; // the same button on every page (round 3: the longer last label pushed Til baka aside); the stepper says where it goes
     updateStepper();
     document.getElementById("mtBack").addEventListener("click", function(){
       if (matPhase === 0){ var cdBack = categoryDef(state.activeCategory); shapePhase = closetShape() ? (PRO ? "size" : "height") : bathShape() || (cdBack && cdBack.water === false) ? "openings" : "water"; goto("shape"); } else { matPhase--; renderMaterials(); }
     });
     document.getElementById("mtNext").addEventListener("click", function(){
+      if (this.getAttribute("aria-disabled") === "true"){ toast(__(need)); return; } // grey but not dead: it says what is missing (owner, 2026-10-29)
       if (last){ toast(__("Efnin eru valin — nú raðar þú innréttingunni!")); goto("editor"); } else { matPhase++; renderMaterials(); }
     });
   }
@@ -15034,7 +15099,7 @@
       if (ro.length) html += '<p class="hd-prod">' + __("Auk þess {n} hurðir teiknaðar í rýmunum — þeim er breytt í veggnum sjálfum.", { n:ro.length }) + '</p>';
     } else { // review
       html = '<div class="hd-review">' + state.doorList.map(function(d, i){
-        var lines = [doorKindLabel(d.kind, d.frame), __("Op") + ' ' + dFmt(d.widthMm) + ' × ' + dFmt(d.heightMm) + ' ' + dU() + ' · ' + __("veggur") + ' ' + dFmt(d.wallMm) + ' ' + dU(), doorHowText(d), doorMatText(d)]
+        var lines = [doorKindLabel(d.kind, d.frame), __("Op í vegg") + ' ' + dFmt(d.widthMm) + ' × ' + dFmt(d.heightMm) + ' ' + dU() + ' · ' + __("veggur") + ' ' + dFmt(d.wallMm) + ' ' + dU(), doorHowText(d), doorMatText(d)]
           .concat(Object.keys(KPDOORS.KIND_OPTS[d.kind] || {}).map(function(k){ return doorOptText(d, k); }))
           .concat(KPDOORS.hasHandle(d) ? [__("Járn: {c}", { c:__(KPDOORS.HW_COLORS[d.hwColor === "svart" ? "svart" : "krom"][0]) })] : [])
           .concat(PRO ? [d.designed === false ? "" : dwSmidaText(d), d.note ? "Athugasemd: " + d.note : ""] : []).filter(Boolean);
@@ -16281,6 +16346,7 @@
     var rows = homeRooms().map(function(k){
       var cd = categoryDef(k), b = roomBlobOf(k), drawn = !!(b && b.closed), n = cd.plain ? 0 : hlUnits(k);
       var done = cd.plain ? drawn : n > 0;
+      if (done && !cd.plain && !PRO && b && b.openingsDone === false && (cd.key === "bad" || cd.key === "thvottahus")) done = false; // windows & doors not answered yet: still Í vinnslu
       return { key:k, icon:cd.plain ? "ibud" : cd.key, plain:!!cd.plain, type:__((HL_TYPES.find(function(x){ return x.t === cd.key; }) || cd).label),
         count:cd.plain ? (drawn ? __("Án innréttingar") : "") : n ? n + ' ' + plural(n, "eining", "einingar") : "",
         done:done, started:drawn, order:!cd.plain && n > 0, n:n };
@@ -16520,14 +16586,20 @@
     if (!known) state.categoryQueue.push(key);
     walkDrop(key); // opened by hand: not again later in the walk
     if (known && state.activeCategory === key && state.walls && state.walls.length){ // the room you were already in: just go back to it
-      var to = !plain && canGoTo("editor").ok ? "editor" : "shape"; if (to === "shape") shapePhase = state.closed ? "size" : "pick"; goto(to); return;
+      var to = !plain && canGoTo("editor").ok ? "editor" : "shape"; if (to === "shape") shapePhase = state.closed ? "size" : "pick";
+      if (openingsPending()){ to = "shape"; shapePhase = "openings"; openWallId = null; } // a bath / laundry left before its windows & doors were answered: back to that page
+      goto(to); return;
     }
     var fresh = !state.categoryData[key];
     startCategory(key);
     if (!known && roomName){ state.intake.room = roomName; save(); }
     else if (fresh && state.home && state.home.rymi && state.home.rymi[key]){ state.intake.room = state.home.rymi[key]; save(); } // picked on the start page as "Baðherbergi 2" …
-    if (known && state.walls && state.walls.length){ if (!plain && canGoTo("editor").ok) goto("editor"); else { shapePhase = state.closed ? "size" : "pick"; render(); } }
+    if (known && state.walls && state.walls.length){
+      if (openingsPending()){ shapePhase = "openings"; openWallId = null; goto("shape"); }
+      else if (!plain && canGoTo("editor").ok) goto("editor"); else { shapePhase = state.closed ? "size" : "pick"; render(); }
+    }
   }
+  function openingsPending(){ return !PRO && state.closed && state.walls && state.walls.length && isWallRoom() && state.openingsDone === false; } // (a reload resets shapePhase; the answer to "Gluggar og hurðir" is what says the room is not finished)
   // Byrja / Halda áfram → Rýmin þín (owner, 2026-10-27): an empty project there is the room picker
   document.getElementById("welStart").addEventListener("click", function(){
     if (PRO) return;

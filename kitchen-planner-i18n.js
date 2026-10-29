@@ -391,6 +391,7 @@
     "Frá gólfi": "From the floor",
     "Bilið þarf að vera á milli 0 og {max} mm.": "The gap must be between 0 and {max} mm.",
     "Ekki nóg pláss á {wall} fyrir {item}.": "Not enough room on {wall} for {item}.",
+    "Þétta skáparöðina?": "Close up the row of cabinets?",
     "Skápurinn er læstur — opnaðu lásinn til að breyta honum.": "The cabinet is locked — unlock it to change it.",
     "Úthliðin er læst við skápinn — hún fylgir honum.": "The end panel is locked to the cabinet — it follows it.",
     "Læsta úthliðin komst ekki með skápnum — ekkert pláss. Hún er á sama stað.": "The locked end panel couldn't move with the cabinet — no room. It stays where it was.",

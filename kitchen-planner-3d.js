@@ -3676,11 +3676,26 @@
   //     a plain click there still deselects.
   var CABINET_DRAG_PX = 6;
 
+  // An island's seam line often lies nearer the cursor than the wall a cabinet is being dragged onto (the cabinet's centre is
+  // ~30 cm out from the wall): dropping "on the wall" then landed it on the island (QA 2026-10-29). So an island only takes the
+  // drop when the cursor is really over its footprint (a cabinet depth either side of its seam, a little past its ends),
+  // unless the room has no wall/partition to fall back on.
+  var ISLAND_REACH_M = 0.75;
+  function overIsland(g, w, worldX, worldZ){
+    var dx = g.axis.x * g.lenM, dz = g.axis.z * g.lenM, lenSq = dx * dx + dz * dz;
+    if (!(lenSq > 0)) return false;
+    var t = ((worldX - g.origin.x) * dx + (worldZ - g.origin.z) * dz) / lenSq;
+    if (t < -0.1 / g.lenM || t > 1 + 0.1 / g.lenM) return false;
+    var sn = (worldX - g.origin.x) * g.normal.x + (worldZ - g.origin.z) * g.normal.z;
+    return sn <= ISLAND_REACH_M && sn >= (w.island && w.island.two ? -ISLAND_REACH_M : -0.1);
+  }
   function nearestWallDrop(geoms, walls, worldX, worldZ, wallsOnly){
     var best = null, bestDist = Infinity, bestAlongM = 0;
+    var hasFallback = walls.some(function(w){ return !w.open && !w.island; });
     geoms.forEach(function(g, i){
       if (walls[i].open) return; // open edges take nothing
       if (wallsOnly && (walls[i].island || walls[i].partition)) return; // windows/doors only go on real walls
+      if (walls[i].island && hasFallback && !overIsland(g, walls[i], worldX, worldZ)) return; // not over the island itself: the wall wins
       var x1 = g.origin.x, z1 = g.origin.z;
       var dx = g.axis.x * g.lenM, dz = g.axis.z * g.lenM;
       var lenSq = dx * dx + dz * dz;
@@ -6534,7 +6549,7 @@
       if (wallU.length){ ys.push(Math.min.apply(null, wallU.map(function(u){ return u.y0; }))); ys.push(Math.max.apply(null, wallU.map(function(u){ return u.y1; }))); }
       ys = ys.filter(function(y, i){ return ys.findIndex(function(z){ return Math.abs(z - y) < 0.005; }) === i; }).sort(function(a, b){ return a - b; });
       var hx = focusBounds.lo + 0.30;
-      for (var k = 1; k < ys.length; k++){
+      for (var k = 1; k < ys.length && ys.length > 2; k++){ // (a bare wall: the inner chain would be the same single span as the outer one — a doubled "260")
         var ph0 = P(hx, ys[k - 1]), ph1 = P(hx, ys[k]);
         svg += dimTick(ph0.x, ph0.y, ph1.x, ph1.y, dimNum((ys[k] - ys[k - 1]) * 1000), true, color);
       }
@@ -7880,6 +7895,8 @@
         // outside the dimension chain (offsets -22/-38) and turned along the wall, so a side wall's name never sits on its
         // numbers (QA 2026-10-26, E7)
         var lx = midX - g.normal.x * 58, ly = midY - g.normal.z * 58, wsel = opts.selectedWallId === wallId, wAng = planTextAng(x2 - x1, y2 - y1);
+        // a short bare wall (the side of an innskot): outside it the name met the neighbouring wall's measure line — put it on the room side instead
+        if (Math.hypot(x2 - x1, y2 - y1) < 100 && sw && !(sw.floor || []).length && !(sw.wall || []).length){ lx = midX + g.normal.x * 18; ly = midY + g.normal.z * 18; }
         // just the wall's name here — its length is now on the dimension chain (wallDimChain) instead,
         // so this doesn't duplicate/overlap that number
         svg += '<text x="' + lx + '" y="' + ly + '" font-size="' + (wsel ? 12.5 : 11) + '" font-weight="' + (wsel ? 700 : 400) + '" fill="' + (wsel ? "#3d61c1" : "#6f6d66") + '" text-anchor="middle" dominant-baseline="middle" transform="rotate(' + wAng + ' ' + lx + ' ' + ly + ')" style="pointer-events:none;">' + (state.walls[gi] ? escSvg(__(state.walls[gi].label)) : dimLen(g.lenM * 1000)) + '</text>';
