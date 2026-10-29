@@ -487,6 +487,11 @@
       s += '<g><rect x="' + bx0 + '" y="' + by0 + '" width="' + blindW * sc + '" height="' + bh2 + '" rx="2" fill="#f2f2f4" stroke="#6e6e73" stroke-width="1.3"/>' +
         '<text x="' + (bx0 + blindW * sc / 2) + '" y="' + (by0 + bh2 / 2 + 4) + '" text-anchor="middle" font-size="11.5" fill="#6e6e73">Blindlok</text>' +
         '<title>Blindlok ' + mm(bwid) + ' × ' + mm(bh) + ' mm — fast á kassanum, engar lamir</title></g>';
+      // Töfrahorn: the door hangs on the blind panel, so the hinge blocks (lamaklossar) go on the blind panel, not the side — drawn behind the
+      // panel at the door's hinge heights when the door's hinge side faces it (illustration; no CNC file for it)
+      if (e.hinge === (blindL ? "vinstri" : "haegri")) (p.doors || []).forEach(function (dd) { (dd.hinges || []).forEach(function (hh) {
+        var kx = blindL ? bx0 + blindW * sc - 22 * sc : bx0, ky = Y(dd.from + hh) - 25 * sc;
+        s += '<g><rect x="' + kx + '" y="' + ky + '" width="' + 22 * sc + '" height="' + 50 * sc + '" fill="#e8b06a" fill-opacity=".55" stroke="#b25000" stroke-width="1"/><title>Lamaklossi á blindlokinu — fyrir löm í ' + mm(dd.from + hh) + ' mm</title></g>'; }); });
     }
     (p.doors || []).forEach(function (d, i) {
       var x0 = X(0) + 2 + (blindL ? blindW * sc : 0), x1 = X(W) - 2 - (blindL ? 0 : blindW * sc), y0 = Y(d.ft != null ? d.ft : d.to), y1 = Y(d.fb != null ? Math.min(d.fb, d.from) : d.from), my = (y0 + y1) / 2, mx = (x0 + x1) / 2; // the front itself
@@ -500,9 +505,12 @@
         (hs === "baedi" && leaves ? '<line x1="' + mx + '" x2="' + mx + '" y1="' + y0 + '" y2="' + y1 + '" stroke="#0071e3" stroke-width="1"/>' : "") +
         (mark ? '<path d="' + mark + '" fill="none" stroke="#0071e3" stroke-width="1" stroke-dasharray="6 5" opacity=".7"/>' : "") +
         "<title>" + (leaves ? "Vænghurð — lamir báðum megin" : "Smelltu til að skipta um lamahlið") + "</title></g>";
-      if (d.vert && c.gripMm > 0) { var vg = c.gripMm * sc, vx = hs === "haegri" ? x0 : x1 - vg; s += '<rect class="pick" data-pick="jey" x="' + vx + '" y="' + y0 + '" width="' + vg + '" height="' + (y1 - y0) + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll á hlið (' + Math.round(c.gripMm) + ' mm)</title></rect>'; }
-      if (d.g > 0.5) s += '<rect class="pick" data-pick="jey" x="' + (x0 + 2) + '" y="' + Y(d.to + d.g) + '" width="' + (x1 - x0 - 4) + '" height="' + d.g * sc + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll ' + Math.round(d.g) + ' mm ofan á hurðinni</title></rect>';
-      if (lift) return;
+      if (d.vert && gripEff(c) > 0) { var vg = gripEff(c) * sc, vx = hs === "haegri" ? x0 : x1 - vg; s += '<rect class="pick" data-pick="jey" x="' + vx + '" y="' + y0 + '" width="' + vg + '" height="' + (y1 - y0) + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll á hlið (' + Math.round(c.gripMm) + ' mm)</title></rect>'; }
+      if (d.g > 0.5) s += '<rect class="pick" data-pick="jey" x="' + (x0 + 2) + '" y="' + (d.gb ? Y(d.from) : Y(d.to + d.g)) + '" width="' + (x1 - x0 - 4) + '" height="' + d.g * sc + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll ' + Math.round(d.g) + ' mm ' + (d.gb ? "neðan á" : "ofan á") + ' hurðinni</title></rect>';
+      if (lift) { // lift-up door: its hinges sit in the TOP board — two cups on the door's top edge (illustration: 100 mm in from each side)
+        [x0 + 100 * sc, x1 - 100 * sc].forEach(function (cx) { s += '<g><circle cx="' + cx + '" cy="' + (y0 + 17.5 * sc + 2) + '" r="' + Math.max(17.5 * sc, 4) + '" fill="#0071e3" fill-opacity=".14" stroke="#0071e3" stroke-width="1.2"/><title>Löm í toppborðinu (lyftihurð)</title></g>'; });
+        return;
+      }
       var sides = hs === "baedi" ? [0, W] : hs === "vinstri" ? [0] : hs === "haegri" ? [W] : [0, W];
       (d.hinges || []).forEach(function (h, k) {
         sides.forEach(function (sx) {
@@ -708,7 +716,7 @@
       fronts.push({ from: d.from, to: r1(d.from + d.front), short: d.code, label: "Skúffufrontur " + d.code + " · " + mm(d.front) + " mm — úr Sögunarlista" });
       if (gp > 0.5) fronts.push({ from: r1(d.from + d.front), to: r1(d.from + d.H), kind: "grip", label: "Gripprófíll " + mm(gp) + " mm ofan á frontinum" });
     });
-    (p.doors || []).forEach(function (d) { if (d.g > 0.5) fronts.push({ from: d.to, to: r1(d.to + d.g), kind: "grip", label: "Gripprófíll " + mm(d.g) + " mm ofan á hurðinni" }); });
+    (p.doors || []).forEach(function (d) { if (d.g > 0.5) fronts.push(d.gb ? { from: r1(d.from - d.g), to: d.from, kind: "grip", label: "Gripprófíll " + mm(d.g) + " mm neðan á hurðinni" } : { from: d.to, to: r1(d.to + d.g), kind: "grip", label: "Gripprófíll " + mm(d.g) + " mm ofan á hurðinni" }); });
     fronts = fronts
       .concat((p.doors || []).map(function (d) { var fb = d.fb != null ? d.fb : r1(d.to - 1 - d.H), ft = d.ft != null ? d.ft : r1(d.to - 1);
         return { from: fb, to: ft, short: "", label: "Hurð · " + mm(d.H) + " mm" + (fb < -0.5 ? " — nær " + mm(-fb) + " mm niður fyrir hliðina" : "") + " — úr Sögunarlista" }; }));
@@ -791,6 +799,7 @@
     box.classList.remove("hl"); void box.offsetWidth; box.classList.add("hl");
     var inp = sel && $("panel").querySelector(sel); if (inp) { inp.focus({ preventScroll: true }); if (inp.select) inp.select(); }
   }
+  function gripEff(c) { return c.gripMm || (ed(c).jey > 0 ? ed(c).jey : 0); } // the Eyðublað's grip, else Jey added here
   function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
   function renderPanel() {
     var c = cab(), e = ed(c), p = plan(c), el = $("panel");
@@ -843,14 +852,18 @@
     });
     // Jey (the grip profile on top of a front): the project's handle says it is there, but not every front has one —
     // a front switched off here is drawn and planned without the profile (Smíðagögn noJey)
-    if (c.gripMm > 0 && ((p.drawers || []).length || (p.doors || []).length)) {
+    if (!gripEff(c) && ((p.drawers || []).length || (p.doors || []).length)) {
+      h += row("jey", "Jey-grip", "Enginn", '<div class="line"><span class="u">Ekkert grip á Eyðublaðinu ' + tip("Bættu við Jey (27 mm prófíll á fronti). Hólfin og lamirnar miðast þá við prófílinn; ef frontarnir passa ekki við hliðina segir CNC það — þá þarf að stytta þá á Eyðublaðinu.") + '</span></div><div class="line"><button type="button" class="mini" data-jeyadd="27">＋ Bæta við Jey (27 mm)</button></div>');
+    }
+    if (gripEff(c) > 0 && ((p.drawers || []).length || (p.doors || []).length)) {
       var nj = e.noJey || { drawers: [], doors: [] }, fr = [];
       (p.drawers || []).forEach(function (q, i) { fr.push({ key: "d:" + i, name: "Skúffa " + q.code + " · " + mm(q.front), on: nj.drawers.indexOf(i) < 0 }); });
-      (p.doors || []).forEach(function (q, i) { var vt = ((e.jeyVert || {}).doors || []).indexOf(i) >= 0; fr.push({ key: "r:" + i, door: true, vert: vt, name: (doors.length > 1 ? "Hurð " + (i + 1) : "Hurð") + " · " + mm(q.H), on: nj.doors.indexOf(i) < 0 || vt }); });
+      (p.doors || []).forEach(function (q, i) { var vt = ((e.jeyVert || {}).doors || []).indexOf(i) >= 0, bt = ((e.jeyBot || {}).doors || []).indexOf(i) >= 0; fr.push({ key: "r:" + i, door: true, vert: vt, bot: bt, name: (doors.length > 1 ? "Hurð " + (i + 1) : "Hurð") + " · " + mm(q.H), on: nj.doors.indexOf(i) < 0 || vt }); });
       var nOn = fr.filter(function (f) { return f.on; }).length;
       h += row("jey", "Jey-grip", nOn === fr.length ? "Á öllum frontum" : nOn === 0 ? "Á engum fronti" : nOn + " af " + fr.length + " frontum",
-        '<div class="line"><span class="u">Prófíllinn efst á fronti (' + mm(c.gripMm) + ' mm) ' + tip("Slökktu á honum á fronti sem er ekki með Jey — teikningin og hólfið miðast þá við frontinn einan. Ef frontarnir passa þá ekki við hliðina segir CNC það.") + "</span></div>" +
-        fr.slice().reverse().map(function (f) { return '<div class="line"><span class="t" style="width:130px">' + esc(f.name) + '</span><span class="seg"><button type="button" data-jey="' + f.key + ':1" class="' + (f.on && !f.vert ? "on" : "") + '">' + (f.door ? "Efst" : "Með Jey") + "</button>" + (f.door ? '<button type="button" data-jey="' + f.key + ':v" class="' + (f.vert ? "on" : "") + '">Á hlið</button>' : "") + '<button type="button" data-jey="' + f.key + ':0" class="' + (f.on ? "" : "on") + '">Án</button></span></div>'; }).join(""));
+        '<div class="line"><span class="u">Prófíllinn á fronti (' + mm(gripEff(c)) + ' mm) ' + tip("Hurð: efst, neðst (efriskápar) eða á hlið. Slökktu á honum á fronti sem er ekki með Jey — teikningin og hólfið miðast þá við frontinn einan. Ef frontarnir passa þá ekki við hliðina segir CNC það.") + "</span></div>" +
+        fr.slice().reverse().map(function (f) { return '<div class="line"><span class="t" style="width:130px">' + esc(f.name) + '</span><span class="seg"><button type="button" data-jey="' + f.key + ':1" class="' + (f.on && !f.vert && !f.bot ? "on" : "") + '">' + (f.door ? "Efst" : "Með Jey") + "</button>" + (f.door ? '<button type="button" data-jey="' + f.key + ':b" class="' + (f.bot ? "on" : "") + '">Neðst</button><button type="button" data-jey="' + f.key + ':v" class="' + (f.vert ? "on" : "") + '">Á hlið</button>' : "") + '<button type="button" data-jey="' + f.key + ':0" class="' + (f.on ? "" : "on") + '">Án</button></span></div>'; }).join("") +
+        (e.jey > 0 && !c.gripMm ? '<div class="line"><button type="button" class="mini" data-jeyall="1">Sama á alla eins skápa</button><button type="button" class="mini" data-jeyoff="1">Taka Jey af</button></div>' : ""));
     }
     if (c.blind && (p.doors || []).length) {
       h += row("blind", "Blindlok", mm(c.blind.B) + " × " + mm(c.blind.H) + " · " + (e.blindSide === "vinstri" ? "vinstra megin" : "hægra megin"),
@@ -948,9 +961,19 @@
     if (d.hinge) { change(function (e) { e.hinge = d.hinge; }); return; }
     if (d.dtype) { var dt = d.dtype.split(":"), di = +dt[0]; change(function (e) { ensureDoors(c, e); e.doors[di].type = dt[1];
       if (dt[1] === "hinged" && !e.doors[di].hinges.length) e.doors[di].hinges = SD.defaultHingeSpec(r1(c.base.doors[di].to - c.base.doors[di].from), []); }); return; }
+    if (d.jeyadd) { change(function (e) { e.jey = +d.jeyadd; }); openRow[c.unit + "jey"] = true; return; }
+    if (d.jeyoff) { change(function (e) { delete e.jey; e.noJey = { drawers: [], doors: [] }; e.jeyVert = null; e.jeyBot = null; }); return; }
+    if (d.jeyall) { // the same Jey on every cabinet of the same type and size (Sk 15 and its twins)
+      var src = ed(c), same = cabs.filter(function (o) { return o !== c && canEdit(o) && o.tegund === c.tegund && o.base.LPX === c.base.LPX && o.base.LPY === c.base.LPY && !o.gripMm &&
+        (o.base.drawers || []).length === (c.base.drawers || []).length && (o.base.doors || []).length === (c.base.doors || []).length; });
+      same.forEach(function (o) { var e2 = ed(o); e2.jey = src.jey; e2.noJey = JSON.parse(JSON.stringify(src.noJey || { drawers: [], doors: [] })); e2.jeyVert = JSON.parse(JSON.stringify(src.jeyVert || null)); e2.jeyBot = JSON.parse(JSON.stringify(src.jeyBot || null)); e2.reviewed = false; e2.touched = true; });
+      saveDraft(); render(); toast(same.length ? "Jey sett á " + same.length + (same.length === 1 ? " skáp til viðbótar" : " skápa til viðbótar") : "Engir eins skápar fundust"); return;
+    }
     if (d.jey) { var jj = d.jey.split(":"); change(function (e) { var l = (e.noJey = e.noJey || { drawers: [], doors: [] })[jj[0] === "d" ? "drawers" : "doors"], at = l.indexOf(+jj[1]), n = +jj[1];
       var vl = (e.jeyVert = e.jeyVert || { doors: [] }).doors, vat = vl.indexOf(n);
-      if (jj[0] === "r") { if (jj[2] !== "v" && vat >= 0) vl.splice(vat, 1); if (jj[2] === "v" && vat < 0) vl.push(n); }
+      var bl = (e.jeyBot = e.jeyBot || { doors: [] }).doors, bat = bl.indexOf(n);
+      if (jj[0] === "r") { if (jj[2] !== "v" && vat >= 0) vl.splice(vat, 1); if (jj[2] === "v" && vat < 0) vl.push(n);
+        if (jj[2] !== "b" && bat >= 0) bl.splice(bat, 1); if (jj[2] === "b" && bat < 0) bl.push(n); }
       if (jj[2] === "0" || jj[2] === "v") { if (at < 0) l.push(n); } else if (at >= 0) l.splice(at, 1); }); return; }
     if (d.hsplit != null) { change(function (e) { var k = +d.hsplit, n = c.base.cabinets; e.hingeSplit = k === 0 || k === n ? null : { vinstri: k, haegri: n - k }; if (k === 0) e.hinge = "haegri"; else if (k === n) e.hinge = "vinstri"; }); return; }
     if (d.blind) { change(function (e) { e.blindSide = d.blind; }); return; }

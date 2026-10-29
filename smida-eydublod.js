@@ -151,6 +151,8 @@
     if (ex.urtak && ex.urtak.drawer) e.urtak = { drawer: ex.urtak.drawer, place: ex.urtak.place || "midja", x: num(ex.urtak.x) > 0 ? num(ex.urtak.x) : null };
     if (ex.frontGrip === "efst" || ex.frontGrip === "nedst" || ex.frontGrip === "ekkert") e.frontGrip = ex.frontGrip;
     if (ex.hingeSplit && Number.isInteger(ex.hingeSplit.vinstri) && Number.isInteger(ex.hingeSplit.haegri)) e.hingeSplit = { vinstri: ex.hingeSplit.vinstri, haegri: ex.hingeSplit.haegri };
+    if (num(ex.jey) > 0) e.jey = num(ex.jey);
+    if (ex.jeyBot && Array.isArray(ex.jeyBot.doors)) e.jeyBot = { doors: clone(ex.jeyBot.doors) };
     if (ex.jeyVert && Array.isArray(ex.jeyVert.doors)) e.jeyVert = { doors: clone(ex.jeyVert.doors) };
     if (ex.blindSide === "vinstri" || ex.blindSide === "haegri") e.blindSide = ex.blindSide;
     if (ex.noJey && typeof ex.noJey === "object") e.noJey = { drawers: clone(ex.noJey.drawers || []), doors: clone(ex.noJey.doors || []) };
@@ -162,7 +164,7 @@
   // edit → Smíðagögn object (what Vista writes). `ready` only while marked reviewed.
   function smidaOf(cab, e) {
     var o = Object.assign({}, clone(cab.existing) || {});
-    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "frontGrip", "urtak", "ready"].forEach(function (k) { delete o[k]; });
+    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "frontGrip", "urtak", "jey", "jeyBot", "ready"].forEach(function (k) { delete o[k]; });
     o.v = 1;
     if (o.w == null && cab.B) o.w = cab.B;
     if (o.h == null && cab.base.LPX) o.h = cab.base.LPX;
@@ -181,6 +183,8 @@
     if (e.rails && e.rails.length) o.rails = clone(e.rails);
     if (e.noJey && ((e.noJey.drawers || []).length || (e.noJey.doors || []).length)) o.noJey = { drawers: clone(e.noJey.drawers || []).sort(), doors: clone(e.noJey.doors || []).sort() };
     if (e.hingeSplit && cab.base.cabinets > 1 && e.hingeSplit.vinstri > 0 && e.hingeSplit.haegri > 0 && e.hingeSplit.vinstri + e.hingeSplit.haegri === cab.base.cabinets) o.hingeSplit = { vinstri: e.hingeSplit.vinstri, haegri: e.hingeSplit.haegri };
+    if (e.jey > 0 && !cab.gripMm) o.jey = e.jey; // Jey added by hand where the Eyðublað has no grip (Grip? empty)
+    if (e.jeyBot && (e.jeyBot.doors || []).length) o.jeyBot = { doors: clone(e.jeyBot.doors).sort() };
     if (e.jeyVert && (e.jeyVert.doors || []).length) o.jeyVert = { doors: clone(e.jeyVert.doors).sort() };
     if (e.led && e.led.length) o.led = clone(e.led);
     if (e.urtak && e.urtak.drawer) o.urtak = Object.assign({ drawer: e.urtak.drawer, place: e.urtak.place || "midja" }, num(e.urtak.x) > 0 ? { x: num(e.urtak.x) } : {});

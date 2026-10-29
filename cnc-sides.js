@@ -217,7 +217,8 @@
     if (H > TALL_EXTRA_RAIL) op("SLA_HLID", "Auka Slár", 'LPZ, bora_i_gegn, lpz+1, lpx/3, "1,4"');
     // Masonite groove unless it's a plumbing (lagna) side — the master's own note: "Ef lagna = ekki masonit".
     plan.groove = !/lagna/i.test(s.Partur) && !plan.fre; // and FRE sides never (they stop before this)
-    var grip = num(opts.gripMm) || 0;
+    // Smíðagögn jey = mm: Jey added by hand on a cabinet whose Eyðublað has no grip (Grip? empty → opts.gripMm 0) — /smida, 2026-10-29
+    var grip = num(opts.gripMm) || num((parseSmida(opts.smida) || {}).jey) || 0;
 
     // Drawers, bottom → top, from the real front heights.
     // A Fræst grip "alla" lárétt zone (Smíðagögn grip[] → Eyðublað "Grip svæði") was taken off that front's Sérhæð /
@@ -243,6 +244,7 @@
     // That front has no profile on it, so its slot is the cut front alone (a Fræst grip zone still shrinks it as above).
     var jeyV = (parseSmida(opts.smida) || {}).jeyVert || {}, jvR = Array.isArray(jeyV.doors) ? jeyV.doors : []; // a door's Jey on its side (vertical) takes no height reveal
     var noJey = (parseSmida(opts.smida) || {}).noJey || {}, njD = Array.isArray(noJey.drawers) ? noJey.drawers : [], njR = Array.isArray(noJey.doors) ? noJey.doors : [];
+    var jeyB = (parseSmida(opts.smida) || {}).jeyBot || {}, jbR = Array.isArray(jeyB.doors) ? jeyB.doors : []; // a door's Jey under it (wall cabinets): the profile sits BELOW the front
     drawers.forEach(function (d, i) { if (grip && njD.indexOf(i) >= 0) { d.H = r1(d.front + zoneShrink(d.code)); d.noJey = true; } });
     var sys = {}; drawers.forEach(function (d) { sys[d.sys] = 1; });
     if (Object.keys(sys).length > 1) { stop.push("Merivo og Legra í sama skáp"); plan.status = "stop"; return plan; }
@@ -282,7 +284,7 @@
     // retired (2026-10-14) — Fræst grip no longer goes through Höldur 1 at all, so `grip` itself is never negative
     // any more; see the Grip svæði block below instead. Drawer fronts are unconditional either way (set above).
     function doorGrip(d) { return d.noJey ? 0 : grip; }
-    doors.forEach(function (d, i) { if (grip && njR.indexOf(i) >= 0) d.noJey = true; if (grip && jvR.indexOf(i) >= 0) { d.noJey = true; d.vert = true; } });
+    doors.forEach(function (d, i) { if (grip && njR.indexOf(i) >= 0) d.noJey = true; if (grip && jvR.indexOf(i) >= 0) { d.noJey = true; d.vert = true; } else if (grip && !d.noJey && jbR.indexOf(i) >= 0) d.bot = true; });
     var room = H - drawerTop - fixedFronts.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     var sumDoors = doors.reduce(function (a, d) { return a + d.H + doorGrip(d) + BOX_GAP; }, 0);
     if (doors.length > 1 && (sumDoors > room + 5 || doors.some(function (d) { return /væng/i.test(d.partur); }))) {
@@ -299,7 +301,8 @@
     doors.forEach(function (d) {
       var zs = splitNo(d) ? zoneShrink("front" + splitNo(d)) : 0; // a split front's "alla" zone (see zoneShrink)
       var g = (d.H + doorGrip(d) + BOX_GAP <= top - drawerTop + 0.5 ? doorGrip(d) : 0) + zs;
-      d.g = g; // the grip profile (e.g. Jey 27) sits in this reveal above the front
+      d.g = g; // the grip profile (e.g. Jey 27) sits in this reveal above the front — or BELOW it when d.bot (wall cabinets)
+      if (d.bot && g) { d.to = top; d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP)); d.gb = true; top = r1(d.from - g); d.ft = r1(d.to - HINGE_FRONT_OFFSET); d.fb = r1(d.ft - d.H); d.over = d.H + BOX_GAP > d.to - d.from + 0.5; return; }
       d.to = r1(top - g); d.from = r1(Math.max(drawerTop, d.to - d.H - BOX_GAP));
       d.ft = r1(d.to - HINGE_FRONT_OFFSET); d.fb = r1(d.ft - d.H);
       d.over = d.H + BOX_GAP > d.to - d.from + 0.5;

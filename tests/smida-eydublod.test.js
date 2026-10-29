@@ -345,3 +345,14 @@ test("Úrtak fyrir vatnslás round-trips through the editor into the plan (drawe
   assert.ok(M.planOf(c, sm).fronts.some((f) => f.master === "urtak"));
   delete e.urtak; assert.equal(M.smidaOf(c, e).urtak, undefined);
 });
+
+test("Jey added by hand (jey) and under a door (jeyBot) round-trip; jey is not written when the Eyðublað already has a grip", () => {
+  const rows = [ef("Skápur hlið", 800, 300, 16, 2), ef("Frontur", 770, 597, 19, 1)];
+  const c = cab("recW", "Sk15 | Efri", rows, { "Hæð": 800 });
+  const e = M.initEdit(c); e.jey = 27; e.jeyBot = { doors: [0] };
+  const sm = M.smidaOf(c, e); assert.equal(sm.jey, 27); assert.deepEqual(sm.jeyBot, { doors: [0] });
+  const d = M.planOf(c, sm).doors[0]; assert.deepEqual([d.g, !!d.gb], [27, true]);
+  const again = M.initEdit(M.cabinet(unit("recW", "Sk15 | Efri", { "Hæð": 800, "Smíðagögn (JSON) 🔧": JSON.stringify(sm) }), rows, {}));
+  assert.deepEqual([again.jey, again.jeyBot], [27, { doors: [0] }]);
+  assert.equal(M.smidaOf(cab("recW", "Sk15 | Efri", rows, { "Hæð": 800 }, 20), e).jey, undefined);
+});

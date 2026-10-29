@@ -644,3 +644,19 @@ test("Fatalyfta: written into the side file without a master template, both side
   assert.ok(S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "toplift", mm: 30, y: 300 }]) }).check.some((c) => /X \(30\) er undir lágmarkinu 44/.test(c)));
   assert.ok(S.unitPlan("Sk36", WARD, { smida: liftSm([{ type: "emuca", mm: 200, y: 180 }]) }).check.some((c) => /Emuca fatalyfta: staðsetningin/.test(c)));
 });
+
+// ── Jey added by hand (Smíðagögn jey) and Jey under a door (jeyBot), 2026-10-29 ──────────────────────────────
+const WALL = [row("Skápur hlið", 800, 300, 16, 2), row("Frontur", 770, 597, 19, 1)];
+test("Jey by hand: no Grip? on the Eyðublað → smida.jey is the grip; on top by default, under the door with jeyBot (wall cabinets), no hinge move", () => {
+  const none = S.unitPlan("Sk15", WALL, { gripMm: 0 }).doors[0];
+  assert.equal(none.g, 0);
+  const top = S.unitPlan("Sk15", WALL, { gripMm: 0, smida: JSON.stringify({ v: 1, jey: 27 }) }).doors[0];
+  assert.deepEqual([top.g, top.to, !!top.gb], [27, 773, false]);
+  const bot = S.unitPlan("Sk15", WALL, { gripMm: 0, smida: JSON.stringify({ v: 1, jey: 27, jeyBot: { doors: [0] } }) });
+  const d = bot.doors[0];
+  assert.deepEqual([d.g, d.to, d.from, d.gb, d.ft, d.fb], [27, 800, 27, true, 799, 29]); // profile in the 27 mm under the front
+  assert.ok(!bot.check.some((c) => /passa ekki við hlið/.test(c)) && bot.status !== "stop", bot.check.join("|"));
+  assert.deepEqual(bot.doors[0].hinges, [80, 693]);
+  // the Eyðublað's own grip wins over smida.jey
+  assert.equal(S.unitPlan("Sk15", WALL, { gripMm: 20, smida: JSON.stringify({ v: 1, jey: 27 }) }).doors[0].g, 20);
+});
