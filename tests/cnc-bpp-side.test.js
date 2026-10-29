@@ -39,3 +39,15 @@ test("LED run: a shorter one is read back with its start and end; fatalyfta macr
   assert.equal(lifts[0].shapes.filter((s) => s.k === "hole").length, 4);
   assert.match(lifts[1].label, /toplift — 1480 mm frá botni, 290 mm frá framkanti/);
 });
+
+test("drawer features carry the macro's first parameter (box bottom = 27.5 + slot for Merivo, 26 + slot for Legra); inner drawers know their system", () => {
+  const rows = [{ Partur: "Skápur hlið", H: 800, B: 555, "Þ": 16, M: 2, "Tegund einingu": ["Grunnskápur"] }, { Partur: "Skúffufrontur E - Merivo", H: 300, B: 597, "Þ": 19, M: 2, "Tegund einingu": ["Grunnskápur"] },
+    { Partur: "Innskúffufrontur M - Merivo Skrokkaefni", H: 106, B: 562, "Þ": 16, M: 2, "Tegund einingu": ["Grunnskápur"] }];
+  const M2 = MASTER.replace("@ STAT_BLOCK", `' MERIVOBOX_V2, "", "", 1, "", 0 : -3, 0, 0, 0, 0, 0, 397, E\r\n' MERVIBOX_INNSKUFFA, "", "", 2, "", 0 : 144, 650, M\r\n@ STAT_BLOCK`);
+  const plan = S.unitPlan("Sk 2", rows, {});
+  const parsed = B.parseBpp(S.renderSide(M2, plan).text);
+  const f = B.buildSideFeatures(parsed.ops, parsed.vars).features;
+  const d = f.filter((x) => x.type === "drawer");
+  assert.deepEqual(d.map((x) => [x.sys, x.p0]), [["merivo", -1.5], ["merivo", 300]]); // bottom −1.5 → box from 26; the next slot param = Σ(slot) → 327.5
+  assert.ok(f.filter((x) => x.type === "inner").every((x) => x.sys === "merivo"));
+});

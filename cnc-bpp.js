@@ -149,7 +149,7 @@
           var H = num(p[0], vars), code = p[1];
           if (H == null) { unknown.push(op); break; }
           drawerCursor = 0;
-          features.push({ type: "drawer", from: 0, to: H, sys: "legra", label: "Skúffa " + code + " (" + H + " mm)" });
+          features.push({ type: "drawer", from: 0, to: H, sys: "legra", p0: 0, label: "Skúffa " + code + " (" + H + " mm)" });
           drawerCursor = H + 3;
           break;
         }
@@ -157,14 +157,14 @@
           var H2 = num(p[6], vars), code2 = p[7];
           if (H2 == null) { unknown.push(op); break; }
           var from = drawerCursor;
-          features.push({ type: "drawer", from: from, to: from + H2, sys: op.name === "MERIVOBOX_V2" ? "merivo" : "legra", label: "Skúffa " + code2 + " (" + H2 + " mm)" });
+          features.push({ type: "drawer", from: from, to: from + H2, sys: op.name === "MERIVOBOX_V2" ? "merivo" : "legra", p0: num(p[0], vars), label: "Skúffa " + code2 + " (" + H2 + " mm)" });
           drawerCursor = from + H2 + 3;
           break;
         }
         case "LEGRABOX_INNSKUFFA": case "MERVIBOX_INNSKUFFA": {
           var H3 = num(p[0], vars), x = num(p[1], vars), code3 = p[2];
           if (H3 == null || x == null) { unknown.push(op); break; }
-          features.push({ type: "inner", from: x, to: x + H3, label: "Innskúffa " + code3 + " (" + H3 + " mm)" });
+          features.push({ type: "inner", from: x, to: x + H3, sys: op.name === "LEGRABOX_INNSKUFFA" ? "legra" : "merivo", label: "Innskúffa " + code3 + " (" + H3 + " mm)" });
           break;
         }
         case "FAST_FRAMSTYKKI": {
@@ -393,21 +393,28 @@
         // the box as the Rover macro places it: on its runner line, as tall as the Blum side of its code
         var code = (String(f.label).match(/skúffa\s+([NMKCFE])\b/i) || [])[1] || "", sys = f.sys || "merivo";
         var el = g(f.label + " — úr Sögunarlista", "drawer", f.from), from = Math.max(0, f.from), to = Math.min(LPX, f.to);
-        var ry = from + (sys === "legra" ? 62.5 : 80); // runner over its slot, as cnc-sides.js plans it
-        var sideH = (BOX_SIDE[sys] || BOX_SIDE.merivo)[code.toUpperCase()] || 90;
+        // The box as the macro draws it (MERIVOBOX_V2 / LEGRABOX_* .vbs): a rectangle from X = −54 + 1.5 + 80 + slots (Merivo) / −38 + 1.5 + 62.5 + slots
+        // (Legra, the bottom Legra drawer 26) — i.e. the runner screws sit INSIDE the box, 54 / 36.5 mm up from its bottom — TYPE_ (the box side) tall,
+        // from Y = 1 from the front edge, as deep as the drawer (opts.depths, Smíða; the macro itself only has a 300 mm stand-in).
+        var x0 = (sys === "legra" ? 26 : 27.5) + (f.p0 != null ? f.p0 : from), sideH = (BOX_SIDE[sys] || BOX_SIDE.merivo)[code.toUpperCase()] || 90, ry = x0 + (sys === "legra" ? 36.5 : 54);
+        var dep = opts.depths && opts.depths[code.toUpperCase()] > 0 ? opts.depths[code.toUpperCase()] : 300, dEnd = Math.min(LPY - 2, 1 + dep);
         el.appendChild(svgEl("rect", { x: L + 3, y: Y(to), width: w - 6, height: Math.max(1, (to - from) * s), fill: "#f7f7f9" }));
-        var dep = opts.depths && opts.depths[code.toUpperCase()], bx = XR(Math.min(12, LPY / 20), dep > 0 ? Math.min(LPY - 2, dep) : LPY - Math.min(22, LPY / 12)); // box as deep as its drawerDepth (Smíða) when known
-        el.appendChild(svgEl("rect", { x: bx.x, y: Y(ry + sideH), width: bx.w, height: sideH * s, rx: 2, fill: "#fff", stroke: SOFT, "stroke-width": 1.1 }));
-        el.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(ry), y2: Y(ry), stroke: SOFT, "stroke-width": 1.6, "stroke-linecap": "round" }));
-        if (code && sideH * s > 9) { var tl = svgEl("text", { x: X(LPY / 2), y: Y(ry + sideH / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(12, sideH * s * .55), fill: SOFT }); tl.textContent = code.toUpperCase(); el.appendChild(tl); }
+        var bx = XR(1, dEnd);
+        el.appendChild(svgEl("rect", { x: bx.x, y: Y(x0 + sideH), width: bx.w, height: sideH * s, rx: 2, fill: "#fff", stroke: SOFT, "stroke-width": 1.1 }));
+        el.appendChild(svgEl("line", { x1: X(front), x2: X(Math.min(back, dEnd)), y1: Y(ry), y2: Y(ry), stroke: SOFT, "stroke-width": 1.6, "stroke-linecap": "round" }));
+        if (code && sideH * s > 9) { var tl = svgEl("text", { x: X((1 + dEnd) / 2), y: Y(x0 + sideH / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(12, sideH * s * .55), fill: SOFT }); tl.textContent = code.toUpperCase(); el.appendChild(tl); }
+        if (!(opts.depths && opts.depths[code.toUpperCase()] > 0)) el.appendChild(svgEl("title", {})).textContent = f.label + " — dýpt óþekkt hér, sýnd 300 mm eins og macroið";
       } else if (f.type === "inner") {
         // an inner drawer = its front band (front bottom = runner − 54, cnc-sides.js INNER_RUNNER), dashed: it hides behind a front
-        var icode = (String(f.label).match(/skúffa\s+([NMKCFE])\b/i) || [])[1] || "", ih = f.to - f.from, ib = f.from - 54;
+        var icode = (String(f.label).match(/skúffa\s+([NMKCFE])\b/i) || [])[1] || "", ih = f.to - f.from, lg = f.sys === "legra", ib = f.from - (lg ? 38 : 54);
         var ei = g(f.label + " — innskúffa", "inner", f.from), ic = acc.inner ? BLUE : "#6e6e73";
-        var ibx = XR(Math.min(12, LPY / 20), LPY - Math.min(22, LPY / 12));
-        ei.appendChild(svgEl("rect", { x: ibx.x, y: Y(ib + ih), width: ibx.w, height: ih * s, rx: 2, fill: "#fff", stroke: ic, "stroke-width": 1.1, "stroke-dasharray": "5 3" }));
+        // macro: front panel 16 thick at Y = 3 (FRONTUR tall from X − 54 / X − 38), the box behind it from Y = 20 (Merivo) / 19 (Legra), TYPE_ tall, as deep as the drawer
+        var isH = (BOX_SIDE[f.sys] || BOX_SIDE.merivo)[icode.toUpperCase()] || 90, id0 = lg ? 19 : 20, idp = opts.depths && (opts.depths[icode.toUpperCase()] || opts.depths.K || opts.depths.M) || 300;
+        var ifr = XR(3, 19), ibx = XR(id0, Math.min(LPY - 2, id0 + idp));
+        ei.appendChild(svgEl("rect", { x: ibx.x, y: Y(ib + isH), width: ibx.w, height: isH * s, rx: 2, fill: "#fff", stroke: ic, "stroke-width": 1.1, "stroke-dasharray": "5 3" }));
+        ei.appendChild(svgEl("rect", { x: ifr.x, y: Y(ib + ih), width: ifr.w, height: ih * s, fill: "#fff", stroke: ic, "stroke-width": 1.1 }));
         ei.appendChild(svgEl("line", { x1: X(front), x2: X(back), y1: Y(f.from), y2: Y(f.from), stroke: ic, "stroke-width": 1.6, "stroke-linecap": "round" }));
-        if (ih * s > 12) { var it = svgEl("text", { x: X(LPY / 2), y: Y(ib + ih / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(11, ih * s * .4), fill: ic }); it.textContent = "inn " + icode.toUpperCase(); ei.appendChild(it); }
+        if (isH * s > 12) { var it = svgEl("text", { x: X((id0 + Math.min(LPY - 2, id0 + idp)) / 2), y: Y(ib + isH / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": Math.min(11, isH * s * .4), fill: ic }); it.textContent = "inn " + icode.toUpperCase(); ei.appendChild(it); }
       } else if (f.type === "fixed") {
         var ef2 = g(f.label); ef2.appendChild(svgEl("rect", { x: L + 3, y: Y(f.to), width: w - 6, height: Math.max(1, (f.to - f.from) * s), fill: "#f5f5f7" }));
       } else if (f.type === "shelfFixed") {
@@ -432,9 +439,9 @@
         var etb = g(f.label + " — " + Math.round(f.z) + " mm þykkt, " + Math.round(f.bil) + " mm bil → tekur " + Math.round(f.bil + f.z) + " mm af hæðinni í hvorum enda", null);
         f.corners.forEach(function (cn) {
           var bot = cn <= 2, back = cn === 1 || cn === 4, x0 = bot ? f.bil : LPX - f.bil - f.z, d0 = back ? 1 : 0, d1 = back ? LPY : LPY - 1, rr = XR(d0, d1);
-          etb.appendChild(svgEl("rect", { x: rr.x, y: Y(x0 + f.z), width: rr.w, height: Math.max(2, f.z * s), fill: "#ece6d6", stroke: "#9c8a6b", "stroke-width": .9 }));
-          [30, 70, (LPY - 1) / 2, LPY - 31, LPY - 71].forEach(function (hy) { etb.appendChild(svgEl("circle", { cx: X(back ? LPY - hy : hy), cy: Y(x0 + f.z / 2), r: Math.max(1.6, 4 * s), fill: "none", stroke: "#7a6a4a", "stroke-width": .9 })); });
-          var tl2 = svgEl("text", { x: X(LPY / 2), y: Y(bot ? x0 + f.z : x0) + (bot ? -3 : 10), "text-anchor": "middle", "font-size": 9, fill: "#7a6a4a" }); tl2.textContent = (bot ? "Botn " : "Toppur ") + Math.round(f.bil + f.z) + " mm"; etb.appendChild(tl2);
+          etb.appendChild(svgEl("rect", { x: rr.x, y: Y(x0 + f.z), width: rr.w, height: Math.max(2, f.z * s), fill: "#d8ccb0", stroke: "#5c4a2a", "stroke-width": 1.4 }));
+          [30, 70, (LPY - 1) / 2, LPY - 31, LPY - 71].forEach(function (hy) { etb.appendChild(svgEl("circle", { cx: X(back ? LPY - hy : hy), cy: Y(x0 + f.z / 2), r: Math.max(1.8, 4 * s), fill: "#fff", stroke: "#5c4a2a", "stroke-width": 1.1 })); });
+          var tl2 = svgEl("text", { x: X(LPY / 2), y: Y(bot ? x0 + f.z : x0) + (bot ? -4 : 13), "text-anchor": "middle", "font-size": 11, "font-weight": 700, fill: "#5c4a2a" }); tl2.textContent = (bot ? "Botn " : "Toppur ") + Math.round(f.bil + f.z) + " mm"; etb.appendChild(tl2);
         });
       } else if (f.type === "rail" && opts.fre) {
         return; // FRE: no rails — one back board drawn above
@@ -443,7 +450,8 @@
         var er = g(f.label + " — í bakinu, " + Math.round(f.y) + " mm frá enda", "rail", f.y);
         f.corners.forEach(function (cn) {
           var bot = cn <= 2, back = cn === 1 || cn === 4, x0 = bot ? f.y : LPX - f.y - f.h, rr2 = back ? XR(LPY - f.bakz, LPY) : XR(0, f.bakz);
-          er.appendChild(svgEl("rect", { x: rr2.x, y: Y(x0 + f.h), width: rr2.w, height: Math.max(2, f.h * s), fill: "#e4e4e9", stroke: "#6e6e73", "stroke-width": 1 }));
+          er.appendChild(svgEl("rect", { x: rr2.x, y: Y(x0 + f.h), width: rr2.w, height: Math.max(2, f.h * s), fill: "#b9b9c1", stroke: "#2c2c2e", "stroke-width": 1.3 }));
+          var rt2 = svgEl("text", { x: rr2.x + rr2.w / 2, y: Y(x0 + f.h / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": 10, "font-weight": 700, fill: "#2c2c2e" }); rt2.textContent = "Slá"; er.appendChild(rt2);
         });
       } else if (f.type === "lift") {
         var elf = g(f.label, "lift", (f.shapes[0].pts ? f.shapes[0].pts[0][0] : f.shapes[0].x1)), lc2 = acc.rail ? BLUE : "#6e6e73";
@@ -492,9 +500,9 @@
 
   var LEGEND_ITEMS = [
     ["drawer", "Skúffa"], ["inner", "Innskúffa"], ["fixed", "Fast framstykki"], ["hinge", "Löm"],
-    ["handle", "Handfang/skrá"], ["shelfFixed", "Föst hilla"], ["shelfLoose", "Laus hilla"], ["rail", "Slá"], ["threshold", "Þröskuldur"],
+    ["handle", "Handfang/skrá"], ["shelfFixed", "Föst hilla"], ["shelfLoose", "Laus hilla"], ["tb", "Toppur / Botn"], ["rail", "Slá"], ["threshold", "Þröskuldur"],
   ];
-  var LEGEND_COLOR = { drawer: "#9db8cf", inner: "#c7a9d6", fixed: "#d9b98a", hinge: "#4f7294", handle: "#4f7294", shelfFixed: "#2f7f6a", shelfLoose: "#2f7f6a", rail: "#8a8878", threshold: "#b05c4a" };
+  var LEGEND_COLOR = { drawer: "#9db8cf", inner: "#c7a9d6", fixed: "#d9b98a", hinge: "#4f7294", handle: "#4f7294", shelfFixed: "#2f7f6a", shelfLoose: "#2f7f6a", tb: "#d8ccb0", rail: "#8a8878", threshold: "#b05c4a" };
 
   // A master with 2+ template lines for the same managed macro made renderSide (cnc-sides.js /
   // cnc-doors.js) re-emit that macro's whole op group at every template occurrence before 2026-10-14's

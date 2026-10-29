@@ -436,9 +436,12 @@
     var s = '<svg xmlns="' + NS + '" viewBox="0 0 ' + vw + " " + vh + '" width="' + vw + '" height="' + vh + '" id="elev">';
     // carcass
     s += '<rect x="' + X(0) + '" y="' + Y(H) + '" width="' + W * sc + '" height="' + H * sc + '" rx="2" fill="#fff" stroke="#1d1d1f" stroke-width="1.4"/>';
-    // the top and bottom board (toppur / botn) as bands, so it is clear where the inside of the box starts
-    s += '<rect x="' + X(0) + '" y="' + Y(H) + '" width="' + W * sc + '" height="' + g.T * sc + '" fill="#ececf0" stroke="#1d1d1f" stroke-width=".8"><title>Toppur ' + mm(g.T) + ' mm</title></rect>' +
-      '<rect x="' + X(0) + '" y="' + Y(g.T) + '" width="' + W * sc + '" height="' + g.T * sc + '" fill="#ececf0" stroke="#1d1d1f" stroke-width=".8"><title>Botn ' + mm(g.T) + ' mm</title></rect>';
+    // the top and bottom board (toppur / botn) as clear bands: 1 mm gap + the board (16) = 17 mm from each end, as TOPP_BOTN drills it (BIL 1)
+    var gap1 = 1, tb1 = g.T + gap1;
+    s += '<rect x="' + X(0) + '" y="' + Y(H - gap1) + '" width="' + W * sc + '" height="' + g.T * sc + '" fill="#d8ccb0" stroke="#5c4a2a" stroke-width="1.2"><title>Toppur ' + mm(g.T) + ' mm (1 mm bil + ' + mm(g.T) + " = " + mm(tb1) + ' mm)</title></rect>' +
+      '<rect x="' + X(0) + '" y="' + Y(gap1 + g.T) + '" width="' + W * sc + '" height="' + g.T * sc + '" fill="#d8ccb0" stroke="#5c4a2a" stroke-width="1.2"><title>Botn ' + mm(g.T) + ' mm (1 mm bil + ' + mm(g.T) + " = " + mm(tb1) + ' mm)</title></rect>' +
+      '<text x="' + (X(W) - 6) + '" y="' + (Y(H - gap1) + g.T * sc * .5 + 4) + '" text-anchor="end" font-size="11" font-weight="700" fill="#5c4a2a">Toppur ' + mm(tb1) + ' mm</text>' +
+      '<text x="' + (X(W) - 6) + '" y="' + (Y(gap1 + g.T) + g.T * sc * .5 + 4) + '" text-anchor="end" font-size="11" font-weight="700" fill="#5c4a2a">Botn ' + mm(tb1) + ' mm</text>';
     // drawer runners (brautir) on both sides, at the height /cnc drills them (Merivo 80, Legra 62.5 above the slot's bottom)
     function runnerSvg(y, col, tt) {
       return '<g><line x1="' + (X(0) + 1) + '" x2="' + (X(0) + 15) + '" y1="' + y + '" y2="' + y + '" stroke="' + col + '" stroke-width="3" stroke-linecap="round"/>' +
@@ -746,7 +749,7 @@
     });
     var cap = document.createElement("div"); cap.className = "cnccap";
     cap.innerHTML = '<span><svg width="12" height="16" viewBox="-1 -1 26 30"><path d="M1 9.5H5V13.5H1Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><path d="M19 9H23V17H19Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><rect x="5" y="0" width="14" height="28" rx="3" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/></svg>Lamaklossar</span>' +
-      '<span><i class="cs"></i>Hillugöt</span><span><i style="width:9px;height:9px;background:#8e8e93;border:1px solid #1d1d1f"></i>Slá í bakinu</span><span><i style="width:4px;height:12px;background:#e6dcc8;border:1px solid #9c8a6b"></i>Masonít-rauf</span><span><i style="width:4px;height:12px;background:#fff4e5;border:1px solid #e8903a"></i>LED</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span><i class="cfr"></i>Frontar</span><span><i class="cgp"></i>Gripprófíll</span><span class="cred">Rautt = árekstur</span><span class="cb">Blátt = stillt hér</span>';
+      '<span><i class="cs"></i>Hillugöt</span><span><i style="width:12px;height:7px;background:#d8ccb0;border:1px solid #5c4a2a"></i>Toppur / Botn</span><span><i style="width:9px;height:9px;background:#b9b9c1;border:1px solid #2c2c2e"></i>Slá í bakinu</span><span><i style="width:4px;height:12px;background:#e6dcc8;border:1px solid #9c8a6b"></i>Masonít-rauf</span><span><i style="width:4px;height:12px;background:#fff4e5;border:1px solid #e8903a"></i>LED</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span><i class="cfr"></i>Frontar</span><span><i class="cgp"></i>Gripprófíll</span><span class="cred">Rautt = árekstur</span><span class="cb">Blátt = stillt hér</span>';
     if (files.length) wrap.appendChild(cap);
     // the cabinet's fronts, each with what /cnc drills in it (plan.fronts = the export's own front plans), read-only
     if ((p.fronts || []).length) {
@@ -818,6 +821,14 @@
   function gripEff(c) { return c.gripMm || (ed(c).jey > 0 ? ed(c).jey : 0); } // the Eyðublað's grip, else Jey added here
   var AT_BASE = "app91U15z9K704Okd", AT_UNIT = CD.UNIT; // the Eyðublað's own record in Airtable (new tab)
   function eydLink(c, txt) { return '<a class="act" style="display:inline-block;margin:6px 0 0;font-size:13px" target="_blank" rel="noopener" href="https://airtable.com/' + AT_BASE + "/" + AT_UNIT + "/" + encodeURIComponent(c.unit) + '">' + (txt || "Opna Eyðublað →") + "</a>"; }
+  // Blum nominal lengths (kitchen-planner-3d.js drawerNominalM: 50 mm steps, 270–650, 270 below 300) up to what the cabinet takes (side depth − 20, as CNC checks);
+  // the current value is always listed (an off-step Sögunarlisti default shows as "úr Sögunarlista")
+  var DEPTH_STEPS = [270, 300, 350, 400, 450, 500, 550, 600, 650];
+  function depthOptions(cur, sideD) {
+    var max = sideD - 20, list = DEPTH_STEPS.filter(function (v) { return v <= max; }).map(function (v) { return { v: v }; }), c0 = Math.round(cur);
+    if (!list.some(function (o) { return o.v === c0; })) { list.push({ v: c0, note: c0 > max ? " — of djúp" : " — úr Sögunarlista", bad: c0 > max }); list.sort(function (a, b) { return a.v - b.v; }); }
+    return list;
+  }
   function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
   function renderPanel() {
     var c = cab(), e = ed(c), p = plan(c), el = $("panel");
@@ -956,7 +967,7 @@
       var dcodes = p.drawers.map(function (d) { return d.code; }).filter(function (x, i, a) { return a.indexOf(x) === i; }), dd = p.drawerDepth || {};
       h += row("dw", "Skúffur", p.drawers.map(function (d) { return d.code + " " + mm(d.front); }).join(" · ") + (Object.keys(dd).length ? " · dýpt " + dcodes.map(function (k) { return dd[k] ? mm(dd[k].mm) : "?"; }).join("/") : ""),
         '<div class="line"><span class="u">Dýpt skúffu (mm) ' + tip("Sjálfgefið úr „Skúffubotn“ í Sögunarlista (lengd + 26). Dýptin breytir EKKI borun — Merivo/Legra macroin hafa enga dýptarbreytu — hún er upplýsing og CNC varar við ef skúffan kemst ekki fyrir í skápnum. Til að skera botn og bak í aðra dýpt: breyttu á Eyðublaðinu og keyrðu Yfirfara.") + "</span></div>" +
-        dcodes.map(function (k) { var x = dd[k]; return x ? '<div class="line"><span class="t">' + k + '</span><input type="number" data-ddepth="' + k + '" value="' + mm(x.mm) + '"><span class="u">mm' + (x.def != null && x.set ? " (Sögunarlisti " + mm(x.def) + ")" : "") + "</span></div>" : ""; }).join(""));
+        dcodes.map(function (k) { var x = dd[k]; return x ? '<div class="line"><span class="t">' + k + '</span><select data-ddepth="' + k + '">' + depthOptions(x.mm, c.base.LPY).map(function (o) { return '<option value="' + o.v + '"' + (o.v === Math.round(x.mm) ? " selected" : "") + (o.bad ? ' style="color:#b25000"' : "") + ">" + o.v + (o.note || "") + "</option>"; }).join("") + '</select><span class="u">mm' + (x.def != null && x.set ? " (Sögunarlisti " + mm(x.def) + ")" : "") + "</span></div>" : ""; }).join(""));
     }
     h += "</div>";
     // ── what /cnc still says (real things only — the defaults go away once marked, the open questions are above)
@@ -1041,7 +1052,7 @@
     else if (act === "step") go(+d.to);
   });
   document.addEventListener("change", function (ev) {
-    var t = ev.target; if (!t.matches || !t.matches(".panel input[type=number]")) return;
+    var t = ev.target; if (!t.matches || !t.matches(".panel input[type=number], .panel select[data-ddepth]")) return;
     var v = Math.round(+t.value), c = cab(), d = t.dataset;
     if (!isFinite(v)) { renderPanel(); return; }
     change(function (e) {
