@@ -284,6 +284,20 @@
   .chip.warn { background:var(--warn-bg); color:var(--warn); } .chip.ok { background:var(--good-bg); color:var(--good); } .chip.wait { background:var(--warn-bg); color:var(--warn); }
   .klartBox { margin-top:18px; max-width:760px; }
   .stat { color:var(--muted); font-size:.9rem; }
+
+  .unitQueue { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 16px; }
+  .qchip { all:unset; box-sizing:border-box; cursor:pointer; padding:7px 14px; border-radius:999px; background:var(--bg); color:var(--text); font-size:.86rem; font-weight:600; }
+  .qchip.ok { background:var(--good-bg); color:var(--good); } .qchip.fl { background:var(--warn-bg); color:var(--warn); }
+  .qchip.sel { box-shadow:0 0 0 2px var(--accent); }
+  .qnav { margin-left:16px; } .qnav .link { margin-right:10px; }
+  .unitPane.loading { opacity:.5; }
+  .unitPane .modal { max-width:none; width:100%; max-height:none; padding:0; background:transparent; border-radius:0; overflow:visible; }
+  .unitPane .mClose, .unitPane .wTabs { display:none; }
+  .unitPane .wPanel { display:block; }
+  .unitPane .wCard { background:var(--bg); }
+  .unitPane .boxSvg { max-width:380px; display:block; margin:0 auto; }
+  .wSecT { font-size:.8rem; font-weight:600; color:var(--muted); letter-spacing:.02em; margin:22px 0 8px; }
+  .unitPane .approveBtn { max-width:360px; margin-left:auto; display:block; }
 </style>
 </head>
 <body>
@@ -417,7 +431,7 @@
   } else {
     loadDetail(recordId);
   }
-  if (unitParam) openUnitModal(unitParam);
+  // ?unit=<id> is read by pendingUnit (selected when the Einingar step is drawn)
 
   // ======================= BOARD (list, 2026-10-28) =======================
   // No kanban: what matters is what needs somebody. Stale projects first, then one group per stage
@@ -582,6 +596,9 @@
     { id: "pontun", title: "Pöntun" },
     { id: "klart", title: "Klárt til framleiðslu" }
   ];
+  // LOCKS_ON = false while the flow is being built (owner 2026-10-29: "hafa allt opið núna svo ég sjái allt ferlið, lásarnir á þegar við klárum").
+  // Steps still show done / current from the data — they just never close. FLIP TO true WHEN THE REDESIGN IS FINISHED.
+  var LOCKS_ON = false;
   var SIG = { proj: null, units: [], orders: [], ready: false };
   var stepFilled = {}, stageAutoMoved = false, pollTimers = {};
   var CHECK_FIELDS = ["1. Dagssetningar ákveðnar", "2. Cutty keyrður fyrir þetta verkefni og kominn á USB?", "3. Teikningar prentaðar 2x", "4. Verkfundur tekinn", "6. CNC yfirfarið"];
@@ -590,7 +607,7 @@
     SIG.proj = proj; stepFilled = {}; stageAutoMoved = false;
     var f = proj.fields || {};
     document.getElementById("pageTitle").textContent = f["Heiti tækifæris / verkefnis"] || "(ónefnt)";
-    document.getElementById("lead").textContent = "";
+    document.getElementById("lead").innerHTML = LOCKS_ON ? "" : '<span class="chip warn">Læsingar slökktar meðan ferlið er í smíðum — öll skref opin</span>';
     document.body.classList.add("snap");
     var det = document.getElementById("detail");
     det.innerHTML =
@@ -669,7 +686,7 @@
     // locked = an earlier step is not done
     var blocked = null;
     STEPS.forEach(function (stp) {
-      var o = out[stp.id]; o.locked = !!blocked; o.blockedBy = blocked;
+      var o = out[stp.id]; o.locked = LOCKS_ON && !!blocked; o.blockedBy = blocked;
       if (!o.done && !blocked) blocked = stp.id;
     });
     out._current = blocked || "klart";
@@ -742,21 +759,47 @@
   }
 
   // ---- Stage 2: Skipulag (unit list) ----
-  function fillSkipulag(proj) { renderUnitList(); }
+  var selUnit = null, pendingUnit = unitParam || null;
+  function fillSkipulag(proj) {
+    var el = document.getElementById("content-skipulag");
+    el.innerHTML = '<div class="unitSum" id="unitSum"></div><div class="unitQueue" id="unitQueue"></div><div class="unitPane" id="unitPane"></div>';
+    // the unit review (the old pop-up) lives right here, full width: one unit at a time, all four parts under each other
+    var modal = document.querySelector("#modalBg .modal"), pane = document.getElementById("unitPane");
+    if (modal) {
+      pane.appendChild(modal); document.getElementById("modalBg").style.display = "none";
+      ["1 · Kassi", "2 · Skúffur og hillur", "3 · Sögunarlisti", "4 · Pöntun einingar"].forEach(function (t, i) {
+        var pn = modal.querySelectorAll(".wPanel")[i]; if (!pn) return;
+        var h = document.createElement("h3"); h.className = "wSecT"; h.textContent = t; pn.parentNode.insertBefore(h, pn);
+      });
+    }
+    renderUnitList();
+  }
   function renderUnitList() {
-    var el = document.getElementById("content-skipulag"); if (!el) return;
+    var sum = document.getElementById("unitSum"), q = document.getElementById("unitQueue"); if (!sum || !q) return;
     var recs = SIG.units;
-    if (recs === null) { el.innerHTML = '<div class="note err">Gat ekki lesið einingar. <button class="link" type="button" id="unitsRetry">Reyna aftur</button></div>'; el.querySelector("#unitsRetry").onclick = function () { refreshSignals(); }; return; }
-    if (!recs.length) { el.innerHTML = '<div class="empty">Engar einingar skráðar enn</div>'; return; }
+    if (recs === null) { sum.innerHTML = '<span class="bad">Gat ekki lesið einingar.</span> <button class="link" type="button" id="unitsRetry">Reyna aftur</button>'; q.innerHTML = ""; sum.querySelector("#unitsRetry").onclick = function () { refreshSignals(); }; return; }
+    if (!recs.length) { sum.textContent = "Engar einingar skráðar enn"; q.innerHTML = ""; return; }
     var sorted = recs.slice().sort(function (a, z) { var na = parseInt(String(unitName(a)).replace(/\D+/, ""), 10) || 1e9, nz = parseInt(String(unitName(z)).replace(/\D+/, ""), 10) || 1e9; return na - nz; });
     var done = recs.filter(function (r) { return (r.fields || {})["Yfirfarin"]; }).length, flagged = recs.filter(unitFlagged).length;
-    el.innerHTML = '<div class="unitSum"><b>' + done + ' af ' + recs.length + '</b> yfirfarnar' + (flagged ? ' · <span class="bad">' + flagged + ' með vandamál</span>' : '') + '</div>' +
-      sorted.map(function (r) {
-        var f = r.fields || {}, ok = !!f["Yfirfarin"], fl = unitFlagged(r);
-        return '<div class="unitRow' + (ok ? " unitDone" : "") + '" data-unit="' + r.id + '"><span>' + (ok ? "✓ " : "") + esc(unitName(r)) + (fl ? ' <span class="chip warn">vandamál</span>' : "") + '</span>' +
-          '<span class="chip">' + esc(f["Hvað viltu smíða?"] || "") + '</span></div>';
-      }).join("");
-    el.querySelectorAll(".unitRow").forEach(function (row) { row.addEventListener("click", function () { openUnitModal(row.dataset.unit); }); });
+    sum.innerHTML = '<b>' + done + ' af ' + recs.length + '</b> yfirfarnar' + (flagged ? ' · <span class="bad">' + flagged + ' með vandamál</span>' : '') +
+      ' <span class="qnav"><button type="button" class="link" id="unitPrev">← Fyrri</button><button type="button" class="link" id="unitNext">Næsta →</button></span>';
+    q.innerHTML = sorted.map(function (r) {
+      var ok = !!(r.fields || {})["Yfirfarin"], fl = unitFlagged(r);
+      return '<button type="button" class="qchip' + (ok ? " ok" : "") + (fl ? " fl" : "") + (selUnit === r.id ? " sel" : "") + '" data-unit="' + r.id + '" title="' + esc((r.fields || {})["Hvað viltu smíða?"] || "") + '">' + (ok ? "✓ " : "") + esc(unitName(r)) + (fl ? " !" : "") + '</button>';
+    }).join("");
+    q.querySelectorAll(".qchip").forEach(function (c) { c.onclick = function () { selectUnit(c.dataset.unit); }; });
+    document.getElementById("unitPrev").onclick = function () { stepUnit(-1, sorted); };
+    document.getElementById("unitNext").onclick = function () { stepUnit(1, sorted); };
+    if (!selUnit) {
+      var first = (pendingUnit && recs.filter(function (r) { return r.id === pendingUnit; })[0]) || sorted.filter(function (r) { return !(r.fields || {})["Yfirfarin"]; })[0] || sorted[0];
+      pendingUnit = null; if (first) selectUnit(first.id);
+    }
+  }
+  function stepUnit(d, sorted) { var i = sorted.map(function (r) { return r.id; }).indexOf(selUnit); var n = sorted[Math.max(0, Math.min(sorted.length - 1, i + d))]; if (n) selectUnit(n.id); }
+  function selectNextOpen() {
+    var rest = (SIG.units || []).filter(function (r) { return !(r.fields || {})["Yfirfarin"] && r.id !== selUnit; });
+    rest.sort(function (a, z) { return (parseInt(String(unitName(a)).replace(/\D+/, ""), 10) || 1e9) - (parseInt(String(unitName(z)).replace(/\D+/, ""), 10) || 1e9); });
+    if (rest[0]) selectUnit(rest[0].id);
   }
   // after "Samþykkja einingu": the automation runs in Airtable — wait for the result instead of trusting the click
   function pollSignals(key, tries, test, onOk, onGiveUp) {
@@ -1070,14 +1113,18 @@
   }
 
   // ======================= Unit wizard modal (ported from /yfirferd) =======================
-  function openUnitModal(unitId) {
-    document.getElementById("modalBg").classList.add("open");
+  function openUnitModal(unitId) { if (stepFilled.skipulag) selectUnit(unitId); else pendingUnit = unitId; }
+  function selectUnit(unitId) {
+    selUnit = unitId;
+    document.querySelectorAll("#unitQueue .qchip").forEach(function (c) { c.classList.toggle("sel", c.dataset.unit === unitId); });
+    var pane = document.getElementById("unitPane"); if (pane) pane.classList.add("loading");
     api(EYDUBLAD + "/" + unitId).then(function (unit) {
       var unitName = (unit.fields || {})["Athugasemd"] || "";
       // FIND + unit id (a unit name with a comma never matches {Eyðublað ✏️}="name").
       var fml = linkFilter("%7BEy%C3%B0ubla%C3%B0%20%E2%9C%8F%EF%B8%8F%7D", unitName);
       return Promise.all([Promise.resolve(unit), api(SOGUNARLISTI, "filterByFormula=" + fml + "&maxRecords=200"), api(VORUR, "filterByFormula=" + fml + "&maxRecords=200")]);
-    }).then(function (res) { renderUnit(res[0], onlyProject(res[1].records, "Eyðublað ✏️", unitId), onlyProject(res[2].records, "Eyðublað ✏️", unitId)); });
+    }).then(function (res) { if (selUnit !== unitId) return; renderUnit(res[0], onlyProject(res[1].records, "Eyðublað ✏️", unitId), onlyProject(res[2].records, "Eyðublað ✏️", unitId)); var pn = document.getElementById("unitPane"); if (pn) pn.classList.remove("loading"); })
+      .catch(function () { var pn = document.getElementById("unitPane"); if (pn) { pn.classList.remove("loading"); pn.insertAdjacentHTML("afterbegin", '<div class="note err">Gat ekki sótt eininguna.</div>'); } });
   }
   document.getElementById("mClose").addEventListener("click", function () { document.getElementById("modalBg").classList.remove("open"); });
   document.getElementById("modalBg").addEventListener("click", function (e) { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
@@ -1090,7 +1137,10 @@
     flagsEl.innerHTML = "";
     if (f["Skúffur stemma ekki ⚠️"]) addFlag("Skúffur stemma ekki við á milli Sögunar og Pöntunar");
     if (f["Vantar hluta ⚠️"]) addFlag("Það vantar hluta fyrir þessa einingu");
-    function addFlag(msg) { var d = document.createElement("div"); d.className = "wFlag"; d.textContent = "⚠️ " + msg; flagsEl.appendChild(d); }
+    if (!sogun.length) addFlag("Engir hlutar í Sögunarlista fyrir þessa einingu");
+    if (!vorur.length) addFlag("Engar vörur á einingunni (Pöntun einingar er tóm)");
+    if (vorur.some(function (v) { return (v.fields || {})["⛔ Villa"]; })) addFlag("Vara á einingunni er með villu (⛔) — skoðaðu Pöntun einingar");
+    function addFlag(msg) { var d = document.createElement("div"); d.className = "wFlag"; d.textContent = "! " + msg; flagsEl.appendChild(d); }
 
     var box = parseBox(f);
     drawBox(box);
@@ -1110,6 +1160,7 @@
 
     var msg = document.getElementById("approveMsg");
     msg.textContent = "";
+    document.getElementById("approveBtn").textContent = "Yfirfarin — næsta →";
     document.getElementById("approveBtn").onclick = function () {
       var btn = document.getElementById("approveBtn");
       btn.disabled = true; msg.textContent = "Sendi…";
@@ -1119,7 +1170,7 @@
           msg.textContent = "Yfirfer… (bíð eftir að Airtable skili)";
           var uid = unit.id;
           pollSignals("unit" + uid, 150, function () { var u = (SIG.units || []).filter(function (r) { return r.id === uid; })[0]; return !!(u && (u.fields || {})["Yfirfarin"]); },
-            function () { msg.textContent = "Yfirfarin ✓" + ((SIG.units || []).filter(unitFlagged).some(function (r) { return r.id === uid; }) ? " — en eining hefur vandamál, skoðaðu hana." : ""); btn.disabled = false; },
+            function () { msg.textContent = "Yfirfarin ✓" + ((SIG.units || []).filter(unitFlagged).some(function (r) { return r.id === uid; }) ? " — en eining hefur vandamál, skoðaðu hana." : ""); btn.disabled = false; if (selUnit === uid) setTimeout(selectNextOpen, 700); },
             function () { msg.textContent = "Ekki yfirfarin enn — athugaðu Airtable (Skipulag · Yfirfara einingu) og reyndu aftur."; btn.disabled = false; });
         }).catch(function () { msg.textContent = "Tókst ekki."; btn.disabled = false; });
     };
