@@ -262,15 +262,14 @@
   .approveMsg { text-align:center; font-size:.8rem; color:var(--muted); margin-top:6px; min-height:1.1em; }
 
   /* ---- Skipulagsleiðin (2026-10-29) ---- */
-  html:has(body.snap) { scroll-snap-type:y proximity; scroll-padding-top:76px; }
+  html { overflow-anchor:none; } /* no snapping, no anchoring: the page only moves when you scroll it */
   .rail { position:sticky; top:0; z-index:30; display:flex; gap:8px; background:var(--bg); padding:12px 0 14px; margin:-6px 0 18px; overflow-x:auto; }
   .rp { all:unset; box-sizing:border-box; cursor:pointer; flex:1 1 0; min-width:150px; display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:12px; background:var(--surface); color:var(--muted); font-size:.9rem; font-weight:600; }
   .rp .rn { flex:none; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--muted); font-size:.78rem; font-weight:700; }
   .rp.cur { color:var(--text); box-shadow:0 0 0 2px var(--accent); } .rp.cur .rn { background:var(--accent); color:#fff; }
   .rp.done { color:var(--text); } .rp.done .rn { background:var(--good); color:#fff; }
   .rp.locked { cursor:not-allowed; opacity:.55; }
-  .step { scroll-snap-align:start; scroll-margin-top:76px; margin-bottom:26px; }
-  .step.current { min-height:calc(100vh - 170px); } /* only the step you are on fills the screen; a finished one is as tall as its content */
+  .step { scroll-margin-top:76px; margin-bottom:26px; }
   .step .sn { display:inline-flex; width:26px; height:26px; margin-right:10px; border-radius:50%; align-items:center; justify-content:center; background:var(--bg); color:var(--muted); font-size:.82rem; }
   .step.current { box-shadow:0 0 0 2px var(--accent); }
   .step.locked { background:transparent; border:2px dashed var(--line); min-height:0; }
@@ -860,15 +859,17 @@
     if (!recs.length) { sum.textContent = "Engar einingar skráðar enn"; q.innerHTML = ""; return; }
     var sorted = recs.slice().sort(function (a, z) { var na = parseInt(String(unitName(a)).replace(/\D+/, ""), 10) || 1e9, nz = parseInt(String(unitName(z)).replace(/\D+/, ""), 10) || 1e9; return na - nz; });
     var done = recs.filter(function (r) { return (r.fields || {})["Yfirfarin"]; }).length, flagged = recs.filter(unitFlagged).length;
-    sum.innerHTML = '<b>' + done + ' af ' + recs.length + '</b> yfirfarnar' + (flagged ? ' · <span class="bad">' + flagged + ' með vandamál</span>' : '') +
+    var sumHtml = '<b>' + done + ' af ' + recs.length + '</b> yfirfarnar' + (flagged ? ' · <span class="bad">' + flagged + ' með vandamál</span>' : '') +
       ' <span class="qnav"><button type="button" class="link" id="unitPrev">← Fyrri</button><button type="button" class="link" id="unitNext">Næsta →</button></span>';
-    q.innerHTML = sorted.map(function (r) {
+    var qHtml = sorted.map(function (r) {
       var ok = !!(r.fields || {})["Yfirfarin"], fl = unitFlagged(r), wt = !ok && inReview[r.id];
       return '<button type="button" class="qchip' + (ok ? " ok" : "") + (wt ? " wait" : "") + (fl ? " fl" : "") + (selUnit === r.id ? " sel" : "") + '" data-unit="' + r.id + '" title="' + esc((r.fields || {})["Hvað viltu smíða?"] || "") + '">' + (ok ? "✓ " : wt ? "… " : "") + esc(unitName(r)) + (fl ? " !" : "") + '</button>';
     }).join("");
-    q.querySelectorAll(".qchip").forEach(function (c) { c.onclick = function () { selectUnit(c.dataset.unit); }; });
-    document.getElementById("unitPrev").onclick = function () { stepUnit(-1, sorted); };
-    document.getElementById("unitNext").onclick = function () { stepUnit(1, sorted); };
+    if (setHtml(q, qHtml) | setHtml(sum, sumHtml)) {
+      q.querySelectorAll(".qchip").forEach(function (c) { c.onclick = function () { selectUnit(c.dataset.unit); }; });
+      document.getElementById("unitPrev").onclick = function () { stepUnit(-1, sorted); };
+      document.getElementById("unitNext").onclick = function () { stepUnit(1, sorted); };
+    }
     if (!selUnit) {
       var first = (pendingUnit && recs.filter(function (r) { return r.id === pendingUnit; })[0]) || sorted.filter(function (r) { return !(r.fields || {})["Yfirfarin"]; })[0] || sorted[0];
       pendingUnit = null; if (first) selectUnit(first.id);
@@ -1177,6 +1178,14 @@
       .then(function (d) { SIG.lines = onlyProject(d.records, "Tækifæri 📣", proj.id); })
       .catch(function () { SIG.lines = null; });
   }
+  // The 30 s refresh re-renders the lists; swapping identical HTML (or letting the page height flicker) is what moved the page.
+  // Returns false when nothing changed; otherwise the scroll position is put back after the swap.
+  function setHtml(el, html) {
+    if (el._html === html) return false;
+    var y = window.pageYOffset; el._html = html; el.innerHTML = html;
+    if (window.pageYOffset !== y) window.scrollTo(0, y);
+    return true;
+  }
   var openPdf = {}, dirtyOrders = {}, ordersBusy = false;
   function lineOrderIds(l) { return ((l.fields || {})["Pantaðir listar"] || []).map(function (ol) { return typeof ol === "string" ? ol : ol.id; }); }
   function reloadOrderData() { return Promise.all([loadLines(SIG.proj), loadOrders(SIG.proj)]).then(function () { ordersBusy = false; renderOrderList(true); }); }
@@ -1200,7 +1209,7 @@
       ["Innkaup af tilboði", quote && total ? Math.round(total / exVat * 100) + " %" : "—", "áætlaður kostnaður ÷ tilboð án vsk"], ["Pantanir sendar", sent + " af " + recs.length, ""],
       ["Línur án verðs", lines === null ? "?" : String(noPrice), noPrice ? "skoðaðu þær fyrst" : ""]];
     var dirtyAny = Object.keys(dirtyOrders).length;
-    el.innerHTML = '<div class="costStrip">' + cards.map(function (c) { return '<div class="costCard' + (c[0] === "Línur án verðs" && noPrice ? " bad" : "") + '"><div class="cl">' + c[0] + '</div><div class="cv">' + esc(c[1]) + '</div><div class="cs">' + esc(c[2]) + '</div></div>'; }).join("") + '</div>' +
+    var html = '<div class="costStrip">' + cards.map(function (c) { return '<div class="costCard' + (c[0] === "Línur án verðs" && noPrice ? " bad" : "") + '"><div class="cl">' + c[0] + '</div><div class="cv">' + esc(c[1]) + '</div><div class="cs">' + esc(c[2]) + '</div></div>'; }).join("") + '</div>' +
       (dirtyAny ? '<div class="note warnNote">Þú breyttir línum — endurprentaðu PDF á pöntuninni áður en hún fer til birgja.</div>' : "") +
       recs.map(function (r) {
         var f = r.fields || {}, st = f["Staða"] || "Í undirbúningi", ok = /^(Sent|Komið)/.test(st), ls = byOrder[r.id] || [], pdf = (f["Pöntunarlistar PDF"] || [])[0], isOpen = !!openPdf[r.id];
@@ -1213,7 +1222,7 @@
           (pdf ? '<a class="proLink" target="_blank" rel="noopener" href="' + esc(pdf.url) + '">Opna í flipa ↗</a>' : '<span class="stat">PDF ekki til enn</span>') + '</div>' +
           (isOpen && pdf ? '<iframe class="pdfFrame" src="' + esc(pdf.url) + '" title="Pöntunarlisti PDF"></iframe>' : "") + '</div>';
       }).join("") + orderLinesHtml(lines, orderName);
-    wireOrders(el);
+    if (setHtml(el, html)) wireOrders(el);
   }
   // all lines of the project grouped by Gerð (Plötur, Kantlíming, Skúffur …): the same columns as the Airtable view
   function orderLinesHtml(lines, orderName) {
@@ -1309,8 +1318,8 @@
     var units = SIG.units || [], orders = SIG.orders || [], arrived = orders.filter(function (o) { return /Komið/.test((o.fields || {})["Staða"] || ""); }).length;
     var rows = [["Einingar", units.length + " — allar yfirfarnar"], ["Afhending", (f["Áætlaður afhendingardagur Björninn (internal)"] ? dateIs(f["Áætlaður afhendingardagur Björninn (internal)"]) : "ekki skráð")],
       ["Pantanir", orders.length + " sendar" + (arrived ? " · " + arrived + " komnar í hús" : "")]];
-    el.innerHTML = '<div class="list">' + rows.map(function (r) { return '<div class="prow" style="cursor:default"><div class="pn"><div class="t">' + r[0] + '</div></div><span class="stat">' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
-      (klart ? '<p class="stepIntro" style="margin-top:14px">Verkið er klárt til framleiðslu. <a class="proLink" href="/framleidsla?recordId=' + SIG.proj.id + k2 + '">Opna á Framleiðslu →</a></p>' : "");
+    if (!setHtml(el, '<div class="list">' + rows.map(function (r) { return '<div class="prow" style="cursor:default"><div class="pn"><div class="t">' + r[0] + '</div></div><span class="stat">' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
+      (klart ? '<p class="stepIntro" style="margin-top:14px">Verkið er klárt til framleiðslu. <a class="proLink" href="/framleidsla?recordId=' + SIG.proj.id + k2 + '">Opna á Framleiðslu →</a></p>' : ""))) return;
     var b = document.getElementById("klartBtn"); if (b) { b.hidden = klart; var bx = document.querySelector(".klartBox"); if (bx && klart) bx.hidden = true; }
   }
 
@@ -1318,7 +1327,7 @@
   function openUnitModal(unitId) { if (stepFilled.skipulag) selectUnit(unitId); else pendingUnit = unitId; }
   function selectUnit(unitId) {
     selUnit = unitId;
-    document.querySelectorAll("#unitQueue .qchip").forEach(function (c) { c.classList.toggle("sel", c.dataset.unit === unitId); });
+    document.querySelectorAll("#unitQueue .qchip").forEach(function (c) { c.classList.toggle("sel", c.dataset.unit === unitId); }); var uq = document.getElementById("unitQueue"); if (uq) uq._html = null;
     var pane = document.getElementById("unitPane"); if (pane) pane.classList.add("loading");
     api(EYDUBLAD + "/" + unitId).then(function (unit) {
       var unitName = (unit.fields || {})["Athugasemd"] || "";
