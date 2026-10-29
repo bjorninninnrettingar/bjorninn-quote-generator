@@ -563,7 +563,7 @@
       var len = r1(door.to - door.from), e0 = ed(c);
       if (e0.doors && e0.doors[i] && e0.doors[i].type === "lift") return;
       var pos0 = door.hinges || [];
-      if (hg && pos0.length <= 1) { toast("Hurðin þarf að minnsta kosti eina löm"); return; }
+      if (hg && pos0.length <= 2) { toast("Hurðin þarf alltaf að minnsta kosti tvær lamir"); return; }
       change(function (e) {
         ensureDoors(c, e);
         var pos = SD.specToPositions(e.doors[i].hinges, len);
@@ -795,13 +795,19 @@
       h += c.base.hingeSide === "baedi" && !e.hinge ? row("hinge", "Lamahlið", "Báðum megin (vænghurð)", "", true)
         : row("hinge", "Lamahlið", esc(SIDE_NAME[e.hinge] || "—"), hingeCards(e));
     }
+    if (doors.length && !askHinge && c.base.cabinets > 1 && (e.hinge === "vinstri" || e.hinge === "haegri")) {
+      var nC = c.base.cabinets, sp = e.hingeSplit && e.hingeSplit.vinstri + e.hingeSplit.haegri === nC ? e.hingeSplit : null, nl = sp ? sp.vinstri : e.hinge === "vinstri" ? nC : 0;
+      h += row("hsplit", "Skipting lama", sp ? sp.vinstri + " vinstri · " + sp.haegri + " hægri" : "Allir " + (e.hinge === "vinstri" ? "vinstra" : "hægra") + " megin",
+        '<div class="line"><span class="u">Hve margir af ' + nC + ' skápum hanga vinstra megin ' + tip("Eitt Eyðublað með fleiri en einn eins skáp: sumir geta verið með lamir vinstra megin, aðrir hægra megin. CNC skrifar þá báðar hliðarskrár.") + "</span></div>" +
+        '<div class="line"><span class="seg">' + Array.apply(null, Array(nC + 1)).map(function (_, k) { return '<button type="button" data-hsplit="' + k + '" class="' + (nl === k ? "on" : "") + '">' + k + " v · " + (nC - k) + " h</button>"; }).join("") + "</span></div>");
+    }
     doors.forEach(function (d, i) {
       var x = e.doors && e.doors[i], lift = x && x.type === "lift", pd = (p.doors || [])[i] || d, len = r1(pd.to - pd.from), pos = pd.hinges || [];
       var val = lift ? "Lyftihurð" : plural(pos.length, "löm", "lamir") + (x ? " · færðar" : "");
       var adv = lift ? "" : more("h" + i,
         '<div class="line"><span class="u">mm frá enda hurðar ' + tip("↓ = frá neðri brún hurðar, ↑ = frá efri brún. Sjálfgefið: 80 mm frá endum, hinar jafnt á milli, færðar frá hillum. Þú getur líka dregið lamirnar á teikningunni — hægrismelltu á löm til að eyða henni, á hurð til að bæta við.") + "</span></div>" +
         pos.map(function (q, j) { var top = q > len / 2; return '<div class="line"><span class="t">' + (top ? "↑ ofan" : "↓ neðan") + '</span><input type="number" data-hinge="' + i + ":" + j + '" value="' + mm(top ? len - q : q) + '"><span class="u">mm</span></div>'; }).join("") +
-        '<div class="line"><button type="button" class="mini" data-hadd="' + i + '">Bæta við löm</button><button type="button" class="mini" data-hdel="' + i + '"' + (pos.length <= 1 ? " disabled" : "") + '>Fjarlægja löm</button>' +
+        '<div class="line"><button type="button" class="mini" data-hadd="' + i + '">Bæta við löm</button><button type="button" class="mini" data-hdel="' + i + '"' + (pos.length <= 2 ? " disabled" : "") + '>Fjarlægja löm</button>' +
         '<button type="button" class="mini" data-hreset="' + i + '"' + (x ? "" : " disabled") + ">Sjálfgefið</button></div>");
       h += row("d" + i, doors.length > 1 ? "Hurð " + (i + 1) : "Hurð", mm(d.H) + " · " + val, typeCards(e, i) + adv);
     });
@@ -891,6 +897,7 @@
       var vl = (e.jeyVert = e.jeyVert || { doors: [] }).doors, vat = vl.indexOf(n);
       if (jj[0] === "r") { if (jj[2] !== "v" && vat >= 0) vl.splice(vat, 1); if (jj[2] === "v" && vat < 0) vl.push(n); }
       if (jj[2] === "0" || jj[2] === "v") { if (at < 0) l.push(n); } else if (at >= 0) l.splice(at, 1); }); return; }
+    if (d.hsplit != null) { change(function (e) { var k = +d.hsplit, n = c.base.cabinets; e.hingeSplit = k === 0 || k === n ? null : { vinstri: k, haegri: n - k }; if (k === 0) e.hinge = "haegri"; else if (k === n) e.hinge = "vinstri"; }); return; }
     if (d.blind) { change(function (e) { e.blindSide = d.blind; }); return; }
     if (d.ledadd) { change(function (e) { (e.led = e.led || []).push({ where: "hlid", y: 57 }); }); openRow[c.unit + "led"] = true; return; }
     if (d.leddel != null) { change(function (e) { e.led.splice(+d.leddel, 1); }); return; }

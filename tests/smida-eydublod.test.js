@@ -306,3 +306,15 @@ test("Jey on the side of a door (T-15 Sk 5-8 shape, 2026-10-29): no height revea
   assert.ok(p1.doors[0].to >= p0.doors[0].to);
   assert.deepEqual(M.initEdit(Object.assign({}, c, { existing: o })).jeyVert, { doors: [0] });
 });
+
+test("hinge split (T-15 Sk 5-8 shape, 2026-10-29): 2 hung left + 2 hung right → four side files; invalid split ignored", () => {
+  const c = cab("recSk5splaaaaaaaa", "Sk 5-8", SK5, { Hæð: 880, Breidd: 400, Dýpt: 300, "Fjöldi eininga": 4 }, 27);
+  const e = M.initEdit(c); e.hinge = "vinstri"; e.hingeSplit = { vinstri: 2, haegri: 2 };
+  const p = M.planOf(c, M.smidaOf(c, e));
+  assert.deepEqual(p.hingeSplit, { vinstri: 2, haegri: 2 });
+  assert.deepEqual(S.sideFiles(p).map((f) => [f.name, f.count]), [["Vinstri hlið - lamir", 2], ["Vinstri hlið", 2], ["Hægri hlið - lamir", 2], ["Hægri hlið", 2]]);
+  e.hingeSplit = { vinstri: 3, haegri: 2 };
+  assert.equal("hingeSplit" in M.smidaOf(c, e), false);
+  e.hingeSplit = null; e.hinge = "haegri";
+  assert.deepEqual(S.sideFiles(M.planOf(c, M.smidaOf(c, e))).map((f) => f.count), [4, 4]);
+});

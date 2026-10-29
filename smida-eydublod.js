@@ -137,6 +137,7 @@
       e.shelves = ok ? clone(sl) : defaultShelves(cab);
     }
     if (Array.isArray(ex.led)) e.led = clone(ex.led);
+    if (ex.hingeSplit && Number.isInteger(ex.hingeSplit.vinstri) && Number.isInteger(ex.hingeSplit.haegri)) e.hingeSplit = { vinstri: ex.hingeSplit.vinstri, haegri: ex.hingeSplit.haegri };
     if (ex.jeyVert && Array.isArray(ex.jeyVert.doors)) e.jeyVert = { doors: clone(ex.jeyVert.doors) };
     if (ex.blindSide === "vinstri" || ex.blindSide === "haegri") e.blindSide = ex.blindSide;
     if (ex.noJey && typeof ex.noJey === "object") e.noJey = { drawers: clone(ex.noJey.drawers || []), doors: clone(ex.noJey.doors || []) };
@@ -148,7 +149,7 @@
   // edit → Smíðagögn object (what Vista writes). `ready` only while marked reviewed.
   function smidaOf(cab, e) {
     var o = Object.assign({}, clone(cab.existing) || {});
-    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "led", "blindSide", "ready"].forEach(function (k) { delete o[k]; });
+    ["doors", "hinge", "shelves", "oven", "inner", "rails", "noJey", "jeyVert", "hingeSplit", "led", "blindSide", "ready"].forEach(function (k) { delete o[k]; });
     o.v = 1;
     if (o.w == null && cab.B) o.w = cab.B;
     if (o.h == null && cab.base.LPX) o.h = cab.base.LPX;
@@ -166,6 +167,7 @@
     if (e.inner && e.inner.length) o.inner = clone(e.inner);
     if (e.rails && e.rails.length) o.rails = clone(e.rails);
     if (e.noJey && ((e.noJey.drawers || []).length || (e.noJey.doors || []).length)) o.noJey = { drawers: clone(e.noJey.drawers || []).sort(), doors: clone(e.noJey.doors || []).sort() };
+    if (e.hingeSplit && cab.base.cabinets > 1 && e.hingeSplit.vinstri > 0 && e.hingeSplit.haegri > 0 && e.hingeSplit.vinstri + e.hingeSplit.haegri === cab.base.cabinets) o.hingeSplit = { vinstri: e.hingeSplit.vinstri, haegri: e.hingeSplit.haegri };
     if (e.jeyVert && (e.jeyVert.doors || []).length) o.jeyVert = { doors: clone(e.jeyVert.doors).sort() };
     if (e.led && e.led.length) o.led = clone(e.led);
     if (cab.blind && e.blindSide === "vinstri") o.blindSide = "vinstri"; // "haegri" is the default and is not written

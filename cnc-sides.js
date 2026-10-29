@@ -453,6 +453,10 @@
     // (older Smíðagögn has no `hinge`; 2026-10-26, T-32 Sk6)
     if (hingeAt.length && !hs && leaves && doors.every(function (d) { return leaves.filter(function (l) { return Math.round(l.H) === Math.round(d.H); }).length >= 2; })) hs = "baedi";
     plan.hingeSide = hs;
+    // Several identical cabinets on one Eyðublað (T-15 Sk 5-8: 4 wall cabinets) hung half left, half right — Smíðagögn
+    // hingeSplit = { vinstri: n, haegri: m }, n + m = the cabinet count; sideFiles() then writes both variants (2026-10-29)
+    var hsp = smida && smida.hingeSplit;
+    if (hs && hs !== "baedi" && hsp && Number.isInteger(hsp.vinstri) && Number.isInteger(hsp.haegri) && hsp.vinstri >= 0 && hsp.haegri >= 0 && hsp.vinstri + hsp.haegri === plan.cabinets && hsp.vinstri > 0 && hsp.haegri > 0) plan.hingeSplit = { vinstri: hsp.vinstri, haegri: hsp.haegri };
     // Default hinge positions (80 from each end + evenly between) are confirmed against the real masters
     // (2026-10-13), so that formula itself is no longer worth a warning. What's still real: (a) a defaulted door
     // that's actually lift-up would get hinges drilled on the side instead of the top (only the designer can tell
@@ -625,6 +629,11 @@
     if (!p.ops.some(isHinge)) return [{ name: "Hliðar", count: 2 * p.cabinets, plan: p }];
     if (p.hingeSide === "vinstri" || p.hingeSide === "haegri") {
       var bare = Object.assign({}, p, { ops: p.ops.filter(function (o) { return !isHinge(o); }) }), left = p.hingeSide === "vinstri";
+      if (p.hingeSplit) { // n cabinets hung left, m hung right: each side file in its hinged and its bare version
+        var n = p.hingeSplit.vinstri, m = p.hingeSplit.haegri;
+        return [{ name: "Vinstri hlið - lamir", count: n, plan: p }, { name: "Vinstri hlið", count: m, plan: bare },
+          { name: "Hægri hlið - lamir", count: m, plan: p }, { name: "Hægri hlið", count: n, plan: bare }];
+      }
       return [{ name: "Vinstri hlið" + (left ? " - lamir" : ""), count: p.cabinets, plan: left ? p : bare },
         { name: "Hægri hlið" + (left ? "" : " - lamir"), count: p.cabinets, plan: left ? bare : p }];
     }
