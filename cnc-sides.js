@@ -319,7 +319,7 @@
     var so = (parseSmida(opts.smida) || {}).oven, shelfRows = [], ovenDone = false;
     // what occupies height on the side, for the collision check below (2026-10-26): boards (fixed/loose shelves,
     // oven boards) as [bot, top] bands, shelf-pin hole rows, inner drawer front bands
-    var boards = [], pinRows = [], innerBands = [];
+    var boards = [], pinRows = [], innerBands = [], shelfLed = []; // shelfLed: shelves with an LED rout (Smíðagögn shelves.list[i].led)
     // fixed = FOST_HILLA at its top face; loose = LAUS_HILLA with `pos` holes 50 apart, the middle one under the shelf.
     // Board thickness from Sögunarlisti's own shelf row when there is one. Counts are compared with Sögunarlisti.
     // The shelf's real depth comes from its Sögunarlisti row (H or B, whichever is the depth: the one nearest side depth − 22 and
@@ -337,6 +337,7 @@
       var tF = num(((by.fixedShelf || [])[0] || {})["Þ"]) || OVEN_BOARD, tL = num(((by.looseShelf || [])[0] || {})["Þ"]) || OVEN_BOARD;
       var sl = (list || []).filter(function (x) { return num(x.mm) > above && num(x.mm) < H; });
       sl.forEach(function (x) {
+        if (x.led) shelfLed.push(x);
         var mm = r1(num(x.mm));
         if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, " + dFixedS + ", lpz+5"); shelfRows.push(r1(mm - tF / 2)); boards.push({ bot: r1(mm - tF), top: mm, fixed: true, what: "föstu hilluna í " + mm }); return; }
         boards.push({ bot: r1(mm - tL), top: mm, what: "hilluna í " + mm });
@@ -592,6 +593,22 @@
 
     plan.frontCheck = []; // front notes stay out of the side status
     plan.fronts = frontPlans(drawers, doors, fixedFronts, by, plan.frontCheck, leaves, opts.grip);
+    // LED í hillum (Smíða, 2026-10-29): Smíðagögn shelves.list[i].led = { y?: mm from the front edge (default 50), len?, from? (mm along the
+    // shelf's width) }. One shelf file per distinct size/LED, ×(cabinets × shelves alike): the master's own LED 4x8 line (CUT_X, face 1,
+    // −50 … lpx+50, depth 8.5) with Y replaced; the master's active "Rastex" edge fittings (T/B joints) are switched off. LPX = the shelf's
+    // width, LPY = its depth (the Sögunarlisti row's two sizes: depth = the one shelfDepth() picks). Other edge drilling of a fixed shelf is not in this file.
+    var shl = {};
+    shelfLed.forEach(function (x) {
+      var rr = ((x.fixed ? by.fixedShelf : by.looseShelf) || [])[0];
+      if (!rr || num(rr.H) == null || num(rr.B) == null) { check.push("LED í hillu (" + r1(num(x.mm)) + " mm): engin " + (x.fixed ? "föst" : "laus") + " hilla í Sögunarlista — engin skrá"); return; }
+      var dp = shelfDepth([rr]), a = num(rr.H), b = num(rr.B), dpt = dp != null ? dp : Math.min(a, b), wd = Math.abs(a - dpt) < 0.05 ? b : a;
+      var led = ledSpecs({ led: [{ where: "hlid", y: num((x.led || {}).y) > 0 ? x.led.y : 50, from: x.led.from, len: x.led.len }] })[0];
+      var nm = "Hilla " + (x.fixed ? "föst " : "laus ") + r1(wd) + "×" + r1(dpt) + " LED", key = nm + JSON.stringify(led);
+      if (shl[key]) { shl[key].count += plan.cabinets; return; }
+      shl[key] = { name: nm, master: "hilla", LPX: r1(wd), LPY: r1(dpt), LPZ: num(rr["Þ"]) || OVEN_BOARD, count: plan.cabinets, ops: [], led: [led], off: ["Rastex"] };
+      plan.fronts.push(shl[key]);
+      if (led && typeof led !== "object" ? led > dpt - 10 : led.y > dpt - 10) check.push("LED í hillu: " + r1(typeof led === "object" ? led.y : led) + " mm frá framkanti er utan hillunnar (" + r1(dpt) + " mm djúp)");
+    });
     // Skúffudýpt (Smíða, 2026-10-29): information + a fit check, NO drilling change — MERIVOBOX_V2 / LEGRABOX_* have no depth parameter
     // (their .ini: slot heights + FRONTUR + TYPE_ only; the .vbs never reads LPY for the box). Default = the "Skúffubotn - <kerfi>" length in
     // Sögunarlisti + 26 (nominal depth); Smíðagögn drawerDepth {K: mm} overrides it per drawer code. A drawer that does not fit
@@ -683,12 +700,15 @@
     door: ["[02] - Frontar", "[01] - Lama frontar", "[01] - Frontur Breytiskjal.bpp"],
     // the drawer-bottom board with the water-trap notch: a finished file in the shop's own [03] - Skúffur folder (2026-10-29)
     urtak: ["[03] - Skúffur", "01- Botnplata - Urtak f. vatnslas.bpp"],
+    // a shelf with an LED rout: the shop's own T/B/shelf master (its LED 4x8 CUT_X line, Y default 50, face 1) — Rastex line switched off
+    hilla: ["[01] - Innvols", "[02] - Toppur og Botn og Hilla [+Loftun].bpp"],
   };
   var FRONT_MANAGED = {
     merivo: ["K_M_NEDSTI_FRONTUR_MERIVO", "E_NEDSTI_FRONTUR_MERIVO", "HARDVIDAR_GRIP_ENDA_TIL_ENDA"],
     legra: ["K_M_NEDSTI_FRONTUR_LEGRABOX", "C_NEDSTI_FRONTUR_LEGRA", "F_NEDSTA_SKUFFA_LEGRABOX", "HARDVIDAR_GRIP_ENDA_TIL_ENDA"],
     door: ["IKEALOM", "LOM"],
     urtak: ["URTAK_F_VATNSLAS"],
+    hilla: [],
   };
   var FRONT_EXTRA = { merivo: { E: "E_NEDSTI_FRONTUR_MERIVO" }, legra: { C: "C_NEDSTI_FRONTUR_LEGRA", F: "F_NEDSTA_SKUFFA_LEGRABOX" } };
   // where each extra row sits (from the bottom of the front, as the macros on the stick drill it)
@@ -839,6 +859,7 @@
           return;
         }
         if (m && m[3] === "CUT_X" && lc(m[4]).indexOf(GROOVE_LABEL) >= 0) { out.push((p.groove ? "@" : "'") + m[2] + "CUT_X, \"\", \"" + m[4] + "\"," + m[5]); return; }
+        if (m && p.off && p.off.indexOf(m[4]) >= 0) { out.push("'" + l.slice(1)); return; } // a master line this file must not run (by its label)
         if (m && managed.indexOf(m[3]) >= 0) {
           if (!foundTemplate[m[3]]) { foundTemplate[m[3]] = true; (groups[m[3]] || []).forEach(function (o) { out.push(render(o)); }); }
           return;

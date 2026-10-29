@@ -671,3 +671,25 @@ test("Skúffudýpt: default from Skúffubotn + 26, per-code override is informat
   assert.ok(p.info.some((i) => /Skúffa K: dýpt 500 mm \(Sögunarlisti 458\) — breytir ekki borun/.test(i)));
   assert.ok(S.unitPlan("Sk4", SINK, { smida: sm({ E: 570 }) }).check.some((c) => /Skúffa E: dýpt 570 mm kemst ekki fyrir í skápnum \(hliðin er 580 mm djúp\)/.test(c)));
 });
+
+// ── LED í hillum, 2026-10-29: shelves.list[i].led → a shelf file on the shop's T/B/shelf master ───────────────────
+const SHMASTER = ["[VARIABLES]", "PAN=LPX|762||4|", "PAN=LPY|518||4|", "PAN=LPZ|19||4|", "", "[PROGRAM]", `@ STAT_BLOCK, "", "", 67127756, "", 0 : 0, LPY+100, 1`,
+  `@ BG, "", "Rastex", 142461892, "", 0 : 0, "3,2,1,4", 34, LPY-30-40, 0, lpz-4, 15`,
+  `' CUT_X, "", "Sogun f. masonit", 140321692, "", 0 : 0, "2", -32, lpy-18, 0, 9, lpx+64, 0, 100`,
+  `' CUT_X, "", "LED 4x8 (default Y 57)", 142316220, "", 0 : 0, "1", -50, 50, 0, 8+.5, lpx+50+50, 0, 100, "", 1, 4`, "", "[VBSCRIPT]"].join("\r\n");
+test("LED í hillu: a shelf file with the master's LED line (Y default 50), Rastex off, size from the shelf row, ×cabinets", () => {
+  const rows = [row("Skápur hlið", 800, 580, 16, 4), row("Laus hilla", 558, 568, 16, 2), row("Frontur", 797, 597, 19, 2)];
+  const sm = JSON.stringify({ v: 1, hinge: "vinstri", shelves: { loose: 1, fixed: 0, list: [{ mm: 400, fixed: false, pos: 3, led: { y: 50 } }] } });
+  const p = S.unitPlan("Sk6", rows, { smida: sm });
+  const f = p.fronts.filter((x) => x.master === "hilla");
+  assert.equal(f.length, 1);
+  assert.deepEqual([f[0].name, f[0].LPX, f[0].LPY, f[0].LPZ, f[0].count, f[0].led], ["Hilla laus 568×558 LED", 568, 558, 16, 2, [50]]);
+  const r = S.renderSide(SHMASTER, f[0], S.FRONT_MANAGED.hilla);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.text.includes("PAN=LPX|568|") && r.text.includes("PAN=LPY|558|"));
+  assert.ok(r.text.includes("' BG, \"\", \"Rastex\"") && !r.text.includes("@ BG"));
+  assert.match(r.text, /@ CUT_X, "", "LED 4x8 \(Smíða Y 50\)".*: 0, "1", -50, 50, 0, 8\+\.5, lpx\+50\+50,/);
+  const short = S.unitPlan("Sk6", rows, { smida: sm.replace('"led":{"y":50}', '"led":{"y":40,"len":300,"from":100}') }).fronts.find((x) => x.master === "hilla");
+  assert.match(S.renderSide(SHMASTER, short, []).text, /"LED 4x8 \(Smíða Y 40, 100–400\)".*: 0, "1", 100, 40, 0, 8\+\.5, 300,/);
+  assert.ok(!S.unitPlan("Sk6", rows).fronts.some((x) => x.master === "hilla"));
+});

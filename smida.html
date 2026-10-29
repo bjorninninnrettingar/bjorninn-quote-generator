@@ -697,13 +697,17 @@
           g += "<g>" + cupSvg(hinge === "haegri" ? X(W) : X(0), hinge === "haegri" ? -1 : 1, Y(y), s, "#0071e3") + "<title>Lamaskál Ø35 + 2 × Ø8 — " + mmv + " mm frá " + (end === "2" ? "neðri" : "efri") + " enda</title></g>"; });
       }
     });
+    (f.led || []).forEach(function (l) { // a shelf's LED rout: runs along the width at Y mm from the front edge (bottom of the card)
+      var ly = typeof l === "object" ? l.y : l, lx0 = typeof l === "object" ? l.from : 0, lx1 = typeof l === "object" && l.len != null ? Math.min(W, l.from + l.len) : W;
+      g += '<rect x="' + X(lx0) + '" y="' + (Y(ly) - 1.5) + '" width="' + Math.max(2, (lx1 - lx0) * s) + '" height="3" fill="#e6007e"><title>LED-fræsing 4 × 8 mm — ' + mm(ly) + " mm frá framkanti</title></rect>"; notes.push("LED");
+    });
     if (f.notch) { // the water-trap notch: cut from the board's Y = 0 edge (bottom here), 150.1 wide
       g += '<path d="M' + X(f.notch.x0) + " " + Y(0) + " V" + Y(f.notch.depth) + " H" + X(f.notch.x1) + " V" + Y(0) + ' Z" fill="#d70015" fill-opacity=".14" stroke="#d70015" stroke-width="1"><title>Úrtak fyrir vatnslás — ' + mm(f.notch.x0) + "–" + mm(f.notch.x1) + " mm frá vinstri brún, " + mm(f.notch.depth) + " mm djúpt</title></path>"; notes.push("úrtak");
     }
-    if (!door && f.ops.length && !f.notch) notes.unshift("festing úr master");
+    if (!door && f.ops.length && !f.notch && !f.led) notes.unshift("festing úr master");
     var el = document.createElement("div"); el.className = "frc";
     el.innerHTML = '<svg width="' + (w + pad * 2) + '" height="' + (h + pad * 2) + '">' + g + "</svg>" +
-      '<div class="frn">' + esc(f.name) + (f.count > 1 ? " ×" + f.count : "") + "</div>" + (f.ops.length ? "" : '<div class="frx">engin borun</div>');
+      '<div class="frn">' + esc(f.name) + (f.count > 1 ? " ×" + f.count : "") + "</div>" + (f.ops.length || f.led ? "" : '<div class="frx">engin borun</div>');
     return el;
   }
   function drawSide(c, p, box, compact) {
@@ -737,7 +741,7 @@
     // the cabinet's fronts, each with what /cnc drills in it (plan.fronts = the export's own front plans), read-only
     if ((p.fronts || []).length) {
       var fsec = document.createElement("div"); fsec.className = "frsec";
-      fsec.innerHTML = '<div class="frh"><b>Frontar</b><span>' + ((p.fronts || []).some(function (f) { return f.master !== "door" && !f.notch && !/^Uppþ/.test(f.name); }) ? "Sama fræsing á öllum skúffufrontum (sameiginlegt master)" : "") + "</span></div>";
+      fsec.innerHTML = '<div class="frh"><b>Frontar</b><span>' + ((p.fronts || []).some(function (f) { return f.master !== "door" && f.master !== "hilla" && !f.notch && !/^Uppþ/.test(f.name); }) ? "Sama fræsing á öllum skúffufrontum (sameiginlegt master)" : "") + "</span></div>";
       var frow = document.createElement("div"); frow.className = "frrow";
       p.fronts.forEach(function (f) { frow.appendChild(frontCard(f, ed(c).hinge || p.hingeSide)); });
       fsec.appendChild(frow); wrap.appendChild(fsec);
@@ -901,7 +905,10 @@
       var sum = [nF ? plural(nF, "föst", "fastar") : "", nL ? plural(nL, "laus", "lausar") : ""].filter(Boolean).join(", ") + " · " +
         sl.slice().sort(function (a, b) { return a.mm - b.mm; }).map(function (x) { return mm(x.mm); }).join(", ");
       var lines = sl.map(function (x, i) { return { x: x, i: i }; }).sort(function (a, b) { return b.x.mm - a.x.mm; }).map(function (o) {
-        return '<div class="line"><span class="t">' + (o.x.fixed ? "Föst" : "Laus") + '</span><input type="number" data-shelf="' + o.i + '" value="' + mm(o.x.mm) + '"><span class="u">mm</span></div>';
+        var sled = o.x.led;
+        return '<div class="line"><span class="t">' + (o.x.fixed ? "Föst" : "Laus") + '</span><input type="number" data-shelf="' + o.i + '" value="' + mm(o.x.mm) + '"><span class="u">mm</span><button type="button" class="mini' + (sled ? " on" : "") + '" data-shled="' + o.i + '" title="LED-fræsing í hilluna">' + (sled ? "LED ✓" : "LED") + "</button></div>" +
+          (sled ? '<div class="line"><span class="t"></span><input type="number" data-shly="' + o.i + '" value="' + mm(sled.y > 0 ? sled.y : 50) + '"><span class="u">mm frá framkanti</span></div>' +
+            '<div class="line"><span class="t"></span><input type="number" data-shlen="' + o.i + '" value="' + (sled.len ? mm(sled.len) : "") + '" placeholder="enda til enda"><span class="u">mm langt</span><input type="number" data-shfrom="' + o.i + '" value="' + (sled.from ? mm(sled.from) : "") + '" placeholder="0" style="margin-left:8px"><span class="u">mm frá vinstri</span></div>' : "");
       }).join("");
       var loose = sl.map(function (x, i) { return { x: x, i: i }; }).filter(function (o) { return !o.x.fixed; });
       var adv2 = loose.length ? '<div class="line"><span class="u">Göt fyrir hverja lausa hillu ' + tip("Hve margar stillingar (50 mm á milli) hver laus hilla fær. 3 er venjan.") + "</span></div>" +
@@ -993,6 +1000,7 @@
     if (d.rside != null) { var rs = d.rside.split(":"); change(function (e) { if (rs[1]) e.rails[+rs[0]].side = rs[1]; else delete e.rails[+rs[0]].side; }); return; }
     if (d.urd != null) { change(function (e) { e.urtak = d.urd ? { drawer: d.urd, place: (e.urtak && e.urtak.place) || "midja", x: e.urtak ? e.urtak.x : null } : null; }); openRow[c.unit + "urtak"] = true; return; }
     if (d.urp) { change(function (e) { if (e.urtak) e.urtak.place = d.urp; }); return; }
+    if (d.shled != null) { change(function (e) { var sh = (e.shelves || e.oven.shelves)[+d.shled]; if (sh.led) delete sh.led; else sh.led = { y: 50 }; }); return; }
     if (d.fgrip) { change(function (e) { e.frontGrip = d.fgrip; }); return; }
     if (d.ledadd) { change(function (e) { (e.led = e.led || []).push({ where: "hlid", y: c.panel ? 50 : 57 }); }); openRow[c.unit + "led"] = true; return; }
     if (d.leddel != null) { change(function (e) { e.led.splice(+d.leddel, 1); }); return; }
@@ -1030,6 +1038,9 @@
       else if (d.rail != null) e.rails[+d.rail].mm = v;
       else if (d.oven) e.oven[d.oven] = v;
       else if (d.led != null) e.led[+d.led].y = Math.max(1, v);
+      else if (d.shly != null) { var sh1 = (e.shelves || e.oven.shelves)[+d.shly]; if (sh1 && sh1.led) sh1.led.y = Math.max(1, v); }
+      else if (d.shlen != null) { var sh2 = (e.shelves || e.oven.shelves)[+d.shlen]; if (sh2 && sh2.led) { if (v > 0) sh2.led.len = v; else delete sh2.led.len; } }
+      else if (d.shfrom != null) { var sh3 = (e.shelves || e.oven.shelves)[+d.shfrom]; if (sh3 && sh3.led) { if (v > 0) sh3.led.from = v; else delete sh3.led.from; } }
       else if (d.ddepth != null) { var pd = plan(c).drawerDepth[d.ddepth]; e.drawerDepth = e.drawerDepth || {}; if (pd && v === Math.round(pd.def)) delete e.drawerDepth[d.ddepth]; else e.drawerDepth[d.ddepth] = v; }
       else if (d.kloss != null) e.klossMm = +t.value > 0 ? +t.value : M.KLOSS_MM;
       else if (d.raily != null) e.rails[+d.raily].y = Math.max(0, v);
