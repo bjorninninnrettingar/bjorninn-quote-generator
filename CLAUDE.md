@@ -11,7 +11,7 @@ since GitHub push protection blocks committing an Airtable PAT directly).
 | Area | Doc |
 |---|---|
 | Kitchen planner `/skipuleggja` (+ pro mode, Line Items, Smíðagögn, drawing export) | [docs/kitchen-planner.md](docs/kitchen-planner.md) |
-| CNC `/cnc` (sides, fronts, doors, USB layout) | [docs/cnc.md](docs/cnc.md) |
+| CNC `/smida` (was `/cnc`; sides, fronts, doors, USB layout) | [docs/cnc.md](docs/cnc.md) |
 | API endpoints, proxy hardening, field check, rate limits | [docs/api.md](docs/api.md) |
 | Æðaskipulag `/aedar` + `/saga` (grain.html) | [docs/aedar-grain.md](docs/aedar-grain.md) |
 | Verkstæðisappið `/app`, cutlist + labels, QUICK FIX | [docs/app-floor.md](docs/app-floor.md) |
@@ -36,7 +36,7 @@ since GitHub push protection blocks committing an Airtable PAT directly).
 | `/app` | [app.html](app.html) | **Verkstæðisappið** — installable PWA home screen for the floor. See docs/app-floor.md. |
 | `/verk-i-gangi` | [verk-i-gangi.html](verk-i-gangi.html) | Project picker for `/app` — lists projects currently in production, tapping one becomes the app's "current project" |
 | `/skipuleggja` | [kitchen-planner.html](kitchen-planner.html) | **Eldhússkipulag (sjálfsafgreiðsla)** — customer-facing kitchen planner, see docs/kitchen-planner.md. Desktop only (<768px shows a gate). |
-| `/cnc` (`/hurdir`) | [cnc.html](cnc.html) + [cnc-sides.js](cnc-sides.js) + [cnc-doors.js](cnc-doors.js) | **CNC útflutningur (Rover-B)** — one export per project: cabinet sides from Sögunarlisti + doors (karmur + hurðablað) into `[99] - VERKEFNI/<T-xx name>/` on the USB stick. See docs/cnc.md. |
+| `/smida` (`/cnc`, `/hurdir` redirect here, 2026-10-29) | [smida.html](smida.html) + [cnc-export.js](cnc-export.js) + [cnc-sides.js](cnc-sides.js) + [cnc-doors.js](cnc-doors.js) | **Smíða & CNC (Rover-B)** — per-cabinet lamir/hillur/ofn + the one CNC export per project: sides from Sögunarlisti + doors (karmur + hurðablað) into `[99] - VERKEFNI/<T-xx name>/` on the USB stick (`CNCEXPORT.writeUsb`, byte-identical to what /cnc wrote; test `tests/cnc-export.test.js`). [cnc.html](cnc.html) is kept as a fallback file only (no route). See docs/cnc.md. |
 | `/bpp` | [bpp-viewer.html](bpp-viewer.html) | **BPP skoðari** — drag in a `.bpp` file `/cnc` wrote and see a 2D elevation of drawers/hinges/shelves/door hardware, without walking to the machine. `/cnc` itself now shows the same cards automatically right after export (shared `cnc-bpp.js`) — this page is for an older file or a second opinion. See docs/cnc.md. |
 
 Rewrites live in [vercel.json](vercel.json) (`source` = short path, `destination` = the `.html` file); push to
@@ -61,7 +61,7 @@ Rewrites live in [vercel.json](vercel.json) (`source` = short path, `destination
 ## CNC — essentials (details: docs/cnc.md)
 
 One export per project to `[99] - VERKEFNI/T-xx <name>/` on the USB stick: sides only from Sögunarlisti
-([cnc-sides.js](cnc-sides.js)), fronts, doors ([cnc-doors.js](cnc-doors.js)); Smíðagögn from the designer overrides
+([cnc-sides.js](cnc-sides.js)), fronts, doors ([cnc-doors.js](cnc-doors.js)); written by [cnc-export.js](cnc-export.js) from /smida; Smíðagögn from the designer overrides
 hinges/shelves. Generated files are marked (`GLB=HS_…`) so re-exports never delete hand-made ones.
 
 ## API — essentials (details: docs/api.md)

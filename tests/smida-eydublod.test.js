@@ -194,17 +194,12 @@ test("smida-eydublad: handler needs POST + VERK_KEY", async () => {
   } finally { process.env.AIRTABLE_TOKEN = env.AIRTABLE_TOKEN; process.env.VERK_KEY = env.VERK_KEY; if (env.AIRTABLE_TOKEN === undefined) delete process.env.AIRTABLE_TOKEN; if (env.VERK_KEY === undefined) delete process.env.VERK_KEY; }
 });
 
-// "Skrifa á USB" in /smida must be /cnc's own writer (parity by construction, 2026-10-26): /smida loads /cnc in a
-// hidden frame and calls cnc.html's CNC_API.writeUsb — it must never grow a file writer of its own.
-test("/smida writes to USB only through cnc.html's writeUsb", async () => {
+// "Skrifa á USB" in /smida is cnc-export.js's writeUsb (the writer /cnc used to have; tests/cnc-export.test.js proves the
+// files are byte for byte the old ones) — /smida must never grow a file writer of its own.
+test("/smida writes to USB only through cnc-export.js", async () => {
   const fs = await import("node:fs");
-  const cnc = fs.readFileSync(new URL("../cnc.html", import.meta.url), "utf8");
   const smida = fs.readFileSync(new URL("../smida.html", import.meta.url), "utf8");
-  assert.match(cnc, /window\.CNC_API = \{/);
-  assert.match(cnc, /writeUsb: async function \(dir\) \{ lastExport = null; await writeUsb\(dir\);/);
-  assert.match(cnc, /lastExport = \{ made: made, warn: warn, missing: missing, preview: preview/);
-  assert.match(smida, /api\.writeUsb\(dir\)/);
-  assert.match(smida, /"\/cnc\?recordId="/);
+  assert.match(smida, /CNCEXPORT\.writeUsb\(P, dir/);
   assert.doesNotMatch(smida, /createWritable|getFileHandle\([^)]*create/); // no writes of its own
 });
 

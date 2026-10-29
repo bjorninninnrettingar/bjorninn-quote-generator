@@ -236,6 +236,8 @@
 
 <script src="/cnc-sides.js"></script>
 <script src="/cnc-data.js"></script>
+<script src="/cnc-doors.js"></script>
+<script src="/cnc-export.js"></script>
 <script src="/cnc-bpp.js"></script>
 <script src="/smida-eydublod.js"></script>
 <script>
@@ -991,29 +993,15 @@
     } catch (e) { saving = false; render(); toast("Tókst ekki að taka til baka: " + e.message); }
   };
 
-  // ── Skrifa á USB (2026-10-26): /cnc's own writer, loaded in a hidden frame (cnc.html CNC_API) — the same files,
-  // byte for byte, as /cnc writes today. Unsaved changes are saved first so /cnc reads exactly what's on screen.
+  // ── Skrifa á USB: cnc-export.js (the export /cnc used to have, moved there 2026-10-29 — same files, byte for byte, see
+  // tests/cnc-export.test.js). Unsaved changes are saved first, then the project is read fresh from Airtable and planned,
+  // so the files are made from exactly what is saved.
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function sheet(html) {
     var el = $("usbSheet"); if (!el) { el = document.createElement("div"); el.id = "usbSheet"; el.className = "sheet"; document.body.appendChild(el); }
     el.innerHTML = "<div>" + html + "</div>"; return el;
   }
   function stage(t) { sheet('<h2>Skrifa á USB</h2><p class="sub2">' + esc(project.name) + '</p><div class="stage2"><span class="spin"></span>' + esc(t) + "</div>"); }
-  async function cncFrame() {
-    var old = $("cncFrame"); if (old) old.remove();
-    var f = document.createElement("iframe"); f.id = "cncFrame"; f.setAttribute("aria-hidden", "true");
-    f.style.cssText = "position:fixed;left:-4000px;top:0;width:1280px;height:900px;border:0;visibility:hidden";
-    f.src = "/cnc?recordId=" + encodeURIComponent(project.id) + "&k=" + encodeURIComponent(KEY) + "&embedded=1";
-    document.body.appendChild(f);
-    for (var t = 0; t < 480; t++) {
-      await sleep(250);
-      var w = f.contentWindow, api = w && w.CNC_API;
-      if (api && api.ready()) return api;
-      var failEl = w && w.document && w.document.getElementById("failRetry");
-      if (failEl && failEl.offsetParent) throw new Error("CNC-síðan gat ekki sótt verkefnið");
-    }
-    throw new Error("CNC-síðan svaraði ekki");
-  }
   async function exportUsb() {
     if (!project || saving) return;
     if (!("showDirectoryPicker" in window)) { alert("Þessi vafri getur ekki skrifað beint á USB. Notaðu Chrome eða Edge."); return; }
@@ -1026,9 +1014,10 @@
         if (saveErr || dirtyCabs().length === before) throw new Error("Vistaðist ekki — ekkert skrifað á USB");
       }
       stage("Undirbý skrárnar…");
-      var api = await cncFrame();
+      var P = await CNCEXPORT.loadProject({ proxy: PROXY, key: KEY, id: project.id, name: project.name });
+      CNCEXPORT.planSides(P, null);
       stage("Skrifa á USB…");
-      var r = await api.writeUsb(dir);
+      var r = await CNCEXPORT.writeUsb(P, dir, {});
       showResult(r, dir);
     } catch (e) {
       sheet('<h2>Ekkert skrifað</h2><p class="err">' + esc(e.message) + '</p><div class="foot"><button type="button" data-close="1">Loka</button></div>');
