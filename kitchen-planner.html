@@ -2024,7 +2024,8 @@
   #proEd .pe-issues .pe-fix { margin-top:8px; }
   #proEd .pe-ready.undo { background:transparent; color:inherit; border:1px solid var(--line, #cfd4da); font-weight:600; }
   /* Smíða wizard = the Ný eining wizard on the real cabinet (2026-10-28): only what the steps add */
-  .uw-smtray{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 14px; }
+  .sm-secs{ padding-bottom:42vh; } /* room to scroll the finished sections off the top */
+  .uw-smtray{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 14px; position:sticky; bottom:62px; background:#fff; padding:8px 0; z-index:1; } /* the summary stays put while the sections scroll */
   .uw-smchip{ border:0; border-radius:999px; padding:5px 11px; background:var(--gold-soft); color:var(--ink-soft); font:600 12.5px/1.2 inherit; font-family:inherit; cursor:pointer; }
   .uw-smchip b{ color:var(--ink); }
   .uw-smchip.pending b{ color:var(--ink-soft); font-weight:500; }
@@ -8240,7 +8241,7 @@
   }
   function closeUnitWizard(){
     var sm = uw && uw.smida;
-    if (sm) save();
+    if (sm){ save(); closetInnTab = "lausnir"; } // the unit panel's own default again
     leaveUnitWizard();
     if (sm) refreshAfterEdit(); else renderView();
     restoreEditorCam();
@@ -8502,7 +8503,7 @@
       var hasInn = !shortWiz && !machineOnly && !!innHtml.replace(/<div class="edit-field"><\/div>/g, "").trim();
       if (uw.smida) uw.smHasInn = hasInn;
       if (hasInn) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), uw.smida ? (smInnOk(b) ? (innSum || "") + " ✓" : "—") : innSum, uw.smida ? innHtml + smAckBtn("inn", "Innvols er rétt", smInnOk(b)) : innHtml));
-      if (uw.smida){ smItemSecs(b, c, secHtml); smMoreSec(b, c, secHtml); smYfirSec(b, c, secHtml); html += '<div class="uw-secs">' + secHtml.join("") + '</div>' + smTray(b, c) + smActions(b, c); side.innerHTML = html; wireUnitWizard(side); schedulePreview(); return; }
+      if (uw.smida){ smItemSecs(b, c, secHtml); smMoreSec(b, c, secHtml); smYfirSec(b, c, secHtml); html += '<div class="uw-secs sm-secs">' + secHtml.join("") + '</div>' + smTray(b, c) + smActions(b, c); var keepTop = side.scrollTop; side.innerHTML = html; side.scrollTop = keepTop; wireUnitWizard(side); smScrollToOpen(side); schedulePreview(); return; }
       html += '<div class="uw-secs">' + secHtml.join("") + '</div>';
       if (uw.island){
         side.innerHTML = html + '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>' + __("← Til baka") + '</button>' +
@@ -8711,7 +8712,7 @@
       renderUnitWizard();
     });
     side.querySelectorAll("[data-clrecipe]").forEach(function(el){ el.addEventListener("click", function(){ applyClosetRecipe(b, el.dataset.clrecipe); renderUnitWizard(); }); });
-    side.querySelectorAll("[data-clinntab]").forEach(function(el){ el.addEventListener("click", function(){ closetInnTab = el.dataset.clinntab; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-clinntab]").forEach(function(el){ el.addEventListener("click", function(){ closetInnTab = uw && uw.smida && closetInnTab === el.dataset.clinntab ? "" : el.dataset.clinntab; renderUnitWizard(); }); }); // Smíða: a second tap folds it again
     side.querySelectorAll("[data-clitem]").forEach(function(el){ el.addEventListener("click", function(){ closetItemStep(b, el.dataset.clitem); renderUnitWizard(); }); });
     side.querySelectorAll("[data-cldrawer]").forEach(function(el){ el.addEventListener("click", function(){ closetDrawerStep(b, el.dataset.cldrawer); renderUnitWizard(); }); });
     side.querySelectorAll("[data-clrailcolor]").forEach(function(el){ el.addEventListener("click", function(){ b.railColor = el.dataset.clrailcolor; renderUnitWizard(); }); });
@@ -8852,7 +8853,7 @@
       var prevCam = KP3D._three() ? { p:KP3D._three().camera.position.clone(), t:KP3D._three().controls.target.clone() } : null;
       KP3D.teardown3D(true);
       host.innerHTML = "";
-      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO, afterFrame:drawUwDims, towerGlass:true, previewRoom:!PRO && (isBath() || isLaundry()), // bath / laundry: the room's own floor + wall // the washer + dryer show through the tower's doors (user, 2026-10-26)
+      KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO && !uw.smida, afterFrame:drawUwDims, towerGlass:true, previewRoom:!PRO && (isBath() || isLaundry()), // bath / laundry: the room's own floor + wall // the washer + dryer show through the tower's doors (user, 2026-10-26)
         // Smíða lite: shelves / rails / drawers move in the preview too (user, 2026-10-26)
         onShelfPosMove:uw.b ? onShelfPosMove : null, onShelfPosEnd:uwItemMoved, onShelfPosInfo:uw.b ? onShelfPosInfo : null, onDrawerResize:uw.b ? onDrawerResize : null, onDrawerResizeEnd:uwItemMoved,
         drawerDragAll:!!uw.b && !PRO }); // every room (owner, 2026-10-27): drag a drawer front's edge to resize it, typing optional
@@ -11735,7 +11736,7 @@
     var deep = closetDeep(b), cur = b.closetRecipe, cnt = closetCounts(b);
     var tabs = '<div class="cl-tabs" role="tablist">' + [["lausnir", "Tilbúnar lausnir"], ["hlutir", "Stakir hlutir"]].map(function(t){
       return '<button type="button" role="tab" class="cl-tab' + (closetInnTab === t[0] ? ' on' : '') + '" aria-selected="' + (closetInnTab === t[0]) + '" data-clinntab="' + t[0] + '">' + __(t[1]) + '</button>'; }).join("") + '</div>';
-    var body = closetInnTab === "hlutir" ? closetItemsHtml(b, cnt, deep) : '<div class="cl-recipes">' + CLOSET_RECIPES.map(function(r){
+    var body = closetInnTab === "" ? '' : closetInnTab === "hlutir" ? closetItemsHtml(b, cnt, deep) : '<div class="cl-recipes">' + CLOSET_RECIPES.map(function(r){
           var off = !deep && r.rails;
           return '<button type="button" class="cl-recipe' + (cur === r.key ? ' on' : '') + '" data-clrecipe="' + r.key + '"' + (off ? ' disabled title="' + __("Herðatré passa ekki í 35 cm djúpan skáp") + '"' : '') + '>' + closetRecipeSvg(r.key) + '<b>' + __(r.label) + '</b><small>' + __(r.desc) + '</small></button>';
         }).join("") + '</div>' + (!cur ? '<p class="cl-hint">' + __("Þín eigin samsetning — veldu lausn til að byrja upp á nýtt.") + '</p>' : '');
@@ -18282,6 +18283,13 @@
     var nx = smNextItem(grp); if (nx) uw.smFocusItem = grp + ":" + nx; else smAdvanceFrom(grp);
     renderUnitWizard();
   }
+  // the finished sections glide off the top: the open one is brought up under the header (smooth, from where the list was — never a jump)
+  function smScrollToOpen(side){
+    var open = side.querySelector(".uw-sec.open"); if (!open) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var delta = open.getBoundingClientRect().top - side.getBoundingClientRect().top - 14;
+    if (Math.abs(delta) > 4) side.scrollBy({ top:delta, behavior:reduce ? "auto" : "smooth" });
+  }
   function smMoreSec(b, c, secHtml){
     if (c.panel || c.notOrdered) return;
     secHtml.push(uwSec("more", "Fleiri stillingar", "", '<p class="sec-note">Allar stillingar skápsins — þær sömu og í hliðarspjaldinu (innvols, framhlið, LED, úthlið, tegund …).</p><div class="sm-panel" id="smPanelA"></div><div class="sm-panel" id="smPanelB"></div>'));
@@ -18391,7 +18399,7 @@
       save(); closeUnitWizard(); openRoom(cat); setTimeout(function(){ openSmidaWizard(id); }, 500); return;
     }
     var fb = findBlock(id); if (!fb) return;
-    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uw.smDone = false; uw.smFocus = true; uwPrevKey = ""; selectedBlockId = fb.block.id;
+    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uw.smDone = false; uw.smFocus = true; uwPrevKey = ""; selectedBlockId = fb.block.id; closetInnTab = "";
     renderUnitWizard();
   }
   var smReturn = null;
@@ -18402,7 +18410,7 @@
     if (fb.block.locked){ toast("Skápurinn er læstur — opnaðu hann fyrst."); return; }
     if (!(uw && uw.smida)){ proSoloPanel("wiz"); openUnitWizard(); }
     uw.smida = true; uw.step = 3; uw.cat = null; uw.opt = null; uw.island = null; uw.smDone = false; uw.smFocus = true;
-    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uwPrevKey = ""; selectedBlockId = fb.block.id;
+    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uwPrevKey = ""; selectedBlockId = fb.block.id; closetInnTab = ""; // Tilbúnar lausnir / Stakir hlutir stay folded until she opens one
     renderUnitWizard();
   }
   function smClose(){ if (uw && uw.smida) closeUnitWizard(); }

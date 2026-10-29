@@ -71,3 +71,9 @@ test("Smíða's preview orbits freely; hinge zones use the 30 mm HINGE_CLEAR rul
   const d3 = fs.readFileSync(new URL("../kitchen-planner-3d.js", import.meta.url), "utf8");
   assert.ok(/Math\.round\(\+x\.gap\) !== 50\) o\.gap/.test(d3), "gap is absent at the default 50 so Smíðagögn stay identical");
 });
+
+test("round 2: light preview in Smíða, Tilbúnar lausnir / Stakir hlutir folded by default, sections scroll under the header", () => {
+  assert.ok(/darkBg:!!PRO && !uw\.smida/.test(html));
+  assert.ok(/closetInnTab === "" \? ''/.test(html) && /closetInnTab = ""; \/\/ Tilbúnar lausnir/.test(html));
+  assert.ok(/side\.scrollBy\(\{ top:delta/.test(fnBody("smScrollToOpen")));
+});
