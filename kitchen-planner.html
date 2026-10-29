@@ -398,6 +398,12 @@
   .ed-toolbar{ flex-wrap:nowrap !important; gap:6px 8px !important; }
   .ed-toolbar .view-toggle button{ padding:6px 10px; font-size:12.5px; }
   .ed-tbtn, .ed-newunit{ white-space:nowrap; }
+  body.pro #xrayToggle{ display:none; } /* PRO has its own tool rail */
+  .vm-units{ display:flex; align-items:center; justify-content:space-between; padding:9px 10px; }
+  .vm-units b{ font-size:13.5px; }
+  .vm-seg{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .vm-seg button{ border:0; background:#fff; padding:5px 14px; font:inherit; font-size:12.5px; cursor:pointer; color:var(--ink); }
+  .vm-seg button.active{ background:var(--blue-soft); color:var(--blue-deep); font-weight:700; }
   .vm-row.vm-cam{ display:none; } /* the camera buttons' stand-ins in Skoða, only while the bar has no room for them (morning scan 2026-10-27 #5) */
   @media (max-width:1500px){ #camToggle{ display:none; } .ed-menus .cat-sec > summary{ padding:6px 9px; } .vm-row.vm-cam{ display:grid; } }
   /* E1 (2026-10-26): at 1280 px the row ran ~90 px past the edge and "← Til baka" was cut off — tighter below 1400 */
@@ -2598,16 +2604,17 @@
             <!-- Studio mynd: off the toolbar (user, 2026-10-24) — to be offered at the end of the flow instead -->
             <button type="button" id="studioBtn" hidden title="Studio mynd: raunveruleg ljósmynd af þessari sýn, tekur 20–90 sek" data-i18n="attrs">Studio</button>
           </div>
+          <div class="view-toggle" id="xrayToggle"><button type="button" id="inspectBtn" title="X-Ray: framhliðar af — smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">X-Ray</button></div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
           <div class="view-toggle" id="moodToggle" hidden title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n="attrs"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n>Kvöld</button></div>
           <!-- "Skoða" (user, 2026-10-26): Málband, X-Ray and Málsetning in one dropdown like Rými / Efni — fewer controls on
                the bar, and the bar never changes width when one is switched on (the dot on the button says something is on) -->
           <div class="ed-menus ed-viewmenu"><details class="cat-sec" id="viewMenu" data-sec="skoda"><summary><span data-i18n>Skoða</span><i class="vm-dot" aria-hidden="true"></i></summary><div class="sec-body vm-body">
+            <div class="vm-units" id="unitRow"><b data-i18n>Mælieining</b><span class="vm-seg"><button type="button" data-unit="cm">cm</button><button type="button" data-unit="mm">mm</button></span></div>
             <button type="button" class="vm-row vm-cam" data-vm-cam="resetCamBtn"><b data-i18n>Endurstilla sýn</b><small data-i18n>Sjónarhornið aftur á byrjunarstað</small></button>
             <button type="button" class="vm-row vm-cam" data-vm-cam="snapBtn"><b data-i18n>Vista mynd</b><small data-i18n>Mynd af hönnuninni í tölvuna þína</small></button>
             <button type="button" class="vm-row vm-cam" data-vm-cam="walkBtn" id="vmWalk"><b data-i18n>Ganga um</b><small data-i18n>Sjáðu rýmið í augnhæð</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="measureBtn"><b data-i18n>Málband</b><small data-i18n>Smelltu á tvo punkta til að mæla á milli þeirra</small><i class="vm-sw" aria-hidden="true"></i></button>
-            <button type="button" class="vm-row" id="inspectBtn"><b>X-Ray</b><small data-i18n>Framhliðar af — smelltu á skúffu eða hurð til að opna hana</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="skTagsBtn" hidden><b>Sk-númer</b><small>Sk-númer skápanna á framhliðunum í 3D</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="fsBtn" hidden><b data-i18n>Fullskjár</b><small data-i18n>Fela vafrastikuna — meira pláss fyrir teikninguna</small><i class="vm-sw" aria-hidden="true"></i></button>
             <button type="button" class="vm-row" id="dimsBtn" hidden><b data-i18n>Málsetning</b><small data-i18n>Sýna málin á skápunum</small><i class="vm-sw" aria-hidden="true"></i></button>
@@ -2811,7 +2818,9 @@
   var KP3D = window.KP3D;
   // Customers see cm, PRO keeps mm (2026-10-26, docs/studio-cm.md). State, drafts and everything sent to Airtable
   // stay mm — uNum/uLen only format for display (and answer mm inside KPI18N.asIS, where Airtable text is built).
+  var UNIT_KEY = "bjorninn:kitchenPlanner:unit"; // Skoða → Mælieining (owner, 2026-10-29): customers can think in mm, cm is the default
   KP3D.unitCm = !KPI18N.isPro;
+  if (!KPI18N.isPro){ try{ if (localStorage.getItem(UNIT_KEY) === "mm") KP3D.unitCm = false; }catch(e){} }
   function uCm(){ return KP3D.unitCm && !KPI18N.forced; }
   function uNum(mm, exact){ return KP3D.dimNum(mm, exact); }   // "60" (whole cm; exact → "60,5") or "600" (mm)
   function uLen(mm){ return KP3D.dimLen(mm); }   // "60 cm" or "600 mm"
@@ -11495,6 +11504,19 @@
     b.addEventListener("click", function(){ try{ var r = isFs() ? ex.call(document) : req.call(root); if (r && r.catch) r.catch(function(){}); }catch(e){} });
     var sync = function(){ b.classList.toggle("active", isFs()); syncViewMenuDot(); };
     document.addEventListener("fullscreenchange", sync); document.addEventListener("webkitfullscreenchange", sync);
+  })();
+  (function(){ // cm / mm: the display is rebuilt from scratch, so a reload (the draft is already saved) is the one clean way
+    var row = document.getElementById("unitRow"); if (!row) return;
+    row.hidden = !!PRO; // PRO is always mm
+    row.querySelectorAll("[data-unit]").forEach(function(b){
+      b.classList.toggle("active", (b.dataset.unit === "cm") === !!KP3D.unitCm);
+      b.addEventListener("click", function(){
+        if ((b.dataset.unit === "cm") === !!KP3D.unitCm) return;
+        try{ localStorage.setItem(UNIT_KEY, b.dataset.unit); }catch(e){}
+        try{ save(); }catch(e){}
+        location.reload();
+      });
+    });
   })();
   document.getElementById("dimsBtn").addEventListener("click", function(){ KP3D.setShowDims(!KP3D.showDimsOn()); syncDimsUI(); });
   document.getElementById("inspectBtn").addEventListener("click", function(){

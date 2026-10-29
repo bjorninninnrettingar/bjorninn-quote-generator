@@ -664,6 +664,8 @@
     "Dragðu frá upphafi að oddi til að teikna ör.": "Drag from the start to the tip to draw an arrow.",
     "Grunnskápar": "Base cabinets",
     "Hornskápar": "Corner cabinets",
+    "Mælieining": "Units",
+    "X-Ray: framhliðar af — smelltu á skúffu eða hurð til að opna hana": "X-Ray: fronts off — click a drawer or door to open it",
     "Veldu gerð": "Choose a type",
     // the kitchen's one-level "+ Ný eining" type list (2026-10-26)
     "Skúffur eða hurð": "Drawers or a door",
