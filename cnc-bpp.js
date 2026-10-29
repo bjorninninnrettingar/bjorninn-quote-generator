@@ -101,16 +101,28 @@
     if (!out.length) out.push({ type: "hinge", y: mm, label: (op.label || "Löm") + " — " + mm + " mm", unsure: true });
     return out;
   }
+  function cornersOf(raw) { return String(raw || "").replace(/"/g, "").split(",").map(function (x) { return parseInt(x, 10); }).filter(function (n) { return n >= 1 && n <= 4; }); }
   function buildSideFeatures(ops, vars) {
     var features = [], unknown = [], info = [];
     var drawerCursor = 0, fixedCursor = 0;
     ops.filter(function (o) { return o.active; }).forEach(function (op) {
       var p = op.params;
       switch (op.name) {
-        case "TOPP_BOTN": break; // always identical, not worth drawing
+        case "TOPP_BOTN": {
+          // Simulated from the macro itself (Macros/TOPP_BOTN, read 2026-10-29): params (BORA_I_GEGN, Z = board thickness,
+          // BIL = gap from the end, CRN). Per corner: the board's footprint x ∈ [BIL, BIL+Z] from that end, y = the whole depth
+          // less 1 mm (rectangle (BIL,0)–(Z, lpy−1) from the corner), and 5 end holes at x = Z/2+BIL, y = 30, 70, (lpy−1)/2,
+          // lpy−31, lpy−71. Corners: 1 bottom-back, 2 bottom-front, 3 top-front, 4 top-back (the same reading as LOM's "2,3").
+          var tz = num(p[1], vars), tbil = num(p[2], vars);
+          if (tz != null && tbil != null) features.push({ type: "tb", z: tz, bil: tbil, corners: cornersOf(p[3]), label: "Toppur / Botn" });
+          break;
+        }
         case "SLA_HLID": {
-          var y = num(p[3], vars);
-          if (y != null) features.push({ type: "rail", y: y, label: op.label || "Slá" }); // 0 = the one at the bottom (2026-10-29: drawn too)
+          // Macro SLA_HLID (read 2026-10-29): params (BAKZ, BORA_I_GEGN, BIL, OFFSET, CRN). Per corner a rectangle 100 mm tall
+          // (x from BIL+OFFSET from that end) and BAKZ thick from the corner's own edge — corners "1,4" = the BACK edge, at the
+          // bottom and the top end. "Auka slár" has OFFSET lpx/3.
+          var bz = num(p[0], vars), sb = num(p[2], vars), so2 = num(p[3], vars);
+          if (bz != null && sb != null && so2 != null) features.push({ type: "rail", y: sb + so2, h: 100, bakz: bz, corners: cornersOf(p[4]), label: op.label || "Slá" });
           break;
         }
         case "LOM": case "IKEALOM": {
@@ -373,15 +385,25 @@
       } else if (f.type === "hinge") {
         var eh = g(f.label || "Löm", "hinge", f.y);
         drawPlate(eh, X(front), Y(f.y), s, acc.hinge ? BLUE : INK, mir ? -1 : 1);
+      } else if (f.type === "tb") {
+        // toppur / botn: its footprint at each end (bottom: x from BIL, top: mirrored), the 5 end holes in it
+        var etb = g(f.label + " — " + Math.round(f.z) + " mm þykkt, " + Math.round(f.bil) + " mm bil → tekur " + Math.round(f.bil + f.z) + " mm af hæðinni í hvorum enda", null);
+        f.corners.forEach(function (cn) {
+          var bot = cn <= 2, back = cn === 1 || cn === 4, x0 = bot ? f.bil : LPX - f.bil - f.z, d0 = back ? 1 : 0, d1 = back ? LPY : LPY - 1, rr = XR(d0, d1);
+          etb.appendChild(svgEl("rect", { x: rr.x, y: Y(x0 + f.z), width: rr.w, height: Math.max(2, f.z * s), fill: "#ece6d6", stroke: "#9c8a6b", "stroke-width": .9 }));
+          [30, 70, (LPY - 1) / 2, LPY - 31, LPY - 71].forEach(function (hy) { etb.appendChild(svgEl("circle", { cx: X(back ? LPY - hy : hy), cy: Y(x0 + f.z / 2), r: Math.max(1.6, 4 * s), fill: "none", stroke: "#7a6a4a", "stroke-width": .9 })); });
+          var tl2 = svgEl("text", { x: X(LPY / 2), y: Y(bot ? x0 + f.z : x0) + (bot ? -3 : 10), "text-anchor": "middle", "font-size": 9, fill: "#7a6a4a" }); tl2.textContent = (bot ? "Botn " : "Toppur ") + Math.round(f.bil + f.z) + " mm"; etb.appendChild(tl2);
+        });
       } else if (f.type === "rail") {
-        // a slá (SLA_HLID) is a back rail: dashed across, and a solid block at the back edge where it is screwed in
-        var er = g(f.label + " — í bakinu, " + Math.round(f.y) + " mm frá botni", "rail", f.y);
-        if (f.y > 1) er.appendChild(svgEl("line", { x1: X(0), x2: X(LPY), y1: Y(f.y), y2: Y(f.y), stroke: "#d2d2d7", "stroke-width": 1, "stroke-dasharray": "4 4" }));
-        var rb = XR(LPY - 18, LPY); er.appendChild(svgEl("rect", { x: rb.x, y: Y(f.y + 9), width: rb.w, height: Math.max(4, 18 * s), fill: "#8e8e93", stroke: INK, "stroke-width": .8 }));
-        er.appendChild(svgEl("rect", { x: rb.x - 6, y: Y(f.y + 9) - 6, width: rb.w + 12, height: Math.max(4, 18 * s) + 12, fill: "transparent" }));
+        // slá (SLA_HLID): a 100 mm tall, BAKZ thick block at the back edge, at both ends (+ the extra ones at lpx/3)
+        var er = g(f.label + " — í bakinu, " + Math.round(f.y) + " mm frá enda", "rail", f.y);
+        f.corners.forEach(function (cn) {
+          var bot = cn <= 2, back = cn === 1 || cn === 4, x0 = bot ? f.y : LPX - f.y - f.h, rr2 = back ? XR(LPY - f.bakz, LPY) : XR(0, f.bakz);
+          er.appendChild(svgEl("rect", { x: rr2.x, y: Y(x0 + f.h), width: rr2.w, height: Math.max(2, f.h * s), fill: "#e4e4e9", stroke: "#6e6e73", "stroke-width": 1 }));
+        });
       } else if (f.type === "groove") {
-        var egr = g(f.label), gx = X(f.y), gw = Math.max(2, 4 * s);
-        egr.appendChild(svgEl("rect", { x: gx - gw / 2, y: Y(LPX), width: gw, height: h, fill: f.led ? "#fff4e5" : "#e6dcc8", stroke: f.led ? "#e8903a" : "#9c8a6b", "stroke-width": .9 }));
+        var egr = g(f.label), gx = X(f.y), gw = Math.max(f.led ? 3 : 2, 4 * s); // LED: magenta, true 4 mm (at least 3 px) so a clash is easy to see
+        egr.appendChild(svgEl("rect", { x: gx - gw / 2, y: Y(LPX), width: gw, height: h, fill: f.led ? "#e6007e" : "#e6dcc8", stroke: f.led ? "#e6007e" : "#9c8a6b", "stroke-width": f.led ? 0 : .9 }));
       }
     });
     (opts.hits || []).forEach(function (hh) {
