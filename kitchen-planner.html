@@ -5410,6 +5410,9 @@
   var SINK_W_MM = 800; // default sink cabinet width
   function waterAlong(w){ // centre of the water/sink along its wall (mm from the wall start)
     var v = state.waterAlongMm != null ? state.waterAlongMm : Math.round(w.lengthMm / 2 / 10) * 10;
+    // a laundry on one wall: a sink in the middle leaves no side wide enough for the machines ("Vélarnar komast ekki fyrir"
+    // the moment the step opens, QA 2026-10-29) — until the visitor places the water, it starts at the wall's end
+    if (state.waterAlongMm == null && isLaundry() && bathShape() === "bathWall" && w.lengthMm > 600) v = 300;
     return Math.max(0, Math.min(w.lengthMm, v));
   }
   // 2026-10-11: header "Vatn · Veggur N" like the openings page, wall buttons, position, a quiet "Fjarlægja vatn";
