@@ -8851,6 +8851,9 @@
       leaveUnitWizard();
       refreshAfterEdit();
       restoreEditorCam();
+      // the new unit can't open (a door into the neighbour, a corner in front of it): say so right here, not only in the warning list (owner, 2026-10-29)
+      var openWarn = KP3D.openingIssues(state).warn.filter(function(w){ return w.ids.indexOf(b.id) >= 0; });
+      if (openWarn.length) setTimeout(function(){ toast("⚠ " + openWarn[0].msg); }, 60);
       if (pocketNew){ applyClosetDoorKind(b, "pocket"); save(); refreshAfterEdit(); } // Rennihurð í hlið picked in the wizard: the same door spec the panel writes
       if (PRO) openSmidaWizard(b.id); // new unit in PRO: step 2 is Smíða (user, 2026-10-14) — the wizard since 2026-10-28
     });
