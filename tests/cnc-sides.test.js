@@ -347,7 +347,7 @@ test("shelves from Smíða in any cabinet: fixed at its top face, loose with its
   const rows = [row("Skápur hlið", 2400, 583, 16, 2), row("Frontur", 2397, 597, 19, 1), row("Laus hilla", 558, 566, 16, 1), row("Föst hilla", 558, 566, 19, 1)];
   const smida = JSON.stringify({ v: 1, shelves: { loose: 1, fixed: 1, list: [{ mm: 900, fixed: true, pos: 1 }, { mm: 1600, fixed: false, pos: 5 }] } });
   const p = S.unitPlan("Sk2", rows, { smida });
-  assert.deepEqual(ops(p).filter((x) => /HILLA/.test(x)), ["FOST_HILLA: 19, 900, 2, lpy-22, lpz+5", "LAUS_HILLA: 1484, 5, 37, 20+60, 50"]);
+  assert.deepEqual(ops(p).filter((x) => /HILLA/.test(x)), ["FOST_HILLA: 19, 900, 2, 558, lpz+5", "LAUS_HILLA: 1484, 5, 37, 20+60, 50"]);
   assert.ok(!p.check.some((c) => /^(Lausar hillur|Föst hilla|Fastar hillur)/.test(c))); // shelves are from the designer; the doors' default hinges are a separate, expected check
   // a default hinge in the middle of the door would land on a hole row → it is moved off it
   assert.ok(ops(p).filter((x) => /^LOM/.test(x)).every((x) => { const v = +x.split(": ")[1].split(",")[0]; return Math.abs(v - 1584) >= 30 || /"3"/.test(x); }));

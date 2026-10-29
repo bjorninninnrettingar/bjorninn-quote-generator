@@ -133,14 +133,14 @@
         case "FOST_HILLA": {
           var mm = num(p[1], vars);
           if (mm == null) { unknown.push(op); break; }
-          features.push({ type: "shelfFixed", y: mm, t: num(p[0], vars) || 16, label: op.label || "Föst hilla" });
+          features.push({ type: "shelfFixed", y: mm, t: num(p[0], vars) || 16, k: num(p[2], vars), d: num(p[3], vars), label: op.label || "Föst hilla" });
           break;
         }
         case "LAUS_HILLA": {
           var first = num(p[0], vars), n = num(p[1], vars), spacing = num(p[4], vars) || 50;
           if (first == null || n == null) { unknown.push(op); break; }
           var ys = []; for (var k = 0; k < n; k++) ys.push(first + k * spacing);
-          features.push({ type: "shelfLoose", ys: ys, label: op.label || "Laus hilla" });
+          features.push({ type: "shelfLoose", ys: ys, yf: num(p[2], vars), yb: num(p[3], vars), label: op.label || "Laus hilla" });
           break;
         }
         case "LEGRABOX_NEDSTA_SKUFFA": {
@@ -377,11 +377,18 @@
         var ef2 = g(f.label); ef2.appendChild(svgEl("rect", { x: L + 3, y: Y(f.to), width: w - 6, height: Math.max(1, (f.to - f.from) * s), fill: "#f5f5f7" }));
       } else if (f.type === "shelfFixed") {
         var t0 = f.t || 16, es = g(f.label + " — " + Math.round(f.y) + " mm (efri flötur)", "shelf", f.y);
-        es.appendChild(svgEl("rect", { x: L, y: Y(f.y), width: w, height: Math.max(1.5, t0 * s), fill: acc.shelf ? "#cfe3fb" : "#d1d1d6", stroke: acc.shelf ? BLUE : INK, "stroke-width": .9 }));
+        // FOST_HILLA macro: the board is `d` deep from `k` mm in from the front (depth lpy−22 or the Sögunarlisti depth) — it stops at the masonite, not the back
+        var fk = f.k != null ? f.k : 2, fd = f.d != null ? f.d : LPY - 22, fr2 = XR(fk, Math.min(LPY, fk + fd));
+        es.appendChild(svgEl("rect", { x: fr2.x, y: Y(f.y), width: fr2.w, height: Math.max(1.5, t0 * s), fill: acc.shelf ? "#cfe3fb" : "#d1d1d6", stroke: acc.shelf ? BLUE : INK, "stroke-width": .9 }));
+        [30, fd / 2, fd - 30, fd - 70, 70].forEach(function (hy) { es.appendChild(svgEl("circle", { cx: X(fk + hy), cy: Y(f.y - t0 / 2), r: Math.max(1.3, 2.5 * s), fill: acc.shelf ? BLUE : INK })); });
       } else if (f.type === "shelfLoose") {
         var mid = f.ys[Math.floor(f.ys.length / 2)], el2 = g(f.label + " — " + Math.round(mid + 16) + " mm, göt " + f.ys.map(function (y) { return Math.round(y); }).join(", "), "shelf", mid);
-        el2.appendChild(svgEl("rect", { x: L + 1, y: Y(mid + 16), width: w - 2, height: Math.max(1.5, 16 * s), fill: acc.shelf ? "#e8f1fc" : "#f2f2f4", stroke: acc.shelf ? BLUE : SOFT, "stroke-width": .8, "stroke-dasharray": "4 3" }));
-        f.ys.forEach(function (y) { [front, back].forEach(function (d) { el2.appendChild(svgEl("circle", { cx: X(d), cy: Y(y), r: 2.4, fill: acc.shelf ? BLUE : INK })); }); });
+        // the shelf as cut (Sögunarlisti depth, opts.shelfD.loose, 2 mm in from the front like FOST_HILLA) — stops at the masonite;
+        // pin rows exactly as LAUS_HILLA drills them: YF from the front edge, YB from the back edge
+        var ld = opts.shelfD && opts.shelfD.loose ? opts.shelfD.loose : LPY - 22, lr = XR(2, Math.min(LPY, 2 + ld));
+        el2.appendChild(svgEl("rect", { x: lr.x, y: Y(mid + 16), width: lr.w, height: Math.max(1.5, 16 * s), fill: acc.shelf ? "#e8f1fc" : "#f2f2f4", stroke: acc.shelf ? BLUE : SOFT, "stroke-width": .8, "stroke-dasharray": "4 3" }));
+        var pf = f.yf != null ? f.yf : front, pb = f.yb != null ? LPY - f.yb : back;
+        f.ys.forEach(function (y) { [pf, pb].forEach(function (d) { el2.appendChild(svgEl("circle", { cx: X(d), cy: Y(y), r: 2.4, fill: acc.shelf ? BLUE : INK })); }); });
       } else if (f.type === "hinge") {
         var eh = g(f.label || "Löm", "hinge", f.y);
         drawPlate(eh, X(front), Y(f.y), s, acc.hinge ? BLUE : INK, mir ? -1 : 1);

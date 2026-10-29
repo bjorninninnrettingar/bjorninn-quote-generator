@@ -289,3 +289,12 @@ test("LED, blindlok and drawer depth (2026-10-29): Smíðagögn led → master's
   assert.match(out, /^' CUT_X, "", "LED 6x6/m);
   assert.equal(M.same(M.smidaOf(c, M.initEdit(c)).led, undefined), true);
 });
+
+test("shelf depth from Sögunarlisti (2026-10-29): a shelf that is not side depth − 22 gets its real D in FOST_HILLA; plan.shelfD for the drawing", () => {
+  const rows = [gr("Skápur hlið", 800, 580, 16, 2), gr("Föst hilla", 500, 764, 16, 1), gr("Laus hilla", 540, 764, 16, 1)];
+  const c = cab("recShDaaaaaaaaaaaa", "Sk 9", rows, { Hæð: 800, Breidd: 800, Dýpt: 600 });
+  const e = M.initEdit(c);
+  const p = M.planOf(c, M.smidaOf(c, e));
+  assert.deepEqual(p.shelfD, { fixed: 500, loose: 540 });
+  assert.ok(opsOf(p, "FOST_HILLA").every((x) => /, 2, 500, lpz\+5$/.test(x)));
+});

@@ -250,12 +250,23 @@
     var boards = [], pinRows = [], innerBands = [];
     // fixed = FOST_HILLA at its top face; loose = LAUS_HILLA with `pos` holes 50 apart, the middle one under the shelf.
     // Board thickness from Sögunarlisti's own shelf row when there is one. Counts are compared with Sögunarlisti.
+    // The shelf's real depth comes from its Sögunarlisti row (H or B, whichever is the depth: the one nearest side depth − 22 and
+    // not deeper than the side) — it stops at the masonite groove, it does NOT reach the back (owner 2026-10-29). Fallback lpy-22.
+    function shelfDepth(rowsOf) {
+      var r = (rowsOf || [])[0]; if (!r) return null;
+      var c = [num(r.H), num(r.B)].filter(function (v) { return v != null && v > 50 && v <= B; });
+      if (!c.length) return null;
+      return r1(c.reduce(function (a, v) { return Math.abs(v - (B - 22)) < Math.abs(a - (B - 22)) ? v : a; }, c[0]));
+    }
+    var dFixed = shelfDepth(by.fixedShelf), dLoose = shelfDepth(by.looseShelf);
+    plan.shelfD = { fixed: dFixed != null ? dFixed : r1(B - 22), loose: dLoose != null ? dLoose : r1(B - 22) };
+    var dFixedS = dFixed != null && Math.abs(dFixed - (B - 22)) > 0.05 ? String(dFixed) : "lpy-22"; // the usual case stays the shop's own expression
     function emitShelves(list, above, noCount, radborun) {
       var tF = num(((by.fixedShelf || [])[0] || {})["Þ"]) || OVEN_BOARD, tL = num(((by.looseShelf || [])[0] || {})["Þ"]) || OVEN_BOARD;
       var sl = (list || []).filter(function (x) { return num(x.mm) > above && num(x.mm) < H; });
       sl.forEach(function (x) {
         var mm = r1(num(x.mm));
-        if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, lpy-22, lpz+5"); shelfRows.push(r1(mm - tF / 2)); boards.push({ bot: r1(mm - tF), top: mm, fixed: true, what: "föstu hilluna í " + mm }); return; }
+        if (x.fixed) { op("FOST_HILLA", "Föst hilla", tF + ", " + mm + ", 2, " + dFixedS + ", lpz+5"); shelfRows.push(r1(mm - tF / 2)); boards.push({ bot: r1(mm - tF), top: mm, fixed: true, what: "föstu hilluna í " + mm }); return; }
         boards.push({ bot: r1(mm - tL), top: mm, what: "hilluna í " + mm });
         if (radborun) { shelfRows.push(r1(mm - tL)); return; } // its holes come from the one continuous run below
         var n = Math.max(1, Math.min(9, Math.round(num(x.pos) || 3))), gp = num(x.gap) > 0 ? Math.round(num(x.gap)) : 50, mid = r1(mm - tL), first = r1(mid - Math.floor((n - 1) / 2) * gp);
