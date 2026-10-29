@@ -7988,8 +7988,8 @@
   var KITCHEN_TREE = [
     kOne("Grunnskápar", "grunn", "Grunnskápur", "Skúffur eða hurð", { type:"grunnskapur", drawers:true }),
     kOne("Grunnskápar", "vaskur", "Vaskaskápur", "Undir vaskinn", { type:"vaskaskapur" }),
-    kOne("Grunnskápar", "tofra", "Töfrahorn", "Útdraganlegt horn", { type:"tofrahorn" }),
-    kOne("Grunnskápar", "horn", "Hornskápur", "Hillur í horninu", { type:"hornskapur" }),
+    kOne("Hornskápar", "tofra", "Töfrahorn", "Útdraganlegt horn", { type:"tofrahorn" }),
+    kOne("Hornskápar", "horn", "Hornskápur", "Hillur í horninu", { type:"hornskapur" }),
     kOne("Grunnskápar", "litill", "Lítill kassi", "Lágur skúffukassi", { type:"litillkassi", drawers:true }),
     kOne("Háir skápar", "har", "Hár skápur", "Hurðir með hillum", { type:"harskapur" }),
     kOne("Háir skápar", "bur", "Búrskápur", "Skúffur og hillur", { type:"burskapur" }),
@@ -8436,12 +8436,20 @@
     closeFitAsk(); // any change in the wizard makes a pending "passar ekki" question stale
     if (uw) uw.hoverB = null; // a click committed (or the page changed): the hovered copy is stale
     var side = document.getElementById("uwSide"), html = "";
-    if (uw.step === 1){
-      var lastG = null;
-      html = '<p class="uw-kicker">' + __("Ný eining") + '</p><h3>' + __("Hvað viltu bæta við?") + '</h3><div class="uw-grid' + (kitchenWiz() ? ' uw-types' : '') + '">' + activeUnitTree().map(function(cat, i){
-        var head = cat.group && cat.group !== lastG ? '<p class="uw-group">' + __(cat.group) + '</p>' : ''; lastG = cat.group || null;
-        return head + '<button type="button" class="uw-card" data-uw-cat="' + i + '"' + (kitchenWiz() ? ' title="' + __(cat.desc) + '"' : '') + '>' + catIcon(cat.iconKind || "cabinet", cat.icon) + '<span><b>' + __(cat.label) + '</b><small>' + __(cat.desc) + '</small></span></button>';
+    if (uw.step === 1 && kitchenWiz() && uw.grp == null){ // the kitchen's top level again (owner, 2026-10-29): Grunnskápar, Hornskápar, Tækjaskápar … then the types inside
+      var gseen = {}, tree = activeUnitTree();
+      html = '<p class="uw-kicker">' + __("Ný eining") + '</p><h3>' + __("Hvað viltu bæta við?") + '</h3><div class="uw-grid">' + tree.map(function(cat, i){
+        if (gseen[cat.group]) return ""; gseen[cat.group] = 1;
+        var names = tree.filter(function(x){ return x.group === cat.group; }).map(function(x){ return __(x.label); });
+        return '<button type="button" class="uw-card" data-uw-grp="' + escapeHtmlPro(cat.group) + '" data-uw-cat="' + i + '">' + catIcon(cat.iconKind || "cabinet", cat.icon) + '<span><b>' + __(cat.group) + '</b><small>' + names.join(" · ") + '</small></span></button>';
       }).join("") + '</div>';
+    } else if (uw.step === 1){
+      var lastG = null, inGrp = kitchenWiz() && uw.grp != null;
+      html = '<p class="uw-kicker">' + (inGrp ? __("Ný eining") : "") + '</p><h3>' + (inGrp ? __(uw.grp) : __("Hvað viltu bæta við?")) + '</h3><div class="uw-grid' + (kitchenWiz() && !inGrp ? ' uw-types' : '') + '">' + activeUnitTree().map(function(cat, i){
+        if (inGrp && cat.group !== uw.grp) return "";
+        var head = !inGrp && cat.group && cat.group !== lastG ? '<p class="uw-group">' + __(cat.group) + '</p>' : ''; lastG = cat.group || null;
+        return head + '<button type="button" class="uw-card" data-uw-cat="' + i + '"' + (kitchenWiz() && !inGrp ? ' title="' + __(cat.desc) + '"' : '') + '>' + catIcon(cat.iconKind || "cabinet", cat.icon) + '<span><b>' + __(cat.label) + '</b><small>' + __(cat.desc) + '</small></span></button>';
+      }).join("") + '</div>' + (inGrp ? '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-grpback>' + __("← Til baka") + '</button></div>' : '');
     } else if (uw.step === 2){
       var cat = activeUnitTree()[uw.cat];
       var lastGroup = null;
@@ -8610,6 +8618,8 @@
     return v;
   }
   function wireUnitWizard(side){
+    side.querySelectorAll("[data-uw-grp]").forEach(function(el){ el.addEventListener("click", function(ev){ ev.stopImmediatePropagation(); uw.grp = el.dataset.uwGrp; renderUnitWizard(); }, true); });
+    side.querySelectorAll("[data-uw-grpback]").forEach(function(el){ el.addEventListener("click", function(){ uw.grp = null; renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-cat]").forEach(function(el){ el.addEventListener("click", function(){
       uw.cat = +el.dataset.uwCat; uw.hover = 0;
       var hc = activeUnitTree()[uw.cat] || {};

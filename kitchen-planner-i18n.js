@@ -663,6 +663,8 @@
     "Merkingar — búið": "Annotations — done",
     "Dragðu frá upphafi að oddi til að teikna ör.": "Drag from the start to the tip to draw an arrow.",
     "Grunnskápar": "Base cabinets",
+    "Hornskápar": "Corner cabinets",
+    "Veldu gerð": "Choose a type",
     // the kitchen's one-level "+ Ný eining" type list (2026-10-26)
     "Skúffur eða hurð": "Drawers or a door",
     "Undir vaskinn": "Under the sink",
