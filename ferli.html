@@ -303,6 +303,7 @@
   .dt .pill { background:var(--acc-bg,#e6f0fa); color:var(--accent); padding:2px 9px; border-radius:6px; font-size:.82rem; white-space:nowrap; } .dt img.th { width:36px; height:36px; object-fit:cover; border-radius:6px; display:block; }
   .sgGrp { margin:0 0 14px; } .sgGrp summary { cursor:pointer; padding:6px 0; font-size:.92rem; } .sgGrp .cnt { color:var(--muted); font-size:.8rem; margin-left:6px; }
   .supAct { display:flex; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap; } .pBtn { cursor:pointer; border:1px solid var(--line); background:var(--surface); color:var(--text); border-radius:8px; padding:6px 12px; font-size:.84rem; } .pBtn.hot { background:var(--warn-bg); color:var(--warn); border-color:transparent; font-weight:600; } .pBtn:disabled { opacity:.5; cursor:default; }
+  .supSend { margin-left:auto; display:flex; align-items:center; gap:14px; } .pBtn.go { background:var(--accent); color:#fff; border-color:transparent; font-weight:600; }
   .pdfFrame { width:100%; height:min(80vh,900px); border:1px solid var(--line); border-radius:10px; margin-top:12px; background:#fff; }
   .warnNote { background:var(--warn-bg); color:var(--warn); padding:10px 14px; border-radius:10px; margin-bottom:12px; font-size:.9rem; }
   .qIn, .swIn { font:inherit; padding:4px 8px; border:1px solid var(--line); border-radius:6px; background:var(--surface); color:var(--text); } .qIn { width:76px; text-align:right; } .swIn { width:min(420px,100%); }
@@ -1225,7 +1226,9 @@
           (f["Netfang birgis 🔍"] ? " · " + esc(tx(f["Netfang birgis 🔍"])) : "") + '</div>' +
           '<div class="supAct"><button type="button" class="pBtn" data-pdf="' + r.id + '"' + (pdf ? "" : " disabled") + '>' + (isOpen ? "Fela PDF" : "Skoða PDF") + '</button>' +
           '<button type="button" class="pBtn' + (dirtyOrders[r.id] ? " hot" : "") + '" data-reprint="' + r.id + '">Endurprenta PDF' + (dirtyOrders[r.id] ? " (línum breytt)" : "") + '</button>' +
-          (pdf ? '<a class="proLink" target="_blank" rel="noopener" href="' + esc(pdf.url) + '">Opna í flipa ↗</a>' : '<span class="stat">PDF ekki til enn</span>') + '</div>' +
+          (pdf ? '<a class="proLink" target="_blank" rel="noopener" href="' + esc(pdf.url) + '">Opna í flipa ↗</a>' : '<span class="stat">PDF ekki til enn</span>') +
+          (st === "Í undirbúningi" ? '<span class="supSend"><button type="button" class="pBtn go" data-send="' + r.id + '"' + (pdf ? "" : " disabled title=\"Prentaðu PDF fyrst\"") + '>Senda á birgja</button>' +
+            '<button type="button" class="link" data-offline="' + r.id + '" title="Pantað í síma eða tölvupósti — enginn póstur sendur héðan">Pantað utan kerfis</button></span>' : "") + '</div>' +
           (isOpen && pdf ? '<iframe class="pdfFrame" src="' + esc(pdf.url) + '" title="Pöntunarlisti PDF"></iframe>' : "") + '</div>';
       }).join("") + orderLinesHtml(lines, orderName);
     if (setHtml(el, html)) wireOrders(el);
@@ -1258,6 +1261,32 @@
           .then(function () { delete dirtyOrders[id]; return loadOrders(SIG.proj); })
           .then(function () { openPdf[id] = true; renderOrderList(true); toast("PDF endurprentað", false); })
           .catch(function () { toast("Tókst ekki að prenta PDF — reyndu aftur.", true); renderOrderList(true); });
+      };
+    });
+    el.querySelectorAll("[data-send]").forEach(function (b) {
+      b.onclick = function () {
+        var id = b.dataset.send, o = (SIG.orders || []).filter(function (x) { return x.id === id; })[0]; if (!o) return;
+        var f = o.fields || {}, who = tx(f["Netfang birgis 🔍"]), nm = String(f["Stöðu kenni"] || "Pöntun");
+        if (dirtyOrders[id]) { toast("Þú breyttir línum — endurprentaðu PDF áður en pöntunin er send.", true); return; }
+        if (!who) { toast("Birgirinn hefur ekkert netfang skráð í Airtable — pöntunin gæti ekki farið.", true); return; }
+        var n = (SIG.lines || []).filter(function (l) { return lineOrderIds(l).indexOf(id) >= 0; }).length;
+        if (!confirm("Senda pöntun „" + nm + "“ til " + who + " núna?\n\n" + n + " línur · " + (f["Áætlaður kostnaður"] ? isk(f["Áætlaður kostnaður"]) : "ekkert verð") + (f["Afhending óskuð"] ? " · afhending óskuð " + dateIs(f["Afhending óskuð"]) : " · afhendingardagur ekki skráður") + "\n\nÞetta sendir alvöru tölvupóst með PDF og er ekki hægt að afturkalla.")) return;
+        b.disabled = true; b.textContent = "Sendi…"; ordersBusy = true;
+        var f1 = {}; f1["📧 Senda á birgja"] = false;
+        apiPatch(PANTADIR + "/" + id, f1).then(function () { var f2 = {}; f2["📧 Senda á birgja"] = true; return apiPatch(PANTADIR + "/" + id, f2); })
+          .then(function (r) { if (r && r.error) throw new Error("patch"); ordersBusy = false;
+            pollSignals("send" + id, 90, function () { var x = (SIG.orders || []).filter(function (y) { return y.id === id; })[0]; return !!(x && /^Sent/.test((x.fields || {})["Staða"] || "")); },
+              function () { renderOrderList(true); toast(nm + " send ✓", false); },
+              function () { renderOrderList(true); toast(nm + ": ekkert gerðist enn — athugaðu Airtable (Skipulag · Senda pöntun á birgja) áður en þú reynir aftur.", true); });
+          }).catch(function () { ordersBusy = false; toast("Tókst ekki að senda — reyndu aftur.", true); renderOrderList(true); });
+      };
+    });
+    el.querySelectorAll("[data-offline]").forEach(function (b) {
+      b.onclick = function () {
+        var id = b.dataset.offline; if (!confirm("Merkja þessa pöntun sem pantaða utan kerfis? Enginn póstur er sendur héðan.")) return;
+        b.disabled = true;
+        apiPatch(PANTADIR + "/" + id, { "Staða": "Sent" }).then(function (r) { if (r && r.error) throw new Error("patch"); return refreshSignals(); }).then(function () { renderOrderList(true); toast("Merkt sem pantað", false); })
+          .catch(function () { b.disabled = false; toast("Tókst ekki að vista.", true); });
       };
     });
     el.querySelectorAll(".qIn").forEach(function (inp) {

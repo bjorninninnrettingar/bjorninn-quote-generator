@@ -46,7 +46,7 @@
   .sidebar .user { padding:14px 18px 0; border-top:1px solid #2a3442; margin-top:10px; font-size:.82rem; display:flex; justify-content:space-between; align-items:center; }
   .sidebar .user button { background:none; border:none; color:#8aa4c7; font:inherit; font-size:.8rem; cursor:pointer; }
 
-  .wrap { flex:1; max-width:760px; padding:24px 28px 40px; }
+  .wrap { flex:1; max-width:1040px; padding:24px 28px 40px; }
 
   .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
   .title { font-size:1.3rem; font-weight:700; letter-spacing:-.01em; margin-top:2px; }
@@ -68,9 +68,10 @@
 
   .lines { margin-top:12px; padding-top:12px; border-top:1px solid var(--line); display:none; }
   .lines.open { display:block; }
-  .row { display:flex; justify-content:space-between; gap:10px; padding:6px 0; font-size:.86rem; }
-  .row .k { color:var(--text); }
-  .row .v { color:var(--muted); text-align:right; }
+  .row { display:grid; grid-template-columns:minmax(0,1fr) 70px 110px; gap:12px; padding:7px 0; font-size:.86rem; border-bottom:1px solid var(--line); align-items:baseline; }
+  .row:last-of-type { border-bottom:none; } .row.hd2 { font-size:.72rem; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.03em; padding-top:0; }
+  .row .k { color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; } .row .q { text-align:right; font-variant-numeric:tabular-nums; } .row .v { color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; } .row.np .v { color:var(--bad); }
+  .flowLink { font-size:.84rem; color:var(--muted); margin:4px 0 0; } .flowLink a { color:var(--accent); text-decoration:none; font-weight:600; }
 
   .actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
   .actBtn { flex:1; min-width:120px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 10px; font-size:.82rem; font-weight:500; font-family:inherit; color:var(--text); }
@@ -110,6 +111,7 @@
 
   <div id="dash" style="display:none;">
     <div class="title" id="projTitle"></div>
+    <div class="flowLink" id="flowLink"></div>
 
     <button class="primaryBtn" id="recomputeBtn">Endurreikna pöntunarlista</button>
     <div class="runMsg" id="recomputeMsg"></div>
@@ -249,6 +251,7 @@
   function render(project, orders, lines, auka) {
     var pf = project.fields || {};
     document.getElementById("projTitle").textContent = pf["Heiti tækifæris / verkefnis"] || "(ónefnt verk)";
+    document.getElementById("flowLink").innerHTML = 'Pöntun er líka skref 4 í <a href="/ferli?recordId=' + recordId + '">Skipulagsferli →</a>';
 
     // Group lines by Pantaðir listar link
     var linesByOrder = {};
@@ -369,10 +372,8 @@
   function lineRowHtml(l) {
     var f = l.fields || {};
     var label = f["Vörulisti txt"] || f["Gerð"] || "Lína";
-    var meta = [];
-    if (f["Magn"]) meta.push(f["Magn"] + " stk");
-    if (f["Áætlaður kostnaður"]) meta.push(kr(f["Áætlaður kostnaður"]));
-    return '<div class="row"><span class="k">' + esc(label) + '</span><span class="v">' + esc(meta.join(" · ")) + '</span></div>';
+    var price = f["Áætlaður kostnaður"];
+    return '<div class="row' + (price ? "" : " np") + '"><span class="k" title="' + esc(label) + '">' + esc(label) + '</span><span class="q">' + esc(f["Magn"] != null ? f["Magn"] : "") + '</span><span class="v">' + (price ? kr(price) : "vantar verð") + '</span></div>';
   }
 
   function orderCard(o, lines) {
@@ -389,7 +390,7 @@
         statusChip(f["Staða"]) +
       '</div>' +
       '<div class="lines">' +
-        (lines.length ? lines.map(lineRowHtml).join("") : '<div class="empty">Engar línur</div>') +
+        (lines.length ? '<div class="row hd2"><span>Vara</span><span class="q">Magn</span><span class="v">Verð</span></div>' + lines.map(lineRowHtml).join("") : '<div class="empty">Engar línur</div>') +
         '<div class="actions">' +
           (pdf ? '<a class="actBtn" href="' + pdf.url + '" target="_blank" rel="noopener">📄 Skoða PDF</a>' : '') +
           '<button class="actBtn" data-reprint="' + o.id + '">↻ Endurprenta PDF</button>' +
