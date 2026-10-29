@@ -642,7 +642,7 @@
       case "opnun": return { t:[0, g.H * 0.45, zF + 0.3], p:[0, g.H * 1.2, zF + whole * 1.25] }; // centred and the same for left / right: hovering only changes the door (round 6)
       // the hinge side from outside the swing, close on the upper hinges, the leaf ajar so the hinge line shows
       case "lamir": { // round 6: the door open 90°, standing in the doorway looking at the hinge side — the hinge edge, the knuckle, the jamb
-        var hy = FLOOR_GAP + g.leafH - 0.22; return { t:[g.pivotX, hy - 0.04, zF + 0.012], p:[g.pivotX - g.s * 0.34, hy + 0.05, zF - 0.08] }; }
+        var hy = FLOOR_GAP + g.leafH - 0.22; return { t:[g.pivotX, hy - 0.012, zF + 0.012], p:[g.pivotX - g.s * 0.34, hy + 0.078, zF - 0.08] }; } // (2026-10-29: 28 mm higher — the hinge sat low in the frame, now centred)
       // low on the bottom edge: the gap under the leaf (and the seal dropping into it)
       case "throskuldur": { // the open leaf's free end, at the floor, from a little to the side: the bottom edge in section, the seal in its slot
         var fx = g.pivotX - g.s * g.leafT / 2, fz = zF + g.leafW;
