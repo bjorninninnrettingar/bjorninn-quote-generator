@@ -1520,7 +1520,20 @@
   body.pro .top-actions { flex:1 1 auto; min-width:0; justify-content:flex-end; gap:10px; }
   body.pro #proBar { flex:1 1 auto; min-width:0; justify-content:flex-end; gap:8px; }
   /* PRO uses the full width on every step (2026-10-29): the 900 px default column made the bar overflow left over the wordmark on step 1 and left half the screen empty */
-  body.pro .wrap { max-width:1440px; }
+  body.pro .wrap { max-width:none; }
+  /* contrast (owner 2026-10-29): white on the light PRO blue was 3.2:1 — filled buttons and the active step dot use a deeper blue (4.9:1);
+     the door wizard's colour cards / step dots were white-on-white or invisible ticks in the dark theme */
+  body.pro .btn-primary { background:#2f68ee; border-color:#2f68ee; color:#fff; }
+  body.pro .btn-primary.is-wait, body.pro .btn-primary:disabled { opacity:.55; }
+  body.pro #proBar { --blue:#2f68ee; }
+  body:not(.pro) .dw-kind small, body:not(.pro) .dw-color small, body:not(.pro) .dw-num small { color:#575757; } /* 4.5:1 → 7:1 for the 12 px hints (Studio) */
+  body.pro .dw-color { background:var(--card); color:var(--ink); border-color:var(--line); }
+  body.pro .dw-color small { color:var(--ink-soft); }
+  body.pro .dw-color:hover { border-color:var(--ink-soft); }
+  body.pro .dw-color.on { background:#1e2a44; border-color:var(--blue); }
+  body.pro .dw-n { background:#30d158; color:#05210d; }
+  body.pro .dw-sec.todo .dw-n { background:transparent; color:var(--ink); border:1.5px solid var(--ink-soft); }
+  body.pro .dw-sec.open .dw-n { background:#2f68ee; border-color:#2f68ee; color:#fff; }
   /* Skoða as icon buttons in the bar (2026-10-29): the dropdown and the old camera trio give way to #proViewTools */
   body.pro .ed-viewmenu, body.pro #camToggle { display:none !important; }
   #proViewTools { margin-left:6px; flex:none; }
@@ -1831,12 +1844,14 @@
   .dw-num b{ font-size:14.5px; }
   .dw-num small{ font-size:12px; color:var(--ink-soft); }
   .dw-in{ display:flex; align-items:center; gap:6px; }
-  .dw-in input{ width:90px; padding:9px 10px; border:1.5px solid var(--line); border-radius:8px; font:inherit; font-size:17px; font-weight:600; text-align:right; }
+  .dw-in input::placeholder{ font-size:13px; font-weight:400; }
+  .dw-in input{ width:118px; padding:9px 10px; border:1.5px solid var(--line); border-radius:8px; font:inherit; font-size:17px; font-weight:600; text-align:right; }
   .dw-in input:focus{ outline:none; border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
   .dw-in i{ font-style:normal; color:var(--ink-soft); font-size:13px; }
   .dw-num.bad .dw-in input{ border-color:#c0392b; }
   .dw-err{ grid-column:1 / -1; font-style:normal; font-size:12px; color:#c0392b; min-height:15px; text-align:right; }
-  .dw-next{ margin-top:12px; }
+  .dw-next{ margin-top:0; }
+  .dw-fwd{ display:flex; gap:10px; align-items:center; margin-left:auto; }
   .dw-opts{ display:flex; flex-direction:column; gap:8px; }
   .dw-mats{ max-height:250px; overflow:auto; padding:3px; margin-top:8px; grid-template-columns:repeat(auto-fill, minmax(92px, 1fr)); }
   /* round 4 polish: numbered / ticked steps, colour cards, roomier list + review, the preview as a soft studio */
@@ -2043,7 +2058,8 @@
   #tilbodPanel tr.tp-group td { background:none; color:var(--ink-soft); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; padding-top:14px; cursor:default; }
   #tilbodPanel tr.tp-other td { color:var(--ink-soft); cursor:default; }
   #tilbodPanel .tp-foot { border-top:1px solid var(--line); padding:10px 16px 14px; display:grid; grid-template-columns:1fr auto; gap:6px 12px; align-items:center; }
-  #tilbodPanel .tp-foot label { color:var(--ink-soft); }
+  #tilbodPanel .tp-foot label { color:var(--ink); font-size:13.5px; font-weight:600; }
+  #tilbodPanel .tp-foot input, #tilbodPanel .tp-foot select { justify-self:end; }
   #tilbodPanel .tp-foot input, #tilbodPanel .tp-foot select { font:inherit; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:5px 8px; width:120px; }
   #tilbodPanel details { grid-column:1 / -1; color:var(--ink-soft); }
   #tilbodPanel details summary { cursor:pointer; font-size:12px; }
@@ -14185,9 +14201,7 @@
     var tpNoteSync = function(){
       var foot = document.querySelector("#tilbodPanel .tp-foot"), d = document.getElementById("tpDiscount"), m = document.getElementById("tpMarkup");
       if (!foot || !d) return;
-      if (!tpNote){ tpNote = document.createElement("p"); tpNote.id = "tpFactorNote"; tpNote.style.cssText = "margin:0 0 8px;font-size:12px;line-height:1.4;color:var(--ink-soft,#6b6b6b);"; foot.insertBefore(tpNote, foot.firstChild); }
-      var pct = KPPROTEXT.tilbodDiscount(d.value).value, mk = m && m.value && m.selectedIndex >= 0 ? m.options[m.selectedIndex].text : "";
-      tpNote.textContent = KPPROTEXT.tilbodFactors(pct, mk);
+      // 2026-10-29: the explaining sentence is gone — it pushed the label/field pairs out of step; each field now sits next to its own label (the ⓘ keeps the details)
     };
     document.addEventListener("focusin", function(e){ if (e.target.id === "tpDiscount") tpPrev = e.target.value; });
     document.addEventListener("change", function(e){
@@ -15149,7 +15163,7 @@
             var err = dwValErr(f[0]); if (err === null && dw.askMal) err = __("Vantar"); // "Vista hurðina" pressed with this one empty
             return '<label class="dw-num' + (err ? ' bad' : '') + '"><span><b>' + __(f[1]) + '</b><small>' + __(f[2]) + '</small></span><span class="dw-in"><input type="text" inputmode="decimal" autocomplete="off" data-dwnum="' + f[0] + '" value="' + escapeHtmlPro(dw.vals[f[0]]) + '" placeholder="' + (PRO ? dLim(f[0])[0] + '–' + dLim(f[0])[1] : __("t.d. {v}", { v:{ widthMm:82, heightMm:208, wallMm:12 }[f[0]] })) + '"><i>' + dU() + '</i></span>' +
               '<em class="dw-err" data-dwerr="' + f[0] + '">' + (err || '') + '</em></label>';
-          }).join("") + '<button type="button" class="btn btn-primary btn-small dw-next" data-dwmalok="1"' + (dwMalOk() ? '' : ' disabled') + '>' + __("Áfram") + '</button>';
+          }).join("");
         } else if (key === "opnun"){
           var slide = KPDOORS.isSlide(d);
           body = '<p class="dw-hint">' + (slide ? __("Í hvaða átt rennur hurðin þegar hún opnast?") : __("Stattu þeim megin sem hurðin opnast að. Hvorum megin eru lamirnar?")) + '</p><div class="dw-kinds">' + ["left", "right"].map(function(h){
@@ -15181,8 +15195,11 @@
         (open ? '<div class="uw-sec-body">' + body + '</div>' : '') + '</div>';
     });
     var can = dwMalOk();
-    html += '</div></div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-dwcancel="1">' + __("Hætta við") + '</button>' +
-      '<button type="button" class="btn btn-primary' + (can ? '' : ' is-wait') + '" data-dwsave="1"' + (can ? '' : ' title="' + __("Sláðu inn breidd, hæð og veggþykkt fyrst (Mál).") + '"') + '>' + __("Vista hurðina") + '</button></div>';
+    // "Áfram" lives in the footer, right-hand side, in the same row as "Vista hurðina" — the forward motion is always on the same side (owner 2026-10-29)
+    var nextBtn = dw.sec === "mal" ? '<button type="button" class="btn btn-primary dw-next" data-dwmalok="1"' + (dwMalOk() ? '' : ' disabled') + '>' + __("Áfram") + '</button>'
+      : (PRO && dw.sec === "smida") ? '<button type="button" class="btn btn-primary dw-next" data-dwnext="smida">' + __("Áfram") + '</button>' : '';
+    html += '</div></div><div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-dwcancel="1">' + __("Hætta við") + '</button><span class="dw-fwd">' + nextBtn +
+      '<button type="button" class="btn btn-primary' + (can ? '' : ' is-wait') + '" data-dwsave="1"' + (can ? '' : ' title="' + __("Sláðu inn breidd, hæð og veggþykkt fyrst (Mál).") + '"') + '>' + __("Vista hurðina") + '</button></span></div>';
     side.innerHTML = html;
     side.classList.toggle("dw-compact", dw.sec === "efni"); // Útlit: the done steps shrink so more swatches show
     var nk = side.querySelector(".dw-scroll"); if (nk) nk.scrollTop = top;
@@ -15306,7 +15323,7 @@
       '<h4>Járn sem /cnc fræsir</h4>' +
       (CD ? (d.kind === "karmur" ? "" : hw("hinge", "HINGES", "Lamir") + (KPDOORS.hasHandle(d) ? hw("lock", "LOCKS", "Skrá") : "")) + (d.kind === "hurd" || d.kind === "gler" ? hw("threshold", "THRESHOLDS", "Felliþröskuldur") : "") : '<p class="dw-hint">Sæki CNC-járnalista…</p>') +
       '<p class="dw-hint" style="margin-top:8px;">Fer í Smíðagögn hurðarinnar. /cnc notar þetta þar sem reitirnir eru auðir á Eyðublaðinu og merkir það ⚠.</p>' +
-      '<button type="button" class="btn btn-primary btn-small dw-next" data-dwnext="smida">Áfram</button></div>';
+      '</div>';
   }
   function dwProInput(t){
     var d = dw.d, k = t.dataset.dwpro || t.dataset.dwprohw; dw.dirty = true;

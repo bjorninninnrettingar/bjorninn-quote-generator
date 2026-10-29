@@ -2727,7 +2727,7 @@
   function setSkTags(map){ SK_TAGS = map && Object.keys(map).length ? map : null; if (OV){ OV.last = null; if (THREE_STATE && THREE_STATE.camera) drawOverlay(THREE_STATE.camera, THREE_STATE.renderer.domElement); } } // redrawn at once — an empty overlay equalled the old "" so switching the tags off never cleared them
   function skTagsSvg(P){
     if (!SK_TAGS || !THREE_STATE || !THREE_STATE.pickables) return "";
-    var out = "", seen = {};
+    var out = "", seen = {}, tags = [];
     if (!skCorner) skCorner = new (window.__THREE__.Vector3)();
     THREE_STATE.pickables.forEach(function(m){
       var u = m.userData, text = u && SK_TAGS[u.blockId], e = u && u.edgesObj;
@@ -2743,9 +2743,20 @@
         if (!best || (c.x - c.y) > (best.x - best.y)) best = c;
       });
       if (behind || !best) return;
-      var tw = String(text).length * 7.6 + 16, p = { x:best.x - tw / 2 - 4, y:best.y + 15 };
-      out += '<rect x="' + (p.x - tw / 2) + '" y="' + (p.y - 11) + '" width="' + tw + '" height="22" rx="11" fill="#fff" stroke="' + OV_DARK + '" stroke-width="1"/>' +
-        '<text x="' + p.x + '" y="' + (p.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" font-family="Kumbh Sans, Arial, sans-serif" fill="' + OV_DARK + '">' + text + '</text>';
+      var tw = String(text).length * 7.6 + 16;
+      tags.push({ text:text, tw:tw, x:best.x - tw / 2 - 4, y:best.y + 15 });
+    });
+    // never on top of each other (2026-10-29): a tag that would cover an earlier one steps down until it is clear, so every number can be read
+    tags.sort(function(a, z){ return a.y - z.y || a.x - z.x; });
+    var placed = [];
+    tags.forEach(function(t){
+      for (var guard = 0; guard < 40; guard++){
+        var hit = placed.some(function(o){ return Math.abs(o.x - t.x) < (o.tw + t.tw) / 2 + 2 && Math.abs(o.y - t.y) < 23; });
+        if (!hit) break; t.y += 24;
+      }
+      placed.push(t);
+      out += '<rect x="' + (t.x - t.tw / 2) + '" y="' + (t.y - 11) + '" width="' + t.tw + '" height="22" rx="11" fill="#fff" stroke="' + OV_DARK + '" stroke-width="1"/>' +
+        '<text x="' + t.x + '" y="' + (t.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" font-family="Kumbh Sans, Arial, sans-serif" fill="' + OV_DARK + '">' + t.text + '</text>';
     });
     return out;
   }

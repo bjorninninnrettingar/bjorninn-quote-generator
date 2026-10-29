@@ -719,3 +719,9 @@ Owner asked for items 1–8 now, plus: Yfirferð actions on top, Hurð → "Op",
 - **Lofthæð** is read-only in the Rými menu and on the Rýmið table ("Breyta í Mælingu →" opens Mæling); Mæling is where it is typed.
 - **Skoða → bar buttons:** `proViewTools()` builds `#proViewTools` (reset view, camera, walk, tape, X-ray, Sk-númer, málsetning, fullscreen) that forward clicks to the original controls and mirror their `.active`/`hidden`; the Skoða dropdown and the old camera trio are hidden in PRO. Tour button shown in PRO again.
 - **Docked panels:** `body.pc-open` / `mp-open` / `tp-open` pad `#mainWrap` by the panel width and let the toolbar wrap; one panel at a time still (proSoloPanel) — two side by side would leave the room too narrow below ~1700 px.
+
+### Round 2 (2026-10-29, owner's screenshots)
+- PRO is truly full width (`body.pro .wrap{max-width:none}`; the 1440 cap I added the same morning left margins on a 1900 px screen).
+- Sk/UH tags in 3D never overlap: `skTagsSvg` collects the tags, sorts them and steps a colliding one down 24 px until it is clear.
+- Tilboð bottom: the explaining sentence (`#tpFactorNote`) is gone — it also pushed the label/field grid out of step, which is why each label sat next to the wrong field; labels are bolder now.
+- Door wizard (PRO + Studio): "Áfram" moved out of the step into the footer, right-hand side, in the row with "Vista hurðina" (`.dw-fwd`); Mál inputs are wider so "400–3000" is not clipped. Contrast: scripted scan (text vs effective background, < 4.5:1) of every step in both themes — fixed the white-on-white colour card ("Svart"), the invisible step ticks (green dot, dark tick), white-on-light-blue buttons (PRO filled buttons now #2f68ee, 4.9:1) and the 12 px hints in Studio.
