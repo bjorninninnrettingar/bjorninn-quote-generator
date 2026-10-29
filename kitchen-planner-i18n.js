@@ -19,7 +19,10 @@
   var q; try{ q = new URLSearchParams(location.search); }catch(e){ q = { get:function(){ return null; } }; }
   var isPro = !!q.get("pro");
   var lang = "is";
-  if (!isPro){
+  // English is switched OFF for now (owner, 2026-10-29): the dictionary below stays, the visitor can't reach it.
+  // To bring it back: set window.KP_ENGLISH = true before this file loads (and drop the CSS rule hiding .help-lang).
+  var ENGLISH_ON = window.KP_ENGLISH === true;
+  if (!isPro && ENGLISH_ON){
     var p = q.get("lang");
     if (p === "en" || p === "is"){ lang = p; try{ localStorage.setItem(KEY, p); }catch(e){} }
     else { try{ if (localStorage.getItem(KEY) === "en") lang = "en"; }catch(e){} }
@@ -72,7 +75,7 @@
   // Switching language reloads the page: the draft lives in localStorage, so the visitor lands on the same
   // step with every JS-built string redrawn — simpler and safer than re-rendering everything in place.
   function setLang(l){
-    if (l !== "en" && l !== "is") return;
+    if (!ENGLISH_ON || (l !== "en" && l !== "is")) return;
     try{ localStorage.setItem(KEY, l); }catch(e){}
     try{ sessionStorage.setItem("bjorninn:kitchenPlanner:langResume", "1"); }catch(e){} // the page reopens on the same step, not the welcome page
     try{
@@ -1971,6 +1974,9 @@
     "Staðsetningin þarf að vera á milli 0 og {n} cm.": "The position must be between 0 and {n} cm.",
     "Hér hannar þú rýmið þitt": "This is where you design your room",
     "Veggur má vera {a}–{b} cm.": "A wall can be {a}–{b} cm.",
+    "Mál má vera {a}–{b} cm.": "A size can be {a}–{b} cm.",
+    "Þetta er allur veggurinn.": "That is the whole wall.",
+    "Verkefnið er opið í öðrum flipa — breytingar í öðrum hvorum skrifa yfir hinn. Hafðu aðeins einn flipa opinn.": "This project is open in another tab — changes in either one overwrite the other. Keep only one tab open.",
     "Veldu eitt til að halda áfram.": "Pick one to continue.",
     "Veldu lit til að halda áfram.": "Pick a colour to continue.",
     "Veldu skúffukerfi til að halda áfram.": "Pick a drawer system to continue.",

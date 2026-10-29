@@ -887,3 +887,10 @@ Testers report from inside the designer: a **⚠️ Villa / hugmynd** pill at th
 - Tour targets use fallbacks (`#proYfirferd`, `#proSave`, `#proBar`): if the PRO bar is rebuilt keep one of those ids.
 - Efni menu in PRO: closed button shows "N óákveðið"; opens by itself once per project (`<STORAGE_KEY>:efniOpened`). Ný eining preview no longer restarts auto-spin in PRO. One-time hint `kikja` also in PRO (`PRO_HINTS`).
 - Tilboð: `#tpFactorNote` sentence + capture-phase guard on `#tpDiscount` (0-30 %, confirm above 15) - separate from the proTilbod* code.
+
+### QA-bottar 2026-10-29 (4 Haiku-prófarar) — hvað var lagað
+- **Enska slökkt** (eigandi): `ENGLISH_ON` í `kitchen-planner-i18n.js` er `false` nema `window.KP_ENGLISH === true`; `?lang=en` og vistað `en` eru hunsuð, `.help-lang` falinn með CSS. Orðabókin (158 KB) er áfram í skránni og `tests/kp-i18n.test.js` heldur henni samræmdri. Til að kveikja aftur: setja `window.KP_ENGLISH = true` á undan i18n-skránni og fjarlægja `.help-lang{display:none !important}`.
+- Fataskápur, Mál: gildi utan marka er sett til baka á blur **með boðum** ("Mál má vera {a}–{b} cm."); "Hluti" sem er skrifað ≥ veggur segir "Þetta er allur veggurinn."
+- Draftið er einn localStorage-lykill: `storage`-event varar við ef sama verkefni er opið í öðrum flipa.
+- "Bæta við rými": fókus-gildra (Tab helst inni), fókus á fyrsta kort.
+- **Geymt til umræðu** (óviss/hönnunarval): hurð sást ekki í 3D (athuga hvort hún sé í gögnunum), vatn sjálfvalið, "Áfram" vs "Næsti veggur", Til baka/Klárt á öðrum stað í Skipulag, skroll í Efni við 1280×720, skrefastikan breytir orðalagi, enskir litaheiti, ómerkt ↗, andstæða á Breidd, hægri spássía á Ný eining, símagate bregst ekki við resize (aðeins við hleðslu). Prófunarathugasemd: prófarar deila localStorage — næst hver með sinn prófíl.

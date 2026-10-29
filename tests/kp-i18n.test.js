@@ -9,7 +9,7 @@ import vm from "node:vm";
 const root = new URL("../", import.meta.url);
 const read = (f) => fs.readFileSync(new URL(f, root), "utf8");
 
-function loadI18n(search = "?lang=en", stored = null) {
+function loadI18n(search = "?lang=en", stored = null, englishOn = true) {
   const store = new Map(stored ? [["bjorninn:kitchenPlanner:lang", stored]] : []);
   const ctx = {
     URLSearchParams, URL,
@@ -18,6 +18,7 @@ function loadI18n(search = "?lang=en", stored = null) {
     document: { addEventListener() {}, documentElement: {}, title: "BJÖRNINN STUDIO — hannaðu heimilið", querySelector: () => null },
   };
   ctx.window = ctx;
+  ctx.KP_ENGLISH = englishOn;
   vm.runInNewContext(read("kitchen-planner-i18n.js"), ctx);
   return { I: ctx.window.KPI18N, store, ctx };
 }
@@ -94,6 +95,11 @@ test("runtime: EN lookup, IS default, forced Icelandic for Airtable data, plural
   assert.equal(I.plural(1, "skápur", "skápar"), "cabinet");
   assert.equal(I.asIS(() => I.plural(21, "skápur", "skápar")), "skápur");
   return I.asISAsync(async () => { assert.equal(I.lang, "is"); }).then(() => assert.equal(I.lang, "en"));
+});
+
+test("English is switched off by default: ?lang=en and a stored \"en\" are ignored", () => {
+  assert.equal(loadI18n("?lang=en", null, false).I.lang, "is");
+  assert.equal(loadI18n("", "en", false).I.lang, "is");
 });
 
 test("runtime: language choice — default IS, ?lang= wins and is remembered, PRO always IS", () => {

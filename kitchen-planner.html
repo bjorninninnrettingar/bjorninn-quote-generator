@@ -121,6 +121,7 @@
   .help-btn{ background:#fff; border:1px solid var(--line); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; }
   .help-btn:hover{ border-color:var(--blue); color:var(--blue); }
   /* IS / EN (2026-10-23, kitchen-planner-i18n.js) — the active one follows <html lang> */
+  .help-lang{ display:none !important; } /* English is switched off (2026-10-29) — see ENGLISH_ON in kitchen-planner-i18n.js */
   html:not([lang="en"]) .help-lang[data-setlang="is"], html[lang="en"] .help-lang[data-setlang="en"]{ display:none; } /* the language lives under Hjálp (user, 2026-10-23): only the other one is offered */
   .help-menu:not([hidden]){ position:absolute; right:0; top:calc(100% + 6px); z-index:200; min-width:210px; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.16); padding:6px; display:flex; flex-direction:column; }
   .help-menu button{ background:none; border:0; text-align:left; font:inherit; font-size:14px; padding:9px 12px; border-radius:8px; cursor:pointer; color:var(--ink); }
@@ -3080,6 +3081,13 @@
     pushHistory();
     if (PRO) proBar();
   }
+  // The draft is one localStorage key shared by every tab: two tabs write over each other. Say so (QA 2026-10-29).
+  var otherTabWarned = false;
+  window.addEventListener("storage", function(e){
+    if (e.key !== STORAGE_KEY || e.newValue === null || otherTabWarned || PRO) return;
+    otherTabWarned = true;
+    toast(__("Verkefnið er opið í öðrum flipa — breytingar í öðrum hvorum skrifa yfir hinn. Hafðu aðeins einn flipa opinn."));
+  });
 
   // ---------- undo / redo (editor step only) ----------
   // Snapshots of the whole state, taken on every save() while editing. Undo
@@ -5203,7 +5211,10 @@
         var fb = inp.closest(".field, .cl-span"); if (fb) fb.classList.toggle("invalid", !ok);
         if (ok){ apply(v * 10); renderShapeCanvas(); }
       });
-      inp.addEventListener("blur", function(){ var fb = inp.closest(".field, .cl-span"); if (fb) fb.classList.remove("invalid"); syncClosetSize(box); var c = box.querySelector("[data-cceil]"); if (c && document.activeElement !== c) c.value = Math.round(state.roomHeightMm / 10); });
+      inp.addEventListener("blur", function(){ var fb = inp.closest(".field, .cl-span"); if (fb) fb.classList.remove("invalid");
+        var bv = parseInt(inp.value, 10); // a value out of range is put back — and said so (QA 2026-10-29: it used to snap back silently)
+        if (isNaN(bv) || bv < +inp.min || bv > +inp.max) toast(__("Mál má vera {a}–{b} cm.", { a:inp.min, b:inp.max }));
+        syncClosetSize(box); var c = box.querySelector("[data-cceil]"); if (c && document.activeElement !== c) c.value = Math.round(state.roomHeightMm / 10); });
     }
     box.querySelectorAll("[data-cdim]").forEach(function(inp){ wire(inp, function(mm){ setClosetDim(inp.dataset.cdim, mm); }); });
     var spans = function(){ if (!state.closetSpans) state.closetSpans = {}; return state.closetSpans; };
@@ -5224,7 +5235,7 @@
       var pin0 = (state.closetSpans[i] || {}).pin;
       setClosetSpan(i, mid ? (L - mm) / 2 : sp.align === "right" ? L - mm : sp.start, mm, pin0); save();
     });
-      inp.addEventListener("change", function(){ var i = +inp.dataset.cspan, v = parseInt(inp.value, 10) * 10; if (v >= state.walls[i].lengthMm){ setClosetSpan(i, 0, v); redo(); } }); // the whole wall typed in = "Allur veggurinn"
+      inp.addEventListener("change", function(){ var i = +inp.dataset.cspan, v = parseInt(inp.value, 10) * 10; if (v >= state.walls[i].lengthMm){ if (v > state.walls[i].lengthMm) toast(__("Þetta er allur veggurinn.")); setClosetSpan(i, 0, v); redo(); } }); // the whole wall typed in = "Allur veggurinn"
     });
     box.querySelectorAll("[data-cceil]").forEach(function(inp){ wire(inp, function(mm){ state.roomHeightMm = mm; syncClosetLoft(); save(); }); });
     document.getElementById("clOpenings").addEventListener("click", function(){ shapePhase = "openings"; openWallId = null; renderShapeStep(); });
@@ -16318,7 +16329,16 @@
         '<div class="hl-pick-act"><button type="button" class="btn btn-secondary" data-addcancel="1">' + __("Hætta við") + '</button><button type="button" class="btn btn-primary" data-addgo="1"' + (pick.length ? '' : ' disabled') + '>' + __("Bæta við →") + '</button></div></div>';
     }
     function close(){ ov.remove(); document.removeEventListener("keydown", onKey); }
-    function onKey(e){ if (e.key === "Escape") close(); }
+    function onKey(e){
+      if (e.key === "Escape"){ close(); return; }
+      if (e.key !== "Tab") return; // focus stays inside the popup (QA 2026-10-29: Tab used to walk off to the page behind it)
+      var f = [].slice.call(ov.querySelectorAll("button:not([disabled])"));
+      if (!f.length){ e.preventDefault(); return; }
+      var first = f[0], last = f[f.length - 1], a = document.activeElement;
+      if (!ov.contains(a)){ e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && a === first){ e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && a === last){ e.preventDefault(); first.focus(); }
+    }
     ov.addEventListener("click", function(e){
       if (e.target === ov){ close(); return; }
       var b = e.target.closest("button"); if (!b || b.disabled) return;
@@ -16328,6 +16348,7 @@
     });
     document.addEventListener("keydown", onKey);
     draw(); document.body.appendChild(ov);
+    var f0 = ov.querySelector("button[data-addpick]"); if (f0) f0.focus();
   }
   var undoTimer = null;
   function undoToast(msg, onUndo){ // a toast with one button; belongs to the step it was shown on (goto hides it)
