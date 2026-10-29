@@ -249,3 +249,6 @@ All four are Smíðagögn keys edited in /smida, planned in `unitPlan`, written 
 - **Jey neðst** (efriskápar): Smíðagögn `jeyBot:{doors:[i]}` — prófíllinn situr UNDIR hurðinni (`d.gb`), hurðin er í toppnum og lamirnar mælast frá hurðinni sjálfri.
 - **Lyftihurð** teiknar nú lamirnar (2 skálar á efri brún, í toppborðinu) á Framhlið.
 - **Lamaklossar á blindlok** (Töfrahorn): teiknaðir á Framhlið bak við blindlokið í hæð lama hurðarinnar þegar lamahliðin snýr að því. Mynd eingöngu, engin CNC-skrá (stærð klossa 22 × 50 er teikniágiskun).
+- **Lamaklossar** (2. umferð): á blindlokinu á Framhlið er nú Blum lamaplatan úr CNC-hliðinni (`CNCBPP.drawPlate`, 41,8 × 56,5 mm, sönn stærð) í hæð lama hurðarinnar; textinn „Lamaplata“ → „Lamaklossar“.
+- **FRE-bak** (visual): á FRE-skáp teiknar CNC-hliðin EINN rétthyrning við bakbrún (þykkt = BAKZ = LPZ FRE-hliðar) frá neðri brún neðri slárinnar upp í efri brún efri slárinnar, í stað slár + auka slár (`opts.fre` í `renderCalm`). Borunin er óbreytt: SLA_HLID/Auka slár eru enn í FRE-skránni — ósvarað hvort þær eigi að fara úr FRE-skránni.
+- **„Opna Eyðublað →“** á hverri einingu í Smíða (og „Leiðrétta á Eyðublaði →“ við viðvaranir um fronta/Jey): `https://airtable.com/app91U15z9K704Okd/tbl0WcyHhz63pSzZX/<rec>` í nýjum flipa.

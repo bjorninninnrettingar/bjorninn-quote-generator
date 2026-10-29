@@ -490,8 +490,10 @@
       // Töfrahorn: the door hangs on the blind panel, so the hinge blocks (lamaklossar) go on the blind panel, not the side — drawn behind the
       // panel at the door's hinge heights when the door's hinge side faces it (illustration; no CNC file for it)
       if (e.hinge === (blindL ? "vinstri" : "haegri")) (p.doors || []).forEach(function (dd) { (dd.hinges || []).forEach(function (hh) {
-        var kx = blindL ? bx0 + blindW * sc - 22 * sc : bx0, ky = Y(dd.from + hh) - 25 * sc;
-        s += '<g><rect x="' + kx + '" y="' + ky + '" width="' + 22 * sc + '" height="' + 50 * sc + '" fill="#e8b06a" fill-opacity=".55" stroke="#b25000" stroke-width="1"/><title>Lamaklossi á blindlokinu — fyrir löm í ' + mm(dd.from + hh) + ' mm</title></g>'; }); });
+        // the Blum mounting plate (cnc-bpp.js drawPlate, 41.8 × 56.5 mm) on the blind panel's edge next to the door, at the hinge height
+        var kx = blindL ? bx0 + blindW * sc - 14 * sc : bx0 + 14 * sc, ky = Y(dd.from + hh), gk = document.createElementNS(NS, "g");
+        BPP.drawPlate(gk, kx, ky, sc, "#b25000", 1);
+        s += "<g>" + gk.innerHTML + '<title>Lamaklossi á blindlokinu — fyrir löm í ' + mm(dd.from + hh) + " mm</title></g>"; }); });
     }
     (p.doors || []).forEach(function (d, i) {
       var x0 = X(0) + 2 + (blindL ? blindW * sc : 0), x1 = X(W) - 2 - (blindL ? 0 : blindW * sc), y0 = Y(d.ft != null ? d.ft : d.to), y1 = Y(d.fb != null ? Math.min(d.fb, d.from) : d.from), my = (y0 + y1) / 2, mx = (x0 + x1) / 2; // the front itself
@@ -723,13 +725,13 @@
     var row = document.createElement("div"); row.className = "cncrow"; wrap.appendChild(row);
     files.forEach(function (f) {
       var r = SD.renderSide(MASTER, f.plan);
-      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: compact ? (files.length > 1 ? 130 : 220) : files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, shelfD: p.shelfD, fronts: fronts, mirror: /^Hægri/.test(f.name) });
+      var card = BPP.buildCard({ name: f.name + (f.count > 1 ? " ×" + f.count : "") }, r.text, null, null, { accent: acc, maxH: maxH, maxW: compact ? (files.length > 1 ? 130 : 220) : files.length > 1 ? 260 : 360, view: "calm", hits: p.hits, shelfD: p.shelfD, fronts: fronts, mirror: /^Hægri/.test(f.name), fre: !!p.fre });
       var rm = card.querySelector(".bw-titlebar .remove"); if (rm) rm.remove();
       row.appendChild(card);
       var sv = card.querySelector(".bpp-calm-svg"); if (sv && canEdit(c)) wireCalm(sv, c, p);
     });
     var cap = document.createElement("div"); cap.className = "cnccap";
-    cap.innerHTML = '<span><svg width="12" height="16" viewBox="-1 -1 26 30"><path d="M1 9.5H5V13.5H1Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><path d="M19 9H23V17H19Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><rect x="5" y="0" width="14" height="28" rx="3" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/></svg>Lamaplata</span>' +
+    cap.innerHTML = '<span><svg width="12" height="16" viewBox="-1 -1 26 30"><path d="M1 9.5H5V13.5H1Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><path d="M19 9H23V17H19Z" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/><rect x="5" y="0" width="14" height="28" rx="3" fill="#fff" stroke="#1d1d1f" stroke-width="1.6"/></svg>Lamaklossar</span>' +
       '<span><i class="cs"></i>Hillugöt</span><span><i style="width:9px;height:9px;background:#8e8e93;border:1px solid #1d1d1f"></i>Slá í bakinu</span><span><i style="width:4px;height:12px;background:#e6dcc8;border:1px solid #9c8a6b"></i>Masonít-rauf</span><span><i style="width:4px;height:12px;background:#fff4e5;border:1px solid #e8903a"></i>LED</span><span><i class="cf"></i>Föst hilla</span><span><i class="cd"></i>Skúffa á braut</span><span><i class="cfr"></i>Frontar</span><span><i class="cgp"></i>Gripprófíll</span><span class="cred">Rautt = árekstur</span><span class="cb">Blátt = stillt hér</span>';
     if (files.length) wrap.appendChild(cap);
     // the cabinet's fronts, each with what /cnc drills in it (plan.fronts = the export's own front plans), read-only
@@ -800,11 +802,13 @@
     var inp = sel && $("panel").querySelector(sel); if (inp) { inp.focus({ preventScroll: true }); if (inp.select) inp.select(); }
   }
   function gripEff(c) { return c.gripMm || (ed(c).jey > 0 ? ed(c).jey : 0); } // the Eyðublað's grip, else Jey added here
+  var AT_BASE = "app91U15z9K704Okd", AT_UNIT = CD.UNIT; // the Eyðublað's own record in Airtable (new tab)
+  function eydLink(c, txt) { return '<a class="act" style="display:inline-block;margin:6px 0 0;font-size:13px" target="_blank" rel="noopener" href="https://airtable.com/' + AT_BASE + "/" + AT_UNIT + "/" + encodeURIComponent(c.unit) + '">' + (txt || "Opna Eyðublað →") + "</a>"; }
   function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
   function renderPanel() {
     var c = cab(), e = ed(c), p = plan(c), el = $("panel");
     var dims = (c.B || "?") + " × " + (c.H || "?") + " × " + (c.D || "?");
-    var h = '<div class="pscroll"><div class="ph"><h1>' + esc(c.sk) + (c.fre ? ' <span style="font-size:12px;font-weight:600;color:var(--amber);background:var(--amber-soft);border-radius:6px;padding:2px 8px;vertical-align:middle">FRE</span>' : "") + "</h1><p>" + esc(c.tegund) + " · " + dims + (c.base.cabinets > 1 ? " · " + c.base.cabinets + " eins" : "") + "</p></div>";
+    var h = '<div class="pscroll"><div class="ph"><h1>' + esc(c.sk) + (c.fre ? ' <span style="font-size:12px;font-weight:600;color:var(--amber);background:var(--amber-soft);border-radius:6px;padding:2px 8px;vertical-align:middle">FRE</span>' : "") + "</h1><p>" + esc(c.tegund) + " · " + dims + (c.base.cabinets > 1 ? " · " + c.base.cabinets + " eins" : "") + "</p>" + eydLink(c) + "</div>";
     if (c.pro) {
       var pro = "/skipuleggja?pro=" + encodeURIComponent(project.id) + "&k=" + encodeURIComponent(KEY) + (/^Sk\d+$/.test(c.pro) ? "&smida=" + encodeURIComponent(c.pro) : "");
       h += '<div class="calm hand">' + I_INFO + "<span>Teiknaður í PRO — Smíðagögnin koma úr teikningunni. Breyttu þeim þar, svo Keyra skipulag skrifi ekki yfir.</span></div>" +
@@ -934,7 +938,7 @@
     h += "</div>";
     // ── what /cnc still says (real things only — the defaults go away once marked, the open questions are above)
     var notes = (p.check || []).filter(function (t) { return t.indexOf("Skápur yfirfarinn") < 0 && (p.defaults || []).indexOf(t) < 0 && !/amahlið óþekkt/.test(t); }); // the hinge side is asked above
-    if (notes.length) h += '<div class="check"><h3>Athugaðu</h3><ul>' + notes.map(function (t) { return "<li>" + esc(t.split(/ — /)[0]) + (t.indexOf(" — ") > 0 ? " " + tip(t) : "") + "</li>"; }).join("") + "</ul></div>";
+    if (notes.length) h += '<div class="check"><h3>Athugaðu</h3><ul>' + notes.map(function (t) { return "<li>" + esc(t.split(/ — /)[0]) + (t.indexOf(" — ") > 0 ? " " + tip(t) : "") + (/passa ekki við hlið|Jey/.test(t) ? " " + eydLink(c, "Leiðrétta á Eyðublaði →") : "") + "</li>"; }).join("") + "</ul></div>";
     h += "</div>";
     el.innerHTML = h + footer(c, e, blockers);
   }

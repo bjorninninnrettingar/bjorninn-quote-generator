@@ -381,6 +381,13 @@
       ef.appendChild(svgEl("rect", { x: colX, y: Y(f.to), width: colW, height: Math.max(1, (f.to - f.from) * s), rx: f.kind === "grip" ? 0 : 1.5, fill: f.kind === "grip" ? "#c7c7cc" : "#f2f2f4", stroke: f.kind === "grip" ? "none" : "#aeaeb2", "stroke-width": 1 }));
       if ((f.to - f.from) * s > 14 && f.short) { var ft = svgEl("text", { x: colX + colW / 2, y: Y((f.from + f.to) / 2), "text-anchor": "middle", "dominant-baseline": "middle", "font-size": 9, fill: SOFT }); ft.textContent = f.short; ef.appendChild(ft); }
     });
+    if (opts.fre) { // FRE cabinet (2026-10-29, owner): a whole back, as thick as the FRE board, from the top edge of the top rail's place to the bottom edge of the bottom one
+      var frr = features.filter(function (f) { return f.type === "rail"; });
+      if (frr.length) {
+        var flo = Math.min.apply(null, frr.map(function (f) { return f.y; })), fhi = LPX - flo, fz = frr[0].bakz || 16, fb = XR(LPY - fz, LPY), efb = g("Heilt bak (FRE) — " + Math.round(fz) + " mm þykkt, " + Math.round(flo) + "–" + Math.round(fhi) + " mm frá botni");
+        efb.appendChild(svgEl("rect", { x: fb.x, y: Y(fhi), width: Math.max(2, fb.w), height: Math.max(2, (fhi - flo) * s), fill: "#e4e4e9", stroke: "#6e6e73", "stroke-width": 1 }));
+      }
+    }
     features.forEach(function (f) {
       if (f.type === "drawer") {
         // the box as the Rover macro places it: on its runner line, as tall as the Blum side of its code
@@ -429,6 +436,8 @@
           [30, 70, (LPY - 1) / 2, LPY - 31, LPY - 71].forEach(function (hy) { etb.appendChild(svgEl("circle", { cx: X(back ? LPY - hy : hy), cy: Y(x0 + f.z / 2), r: Math.max(1.6, 4 * s), fill: "none", stroke: "#7a6a4a", "stroke-width": .9 })); });
           var tl2 = svgEl("text", { x: X(LPY / 2), y: Y(bot ? x0 + f.z : x0) + (bot ? -3 : 10), "text-anchor": "middle", "font-size": 9, fill: "#7a6a4a" }); tl2.textContent = (bot ? "Botn " : "Toppur ") + Math.round(f.bil + f.z) + " mm"; etb.appendChild(tl2);
         });
+      } else if (f.type === "rail" && opts.fre) {
+        return; // FRE: no rails — one back board drawn above
       } else if (f.type === "rail") {
         // slá (SLA_HLID): a 100 mm tall, BAKZ thick block at the back edge, at both ends (+ the extra ones at lpx/3)
         var er = g(f.label + " — í bakinu, " + Math.round(f.y) + " mm frá enda", "rail", f.y);
@@ -577,7 +586,7 @@
       if (outEl) { var cx = document.createElement("button"); cx.type = "button"; cx.textContent = "Fjarlægja"; cx.style.color = "#8e8e93"; cx.onclick = rm.onclick; ch.appendChild(cx); }
       calm.appendChild(ch);
       var cbody = document.createElement("div"); cbody.className = "bpp-calm-body";
-      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts, mirror: opts.mirror }));
+      cbody.appendChild(renderCalm(vars.LPX, vars.LPY, built.features, { accent: opts.accent, maxH: opts.maxH, maxW: opts.maxW, hits: opts.hits, fronts: opts.fronts, mirror: opts.mirror, fre: opts.fre }));
       calm.appendChild(cbody);
       card.insertBefore(calm, win);
       setView(opts.view === "tech" ? "tech" : "calm");
@@ -622,7 +631,7 @@
   var api = {
     parseBpp: parseBpp, detectKind: detectKind, KIND_LABEL: KIND_LABEL,
     buildSideFeatures: buildSideFeatures, buildFrontSkuffaFeatures: buildFrontSkuffaFeatures, buildDoorFeatures: buildDoorFeatures,
-    renderPlan: renderPlan, findDuplicateOps: findDuplicateOps, buildMacroList: buildMacroList, buildCard: buildCard, mkNote: mkNote, renderCalm: renderCalm,
+    renderPlan: renderPlan, findDuplicateOps: findDuplicateOps, buildMacroList: buildMacroList, buildCard: buildCard, mkNote: mkNote, renderCalm: renderCalm, drawPlate: drawPlate,
     LEGEND_ITEMS: LEGEND_ITEMS, LEGEND_COLOR: LEGEND_COLOR,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
