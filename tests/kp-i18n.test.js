@@ -20,13 +20,14 @@ function loadI18n(search = "?lang=en", stored = null, englishOn = true) {
   ctx.window = ctx;
   ctx.KP_ENGLISH = englishOn;
   vm.runInNewContext(read("kitchen-planner-i18n.js"), ctx);
+  vm.runInNewContext(read("kitchen-planner-i18n-en.js"), ctx); // the dictionary is its own file, written in by the page only when English is on
   return { I: ctx.window.KPI18N, store, ctx };
 }
 
 const { I } = loadI18n();
 const unq = (lit) => vm.runInNewContext(lit); // a JS string literal → its value
 const LIT = String.raw`("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')`;
-const sources = ["kitchen-planner.html", ...fs.readdirSync(root).filter((f) => /^kitchen-planner-.*\.js$/.test(f) && f !== "kitchen-planner-i18n.js")];
+const sources = ["kitchen-planner.html", ...fs.readdirSync(root).filter((f) => /^kitchen-planner-.*\.js$/.test(f) && f !== "kitchen-planner-i18n.js" && f !== "kitchen-planner-i18n-en.js")];
 const lineOf = (src, i) => src.slice(0, i).split("\n").length;
 const known = (k) => Object.prototype.hasOwnProperty.call(I.EN, k) || I.PATTERNS.some(([re]) => re.test(k));
 

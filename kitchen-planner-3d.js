@@ -6443,6 +6443,7 @@
       renderer.setSize(w, h);
       if (THREE_STATE && THREE_STATE.composer) THREE_STATE.composer.setSize(w, h);
       if (THREE_STATE && THREE_STATE.aoComposer) THREE_STATE.aoComposer.setSize(w, h);
+      idleBump(); // setSize clears the canvas: it must be redrawn at once, not at the next safety-net tick
     }
     resize();
     window.addEventListener("resize", resize);
@@ -6724,12 +6725,20 @@
       stepMood(scene);
       if (people) people.people.forEach(function(m){ m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z); });
       panelShift();
+      var nowT = ts || performance.now();
+      if (!IDLE_OFF){
+        if (idleCameraMoved(camera, controls)) idleBump(900);
+        var busy = nowT < IDLE.until || WALK.on || THREE_STATE.dragging || THREE_STATE.dragStep || (typeof modelsPending === "function" && modelsPending()) || nowT - IDLE.lastDraw > IDLE_NET_MS;
+        if (!busy) return; // nothing can have changed since the last frame
+      }
+      IDLE.lastDraw = nowT;
       renderFrame(false);
       placeFloatBar();
       placeDims();
       drawOverlay(camera, renderer.domElement);
       if (opts.afterFrame) opts.afterFrame(camera); // the caller's own overlays, drawn in the same frame (no lag/jiggle)
     }
+    idleBump(); // a fresh scene always gets its frames
     loop();
   }
 
@@ -7472,6 +7481,29 @@
   // dragging stay as fast as before; and a governor that steps quality down when frames get slow on a weak machine
   // (0 = AO + full pixel ratio, 1 = no AO, 2 = pixel ratio ≤ 1.5, 3 = pixel ratio 1) and back up when there's room.
   var QUALITY = { level:/[?&]q=low\b/.test(location.search) ? 3 : 0, ema:16, slowSince:0, fastSince:0, last:0 };
+  // ---- Draw only when something can have changed (2026-10-29) ----
+  // The loop used to redraw every frame even when the picture was still (reading, typing a number): with AO on a 2× screen
+  // that kept a weak GPU/CPU busy for nothing. Now a frame is drawn while input is recent (IDLE_MS after any pointer / key /
+  // wheel / resize / click), while the camera moves, while walking / dragging / models load — plus a safety net of one
+  // frame every IDLE_NET_MS, so a change that arrives by some other route shows up within a quarter of a second.
+  // The animations (drawers, fades, mood) all start from an input, so they sit inside the window. ?q=full turns this off.
+  var IDLE_MS = 2600, IDLE_NET_MS = 250, IDLE = { until:0, lastDraw:0, m:null };
+  var IDLE_OFF = /[?&]q=full\b/.test(location.search);
+  function idleBump(ms){ var t = performance.now() + (ms || IDLE_MS); if (t > IDLE.until) IDLE.until = t; }
+  if (typeof window.addEventListener === "function" && typeof document.addEventListener === "function"){ // (the unit tests load this file without a real window)
+    ["pointerdown", "pointerup", "wheel", "keydown", "keyup", "touchstart", "touchend", "click", "input", "change", "resize", "focusin", "dragstart", "contextmenu"].forEach(function(ev){
+      window.addEventListener(ev, function(){ idleBump(); }, { capture:true, passive:true });
+    });
+    window.addEventListener("pointermove", function(e){ if (e.buttons || (e.target && e.target.tagName === "CANVAS")) idleBump(1400); }, { capture:true, passive:true });
+    document.addEventListener("visibilitychange", function(){ idleBump(); });
+  }
+  function idleCameraMoved(camera, controls){
+    var e = camera.matrixWorld.elements, pj = camera.projectionMatrix.elements, t = controls && controls.target, moved = false, i, cur = IDLE.m || (IDLE.m = new Array(35));
+    for (i = 0; i < 16; i++){ if (Math.abs(cur[i] - e[i]) > 1e-6 || cur[i] !== cur[i]) moved = true; cur[i] = e[i]; }
+    for (i = 0; i < 16; i++){ if (Math.abs(cur[16 + i] - pj[i]) > 1e-6 || cur[16 + i] !== cur[16 + i]) moved = true; cur[16 + i] = pj[i]; }
+    if (t){ if (Math.abs(cur[32] - t.x) > 1e-6 || Math.abs(cur[33] - t.y) > 1e-6 || Math.abs(cur[34] - t.z) > 1e-6 || cur[32] !== cur[32]) moved = true; cur[32] = t.x; cur[33] = t.y; cur[34] = t.z; }
+    return moved;
+  }
   function applyToneMapping(THREE, renderer){
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
