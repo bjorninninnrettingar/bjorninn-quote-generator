@@ -298,6 +298,31 @@
   .unitPane .boxSvg { max-width:380px; display:block; margin:0 auto; }
   .wSecT { font-size:.8rem; font-weight:600; color:var(--muted); letter-spacing:.02em; margin:22px 0 8px; }
   .unitPane .approveBtn { max-width:360px; margin-left:auto; display:block; }
+
+  .subrail { position:sticky; top:62px; z-index:15; display:flex; gap:18px; flex-wrap:wrap; background:var(--surface); padding:10px 0; margin-bottom:6px; border-bottom:1px solid var(--line); }
+  .sub { margin:0 0 34px; scroll-margin-top:118px; }
+  .subT { display:flex; align-items:center; gap:10px; font-size:1.05rem; font-weight:600; margin:0 0 4px; }
+  .subT > span:first-child { font-size:.76rem; font-weight:700; color:var(--accent); background:var(--acc-bg, #e6f0fa); padding:2px 8px; border-radius:999px; }
+  .subT .newTab { margin-left:auto; font-size:.84rem; color:var(--accent); text-decoration:none; font-weight:500; }
+  .subHelp { color:var(--muted); font-size:.9rem; margin:0 0 12px; max-width:780px; }
+  .sub .inlineFrame iframe { width:100%; height:calc(100vh - 210px); min-height:600px; border:none; border-radius:12px; background:var(--bg); }
+  .sub .inlineFrame.open { display:block; border:none; }
+  .sub #bppArea { display:block !important; }
+  .chkRow.ro { cursor:default; }
+
+  .costStrip { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:16px 0; }
+  .costCard { background:var(--bg); border-radius:12px; padding:14px 16px; } .costCard.bad { background:var(--bad-bg); }
+  .costCard .cl { font-size:.76rem; color:var(--muted); } .costCard .cv { font-size:1.35rem; font-weight:700; margin-top:2px; font-variant-numeric:tabular-nums; } .costCard .cs { font-size:.74rem; color:var(--muted); margin-top:2px; min-height:1em; }
+  .supCard { background:var(--bg); border-radius:12px; padding:14px 18px; margin-bottom:12px; }
+  .supHd { display:flex; align-items:center; gap:12px; } .supHd .sn2 { font-weight:600; flex:1; } .supTot { font-variant-numeric:tabular-nums; }
+  .supMeta { color:var(--muted); font-size:.84rem; margin-top:4px; } .supMeta a { color:var(--accent); text-decoration:none; }
+  .supCard details { margin-top:10px; } .supCard summary { cursor:pointer; color:var(--accent); font-size:.86rem; }
+  .lt { width:100%; border-collapse:collapse; font-size:.84rem; margin-top:8px; } .lt th, .lt td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); } .lt th { color:var(--muted); font-weight:500; font-size:.74rem; }
+  .lt .num { text-align:right; font-variant-numeric:tabular-nums; } .lt tr.np td { color:var(--bad); }
+
+  .preflight { margin:8px 0 14px; max-width:900px; } .pf { display:flex; gap:10px; align-items:flex-start; padding:6px 0; font-size:.92rem; } .pf i { flex:none; width:10px; height:10px; border-radius:50%; margin-top:6px; background:var(--dim); }
+  .pf.ok i { background:var(--good); } .pf.wait i { background:#e9b000; } .pf.warn i { background:#e9b000; } .pf.bad i { background:var(--bad); } .pf.bad span { color:var(--bad); }
+  .proEmbed { margin-top:14px; } .proEmbed iframe { width:100%; height:calc(100vh - 190px); min-height:720px; border:none; border-radius:12px; background:#12161d; }
 </style>
 </head>
 <body>
@@ -723,7 +748,7 @@
       });
     }
     if (stepFilled.skipulag) renderUnitList();
-    if (stepFilled.pontun) renderOrderList();
+    if (stepFilled.pontun) { renderOrderList(); }
     if (stepFilled.klart) renderKlartSummary();
     if (first) setTimeout(function () { jumpStep(cs._current); }, 120);
   }
@@ -733,16 +758,20 @@
   function fillForskipulag(proj) {
     var el = document.getElementById("content-forskipulag");
     var k2 = k ? "&k=" + encodeURIComponent(k) : "";
-    var html = '<a class="proLink" target="_blank" href="/skipuleggja?pro=' + proj.id + k2 + '">Opna í hönnuðinum (PRO mode) →</a><br/>';
-    if ((proj.fields["Staða í skipulagi"] || "For-skipulag") === "For-skipulag" || !proj.fields["Staða í skipulagi"]) {
-      html += '<button class="runBtn" id="runSkipulagBtn" style="margin-top:10px;">Keyra skipulag</button><div class="gateMsg" id="runSkipulagMsg"></div>';
-    } else {
-      html += '<div class="sectionTitle" style="margin-top:10px;">Skipulag er keyrt — ' + (SIG.units ? SIG.units.length : "?") + ' einingar</div>';
-    }
-    el.innerHTML = html;
+    var st = (proj.fields["Staða í skipulagi"] || "For-skipulag"), ran = st !== "For-skipulag";
+    el.innerHTML =
+      '<p class="stepIntro">Hér lagar þú teikninguna áður en skipulag er keyrt — hönnuðurinn er innbyggður, ekkert þarf að opna í öðrum flipa. ' + (ran ? 'Skipulag er keyrt, því er teikningin í skoðunarham (hún opnast til breytinga þar ef þarf).' : 'Þegar listinn hér að neðan er grænn keyrir þú skipulag.') + '</p>' +
+      '<div id="preflight" class="preflight"><div class="empty">Athuga línurnar…</div></div>' +
+      '<div class="orderActions">' + (ran ? '' : '<button class="runBtn" id="runSkipulagBtn" type="button">Keyra skipulag</button>') +
+        '<a class="proLink" target="_blank" rel="noopener" href="/skipuleggja?pro=' + proj.id + k2 + '">Opna hönnuðinn í nýjum flipa ↗</a></div><div class="gateMsg" id="runSkipulagMsg" style="text-align:left"></div>' +
+      '<div class="proEmbed" id="proEmbed"><div class="empty">Hönnuðurinn hleðst þegar þú skrunar hingað…</div></div>';
+    // the designer, embedded (same page the PRO tab in the sidebar uses), loaded when it scrolls into view
+    var host = document.getElementById("proEmbed"), loadPro = function () { if (host.dataset.loaded) return; host.dataset.loaded = "1"; host.innerHTML = '<iframe src="/skipuleggja?pro=' + proj.id + k2 + '&embedded=1" title="PRO hönnuður"></iframe>'; };
+    if ("IntersectionObserver" in window) { var io = new IntersectionObserver(function (e) { if (e[0].isIntersecting) { loadPro(); io.disconnect(); } }, { rootMargin: "300px" }); io.observe(host); } else loadPro();
+    loadPreflight(proj);
     var btn = document.getElementById("runSkipulagBtn");
     if (btn) btn.addEventListener("click", function () {
-      if (!confirm("Keyra skipulag núna? Þetta býr til/samstillir Eyðublöð úr teikningunni.")) return;
+      if (!confirm("Keyra skipulag núna? Þetta býr til Eyðublöð úr teikningunni (línur með villu hoppa yfir).")) return;
       btn.disabled = true;
       var msg = document.getElementById("runSkipulagMsg");
       msg.textContent = "Keyri…";
@@ -751,11 +780,28 @@
         .then(function () {
           msg.textContent = "Keyri skipulag… (þetta tekur nokkrar sekúndur)";
           pollSignals("skipulag", 150, function () { return SIG.units && SIG.units.length > 0 && ((SIG.proj.fields["Staða í skipulagi"] || "For-skipulag") !== "For-skipulag"); },
-            function () { msg.textContent = "Skipulag keyrt — " + SIG.units.length + " einingar urðu til."; },
+            function () { msg.textContent = "Skipulag keyrt — " + SIG.units.length + " einingar urðu til."; loadPreflight(proj); },
             function () { msg.textContent = "Ekkert gerðist enn. Athugaðu Airtable (Skipulag · Keyra skipulag) áður en þú reynir aftur."; btn.disabled = false; });
         })
         .catch(function () { msg.textContent = "Tókst ekki — reyndu aftur."; btn.disabled = false; });
     });
+  }
+  // before "Keyra skipulag": what will be built, and which lines will NOT be (and why)
+  function loadPreflight(proj) {
+    var host = document.getElementById("preflight"); if (!host) return;
+    var fields = ["🔑", "⚠️ Skipulagsvilla", "Eyðublað búið til ✏️", "⚠️ Breytt eftir stofnun", "Tækifæri 📣 (projects)"].map(function (x) { return "&fields%5B%5D=" + encodeURIComponent(x); }).join("");
+    api("tblFcsUoGxsuUwNEH", "filterByFormula=" + linkFilter(encodeURIComponent("{Tækifæri 📣 (projects)}"), proj.fields["Heiti tækifæris / verkefnis"]) + "&maxRecords=300" + fields)
+      .then(function (d) {
+        var ls = onlyProject(d.records, "Tækifæri 📣 (projects)", proj.id), key = function (r) { return (r.fields || {})["🔑"] || "lína"; };
+        var warn = ls.filter(function (r) { return (r.fields || {})["⚠️ Skipulagsvilla"]; }), made = ls.filter(function (r) { return (r.fields || {})["Eyðublað búið til ✏️"]; }),
+          changed = ls.filter(function (r) { return (r.fields || {})["⚠️ Breytt eftir stofnun"]; }), todo = ls.filter(function (r) { return !(r.fields || {})["Eyðublað búið til ✏️"] && !(r.fields || {})["⚠️ Skipulagsvilla"]; });
+        var rows = [];
+        rows.push([ls.length ? "ok" : "bad", ls.length + " vörulínur í tilboðinu"]);
+        rows.push([todo.length ? "wait" : "ok", todo.length ? todo.length + " línur verða að einingum þegar skipulag er keyrt" : "Allar gildar línur hafa einingu"]);
+        if (warn.length) rows.push(["bad", warn.length + " línur hoppa yfir (villa): " + warn.slice(0, 6).map(function (r) { return key(r) + " — " + String((r.fields || {})["⚠️ Skipulagsvilla"]).slice(0, 80); }).join(" · ")]);
+        if (changed.length) rows.push(["warn", changed.length + " línur breyttust eftir að eining var búin til: " + changed.slice(0, 8).map(key).join(", ") + " — Eyðublaðið er ekki uppfært sjálfkrafa"]);
+        host.innerHTML = rows.map(function (r) { return '<div class="pf ' + r[0] + '"><i></i><span>' + esc(r[1]) + '</span></div>'; }).join("");
+      }).catch(function () { host.innerHTML = '<div class="pf bad"><i></i><span>Gat ekki lesið línurnar. <button type="button" class="link" id="pfRetry">Reyna aftur</button></span></div>'; var b = document.getElementById("pfRetry"); if (b) b.onclick = function () { loadPreflight(proj); }; });
   }
 
   // ---- Stage 2: Skipulag (unit list) ----
@@ -907,7 +953,8 @@
     var f = proj.fields || {};
     var qs = "?recordId=" + proj.id;
     el.innerHTML =
-      '<div class="sectionTitle">1 · Dagatal</div>' +
+      '<div class="subrail" id="subrail">' + [["dagatal", "3a Dagatal"], ["cutlist", "3b Cutty"], ["aedar", "3c Æðar"], ["cnc", "3d Smíða & CNC"], ["bpp", "3e .bpp"], ["yfirlit", "3f Yfirlit"]].map(function (x) { return '<button type="button" class="link" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join("") + '</div>' +
+      '<section class="sub" id="sub-dagatal"><h3 class="subT"><span>3a</span> Dagatal</h3><p class="subHelp">Hvenær á verkið að byrja og hvenær á það að fara út? Þetta stýrir framleiðsluáætluninni.</p>' +
       '<div class="dagatalCard">' +
         '<div class="dagatalGrid">' +
           '<div class="dagatalField"><label>Áætlaðir dagar í vinnudögum</label><input type="number" id="dagVinnudagar" value="' + esc(f["Áætlaðir dagar í vinnudögum Björninn (internal)"] ?? "") + '" /></div>' +
@@ -915,25 +962,18 @@
           '<div class="dagatalField"><label>Áætlaður afhendingardagur</label><input type="date" id="dagAfhending" value="' + esc(f["Áætlaður afhendingardagur Björninn (internal)"] || "") + '" /></div>' +
         '</div>' +
         '<div class="dagatalComputed">Áætlaðir dagar í vinnu (skv. tilboðsblaði): <b>' + esc(f["Áætlaðir Dagar í vinnu (samkvæmt tilboðsblaði)"] ?? "—") + '</b></div>' +
-      '</div>' +
-      '<div class="pipeSteps">' +
-        PIPE_TOOLS.map(function (t) {
-          return '<div class="pipeStepWrap">' +
-            '<div class="pipeStep">' +
-              '<span class="pipeLabel">' + t.num + '. ' + t.label + '</span>' +
-              (t.chip ? '<span class="chip" id="' + t.chip + '">…</span>' : '<span class="chip">Vélun</span>') +
-              '<button type="button" class="inlineToggle" data-tool="' + t.id + '">Opna hér ▾</button>' +
-              '<a class="newTab" target="_blank" title="Opna í nýjum flipa" href="' + t.path + qs + (t.key && k ? "&k=" + encodeURIComponent(k) : "") + '">↗</a>' +
-            '</div>' +
-            '<div class="inlineFrame" id="frame-' + t.id + '"></div>' +
-          '</div>';
-        }).join("") +
-      '</div>' +
-      '<div class="sectionTitle">Gátlisti</div>' +
-      '<div class="checklist" id="checklist"></div>' +
-      '<div class="stemmir" id="stemmirLine"></div>' +
-      '<button class="bppToggle" id="bppToggleBtn">Skoða CNC-forritun (.bpp) til að yfirfara →</button>' +
-      '<div id="bppArea"><div id="bppDrop"><div>Slepptu <b>.bpp</b> skrám hér</div><label class="pick">Velja skrár<input id="bppFile" type="file" accept=".bpp" multiple /></label></div><div id="bppOut"></div></div>' +
+      '</div></section>' +
+      PIPE_TOOLS.map(function (t, i) {
+        var help = { cutlist: "Búðu til skurðarlistann og skrifaðu hann á USB-lykilinn. Klárt þegar skurðarskrá er skráð á hlutina.", aedar: "Raðaðu viðaræðum á frontaplötur. Þarf aðeins ef verkið hefur frontaefni með æð — annars er þetta skref sleppt sjálfkrafa.", cnc: "Yfirfarðu lamir, hillur og ofn skáp fyrir skáp og skrifaðu CNC-skrárnar á USB. Klárt þegar „CNC yfirfarið“ er skráð." }[t.id] || "";
+        return '<section class="sub" id="sub-' + t.id + '"><h3 class="subT"><span>3' + "bcd"[i] + '</span> ' + t.label + (t.chip ? ' <span class="chip" id="' + t.chip + '">…</span>' : ' <span class="chip">Vélun</span>') +
+          '<a class="newTab" target="_blank" title="Opna í nýjum flipa" href="' + t.path + qs + (t.key && k ? "&k=" + encodeURIComponent(k) : "") + '">Opna í nýjum flipa ↗</a></h3>' +
+          '<p class="subHelp">' + help + '</p><div class="inlineFrame open" id="frame-' + t.id + '"><div class="empty">Hleð verkfærinu þegar þú skrunar hingað…</div></div></section>';
+      }).join("") +
+      '<section class="sub" id="sub-bpp"><h3 class="subT"><span>3e</span> Skoða CNC-forritun (.bpp) <span class="chip">valfrjálst</span></h3><p class="subHelp">Slepptu .bpp skrá hér til að sjá hana teiknaða áður en hún fer á vélina.</p>' +
+      '<button hidden id="bppToggleBtn" type="button"></button>' +
+      '<div id="bppArea"><div id="bppDrop"><div>Slepptu <b>.bpp</b> skrám hér</div><label class="pick">Velja skrár<input id="bppFile" type="file" accept=".bpp" multiple /></label></div><div id="bppOut"></div></div></section>' +
+      '<section class="sub" id="sub-yfirlit"><h3 class="subT"><span>3f</span> Yfirlit — allt sem þarf að vera klárt</h3><p class="subHelp">Græna merkið kemur sjálfkrafa þegar skrefið hér að ofan er búið. „Teikningar prentaðar“ og „Verkfundur“ hakar þú sjálf í.</p>' +
+      '<div class="checklist" id="checklist"></div><div class="stemmir" id="stemmirLine"></div></section>' +
       '';
 
     // Date fields: validated (delivery can't be before start), saved with a visible failure + revert.
@@ -957,6 +997,17 @@
     wireDate("dagAfhending", DATES_FIELD, function (v) { return v || null; },
       function (v) { var st = document.getElementById("dagUpphaf").value; return v && st && v < st ? "Afhending má ekki vera á undan upphafsdegi." : ""; });
 
+    // the tools open right here, full width, loaded when you scroll to them (three heavy pages are not loaded at once)
+    function loadTool(tool) {
+      var frame = document.getElementById("frame-" + tool.id); if (!frame || frame.dataset.loaded) return;
+      frame.dataset.loaded = "1";
+      frame.innerHTML = '<iframe src="' + tool.path + qs + (tool.key && k ? "&k=" + encodeURIComponent(k) : "") + '&embedded=1" loading="lazy" title="' + esc(tool.label) + '"></iframe>';
+    }
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (ents) { ents.forEach(function (en) { if (en.isIntersecting) { var id = en.target.id.replace("sub-", ""), tool = PIPE_TOOLS.filter(function (t) { return t.id === id; })[0]; if (tool) { loadTool(tool); io.unobserve(en.target); } } }); }, { rootMargin: "300px" });
+      PIPE_TOOLS.forEach(function (t) { var sec = document.getElementById("sub-" + t.id); if (sec) io.observe(sec); });
+    } else PIPE_TOOLS.forEach(loadTool);
+    el.querySelectorAll("[data-sub]").forEach(function (b) { b.onclick = function () { var t = document.getElementById("sub-" + b.dataset.sub); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); }; });
     el.querySelectorAll(".inlineToggle").forEach(function (btn) {
       btn.addEventListener("click", function () {
         var tool = PIPE_TOOLS.filter(function (t) { return t.id === btn.dataset.tool; })[0];
@@ -977,7 +1028,8 @@
       var row = document.createElement("div");
       row.className = "chkRow" + (on ? " on" : "");
       row.innerHTML = '<div class="box">' + (on ? "✓" : "") + '</div><div>' + item.label + (item.auto ? ' <span class="autoTag">sjálfvirkt</span>' : '') + '</div>';
-      row.addEventListener("click", function () {
+      if (item.auto) row.classList.add("ro");
+      else row.addEventListener("click", function () {
         var next = !row.classList.contains("on");
         row.classList.toggle("on", next);
         row.querySelector(".box").textContent = next ? "✓" : "";
@@ -1070,17 +1122,42 @@
         })
         .catch(function () { msg.textContent = "Tókst ekki — reyndu aftur."; btn.disabled = false; });
     });
-    renderOrderList();
+    loadLines(proj).then(renderOrderList); renderOrderList();
+  }
+  // ---- cost view: what the order costs, per supplier, against the quote ----
+  var PONTUN_TBL = "tbloXR7f9Q943O9el";
+  function isk(n) { return Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") + " kr."; }
+  function loadLines(proj) {
+    return api(PONTUN_TBL, "filterByFormula=" + linkFilter(FIELD_PROJECT_ON_PANTADIR, proj.fields["Heiti tækifæris / verkefnis"]) + "&maxRecords=500")
+      .then(function (d) { SIG.lines = onlyProject(d.records, "Tækifæri 📣", proj.id); })
+      .catch(function () { SIG.lines = null; });
   }
   function renderOrderList() {
     var el = document.getElementById("orderList"); if (!el) return;
     var recs = SIG.orders;
     if (recs === null) { el.innerHTML = '<div class="note err">Gat ekki lesið pantanir.</div>'; return; }
-    if (!recs.length) { el.innerHTML = '<div class="empty">Engar pantanir enn</div>'; return; }
-    el.innerHTML = '<div class="list">' + recs.map(function (r) {
-      var f = r.fields || {}, st = f["Staða"] || "", cls = st === "Sent" ? "ok" : /Komið/.test(st) ? "ok" : "wait";
-      return '<div class="prow" style="cursor:default"><div class="pn"><div class="t">' + esc(f["Stöðu kenni"] || "Pöntun") + '</div></div><span class="chip ' + cls + '">' + esc(st.replace(/\s*[^\wÀ-ɏ\s]+\s*$/u, "") || "Í undirbúningi") + '</span></div>';
-    }).join("") + '</div>';
+    if (!recs.length) { el.innerHTML = '<div class="empty">Engar pantanir enn — búðu til pöntunarlistann hér að ofan.</div>'; return; }
+    var lines = SIG.lines, byOrder = {}, noPrice = 0;
+    (lines || []).forEach(function (l) {
+      var f = l.fields || {}, price = Number(f["Áætlaður kostnaður"]) || 0; if (!price) noPrice++;
+      (f["Pantaðir listar"] || []).forEach(function (ol) { var id = typeof ol === "string" ? ol : ol.id; (byOrder[id] = byOrder[id] || []).push(l); });
+    });
+    var total = recs.reduce(function (n, r) { return n + (Number((r.fields || {})["Áætlaður kostnaður"]) || 0); }, 0);
+    var quote = Number((SIG.proj.fields || {})["💰 Tilboðsupphæð"]) || 0, exVat = quote / 1.24;
+    var sent = recs.filter(function (r) { return /^(Sent|Komið)/.test((r.fields || {})["Staða"] || ""); }).length;
+    var cards = [["Innkaup samtals", isk(total), total ? "" : "ekkert verð komið"], ["Tilboð (án vsk)", quote ? isk(exVat) : "—", ""],
+      ["Innkaup af tilboði", quote && total ? Math.round(total / exVat * 100) + " %" : "—", "áætlaður kostnaður ÷ tilboð án vsk"], ["Pantanir sendar", sent + " af " + recs.length, ""],
+      ["Línur án verðs", lines === null ? "?" : String(noPrice), noPrice ? "skoðaðu þær fyrst" : ""]];
+    el.innerHTML = '<div class="costStrip">' + cards.map(function (c) { return '<div class="costCard' + (c[0] === "Línur án verðs" && noPrice ? " bad" : "") + '"><div class="cl">' + c[0] + '</div><div class="cv">' + esc(c[1]) + '</div><div class="cs">' + esc(c[2]) + '</div></div>'; }).join("") + '</div>' +
+      recs.map(function (r) {
+        var f = r.fields || {}, st = f["Staða"] || "Í undirbúningi", ok = /^(Sent|Komið)/.test(st), ls = byOrder[r.id] || [], pdf = (f["Pöntunarlistar PDF"] || [])[0];
+        var rows = ls.map(function (l) { var lf = l.fields || {}, price = Number(lf["Áætlaður kostnaður"]) || 0;
+          return '<tr' + (price ? "" : ' class="np"') + '><td>' + esc(lf["Vörulisti txt"] || lf["Gerð"] || "Lína") + '</td><td class="num">' + esc(lf["Magn"] != null ? lf["Magn"] : "") + '</td><td class="num">' + (lf["Einingaverð 🔍"] ? isk(lf["Einingaverð 🔍"]) : "—") + '</td><td class="num">' + (price ? isk(price) : "vantar") + '</td></tr>'; }).join("");
+        return '<div class="supCard"><div class="supHd"><div class="sn2">' + esc(String(f["Stöðu kenni"] || "Pöntun")) + '</div><span class="chip ' + (ok ? "ok" : "wait") + '">' + esc(st.replace(/\s*[^\wÀ-ɏ\s]+\s*$/u, "")) + '</span>' +
+          '<span class="stat">' + ls.length + ' línur</span><b class="supTot">' + (f["Áætlaður kostnaður"] ? isk(f["Áætlaður kostnaður"]) : "ekkert verð") + '</b></div>' +
+          '<div class="supMeta">' + (f["Afhending óskuð"] ? "Afhending óskuð " + esc(dateIs(f["Afhending óskuð"])) : "Afhendingardagur ekki skráður") + (f["Sent dags."] ? " · Sent " + esc(dateIs(f["Sent dags."])) : "") + (pdf ? ' · <a target="_blank" rel="noopener" href="' + esc(pdf.url) + '">Pöntunarlisti (PDF) →</a>' : "") + '</div>' +
+          (ls.length ? '<details><summary>Sjá línurnar</summary><table class="lt"><thead><tr><th>Vara</th><th class="num">Magn</th><th class="num">Eining</th><th class="num">Samtals</th></tr></thead><tbody>' + rows + '</tbody></table></details>' : "") + '</div>';
+      }).join("");
   }
 
   // ---- Step 5: Klárt til framleiðslu ----
