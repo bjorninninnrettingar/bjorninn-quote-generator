@@ -417,6 +417,11 @@
     .warn-chip:not([hidden]){ padding:6px 9px; font-size:12.5px; }
     .ed-newunit{ padding:7px 11px; font-size:13px; }
   }
+  /* tablet portrait (768–1000 px): the bar is ~190 px wider than the page — let it wrap instead of scrolling sideways */
+  @media (max-width:1000px){
+    .ed-toolbar{ flex-wrap:wrap !important; }
+    .ed-toolbar .ed-right{ margin-left:auto; }
+  }
   .ed-hint{ font-size:12.5px; color:var(--ink-soft); text-align:right; flex:1 1 0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .view-toggle button{ white-space:nowrap; }
   .cat-title{ font-size:11.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); margin:4px 0 8px; }
@@ -2331,25 +2336,7 @@
   </div>
   <p class="lede" id="pageLede" hidden></p>
 
-  <aside id="tilbodPanel" aria-label="Tilboð" aria-hidden="true">
-    <div class="tp-head"><h3>Tilboð</h3><button type="button" class="tp-x" id="tpClose" title="Loka (Esc)">×</button></div>
-    <div class="tp-sum">
-      <div class="tp-alert" id="tpAlert" hidden><b id="tpAlertText"></b><button type="button" id="tpAlertGo">Skoða línur</button></div>
-      <div class="tp-total" id="tpTotal">—</div>
-      <div class="tp-sub" id="tpSub">m/vsk · reiknað úr teikningunni</div>
-      <div class="tp-warn" id="tpWarn" hidden></div>
-    </div>
-    <div class="tp-body" id="tpBody"></div>
-    <div class="tp-foot">
-      <label for="tpDiscount">Ósýnilegur afsláttur % <span class="tp-i" tabindex="0" data-tip="Lækkar verð allra lína um þessa prósentu (ekki halda). Kemur ekki fram sem afsláttarlína: viðskiptavinurinn sér bara lægri verð á tilboðinu. Aðeins skrifstofan sér prósentuna. Vistast á Tækifærið þegar þú ferð úr reitnum.">ⓘ</span></label><input id="tpDiscount" type="number" min="0" max="99" step="1" placeholder="0" />
-      <label for="tpMarkup">Smáverka álagning <span class="tp-i" tabindex="0" data-tip="Álag fyrir lítil verk: hækkar verð allra lína (ekki halda), t.d. Smáverk 20% = ×1,2. Kemur ekki fram sem lína: viðskiptavinurinn sér bara hærri verð á tilboðinu. Aðeins skrifstofan sér álagið. Vistast á Tækifærið um leið og þú velur.">ⓘ</span></label><select id="tpMarkup"><option value="">—</option></select>
-      <details><summary>Uppsetning</summary><div class="tp-inst">
-        <label for="tpInstallDiscount">Afsláttur í uppsetningu %</label><input id="tpInstallDiscount" type="number" min="0" max="100" step="1" />
-        <label for="tpMarkupInstall">Smáverka álagning [uppsetning]</label><select id="tpMarkupInstall"><option value="">—</option></select>
-      </div></details>
-      <div class="tp-actions"><span class="tp-msg" id="tpMsg"></span><span class="tp-btns"><button type="button" id="tpPrint" class="tp-ghost">Prenta tilboð</button><button type="button" id="tpSend">Búa til kynningu (PDF)</button></span></div>
-    </div>
-  </aside>
+  <script>if (new URLSearchParams(location.search).get("pro")) document.write('<script src="kitchen-planner-tilbod.js"><\/script>'); /* the Tilboð panel (PRO only), see kitchen-planner-tilbod.js */</script>
 
   <nav class="stepper" id="progressSteps" aria-label="Skref" data-i18n="attrs">
     <button type="button" class="st" data-s="heimili" hidden><i>1</i><span data-i18n>Rýmin</span></button>
@@ -5498,7 +5485,11 @@
         if (inp.dataset.bceil) state.roomHeightMm = v * 10; else setClosetDim(inp.dataset.bdim, v * 10);
         save(); renderShapeCanvas();
       });
-      inp.addEventListener("blur", function(){ inp.closest(".field").classList.remove("invalid"); renderWaterList(); });
+      inp.addEventListener("blur", function(){
+        var bv = parseInt(inp.value, 10); // out of range: put back and say so (QA 2026-10-29, same as the wardrobe's size fields)
+        if (isNaN(bv) || bv < +inp.min || bv > +inp.max) toast(__("Mál má vera {a}–{b} cm.", { a:inp.min, b:inp.max }));
+        inp.closest(".field").classList.remove("invalid"); renderWaterList();
+      });
     });
   }
   function renderWaterList(){
@@ -15081,7 +15072,8 @@
     if (doorPage === "list"){
       var bad = doorsReady();
       if (bad){
-        if (bad.designed !== false){ doorNeedId = bad.id; renderDoorStep(); var se = document.querySelector("#hdBody .hd-room-sel.err"); if (se) se.focus(); }
+        doorNeedId = bad.id; renderDoorStep(); // the door itself says what it lacks, not only the toast (QA 2026-10-29: four bots missed the toast)
+        var se = bad.designed !== false ? document.querySelector("#hdBody .hd-room-sel.err") : document.querySelector('#hdBody [data-dhanna="' + state.doorList.indexOf(bad) + '"]'); if (se) se.focus();
         toast(bad.designed === false ? __("Hannaðu {hu} fyrst — smelltu á Hanna.", { hu:doorHuLabel(bad) }) : __("Veldu rými fyrir {hu}.", { hu:doorHuLabel(bad) })); return;
       }
       doorNeedId = null;
@@ -15135,7 +15127,7 @@
         var done = d.designed !== false;
         return '<div class="hd-row' + (done ? ' done' : '') + '"><span class="hd-hu">' + doorHuLabel(d) + '</span>' +
           '<div class="hd-room">' + doorRoomSelect(d, i) + '</div>' +
-          '<div class="hd-sum">' + (done ? doorThumb(d, 52, 70) + '<span>' + escapeHtmlPro(doorSummary(d)) + (d.qty > 1 ? ' · ' + d.qty + ' ' + __("stk") : '') + '</span>' : '<span class="hd-todo">' + __("Ekki hönnuð enn") + '</span>') + '</div>' +
+          '<div class="hd-sum">' + (done ? doorThumb(d, 52, 70) + '<span>' + escapeHtmlPro(doorSummary(d)) + (d.qty > 1 ? ' · ' + d.qty + ' ' + __("stk") : '') + '</span>' : '<span class="hd-todo">' + __("Ekki hönnuð enn") + '</span>' + (doorNeedId === d.id ? '<em class="hd-room-err">' + __("Smelltu á Hanna til að hanna þessa hurð") + '</em>' : '')) + '</div>' +
           '<div class="hd-btns"><button type="button" class="btn ' + (done ? 'btn-secondary' : 'btn-primary') + ' btn-small hd-hanna" data-dhanna="' + i + '">' + (done ? __("Breyta") : __("Hanna")) + '</button>' +
           '<button type="button" class="hd-mini" data-dcopy="' + i + '" title="' + __("Ný hurð eins og þessi") + '">' + __("Afrita") + '</button>' +
           '<button type="button" class="hd-mini" data-ddel="' + i + '" title="' + __("Eyða hurð") + '">' + icon("trash", 14) + __("Eyða") + '</button></div></div>';
@@ -20357,6 +20349,7 @@
     }catch(e){ document.getElementById("tpMsg").textContent = "Tókst ekki að sækja verkefnið."; }
   }
   function proTilbodPatch(fields){
+    if (!PRO) return Promise.resolve(); // customers have no Tækifæri key: nothing to write (QA 2026-10-29: TypeError on PRO.id)
     var path = encodeURIComponent("tbl4LMXlQjp66RFKI/" + PRO.id) + "&k=" + encodeURIComponent(PRO.k);
     return fetch("/api/airtable?path=" + path, { method:"PATCH", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ fields:fields }) })
       .then(function(r){
@@ -20367,6 +20360,7 @@
   }
   // what the price endpoint needs: every drawn line (all rooms) + the materials/handles the quote is priced on
   function proTilbodPayload(){
+    if (!PRO) return null;
     var lines = collectAllLineItems().map(function(li){
       return { key:li["🔑"], v1:li["Vöru reitur 1"] || [], v2:li["Vöru reitur 2"] || [], v3:li["Vöru reitur 3"] || [], qty:li["Magn"] != null ? li["Magn"] : 1, front2:!!li["Frontaefni #2"] };
     });
@@ -20386,6 +20380,7 @@
     tp.timer = setTimeout(proTilbodFetch, now ? 0 : 450);
   }
   async function proTilbodFetch(){
+    if (!PRO) return;
     var body = proTilbodPayload(), sig = JSON.stringify(body);
     if (sig === tp.last && tp.data) return; // nothing that affects the price changed (a camera move, a selection…)
     var my = ++tp.seq;

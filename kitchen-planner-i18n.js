@@ -392,6 +392,7 @@
     "Bilið þarf að vera á milli 0 og {max} mm.": "The gap must be between 0 and {max} mm.",
     "Ekki nóg pláss á {wall} fyrir {item}.": "Not enough room on {wall} for {item}.",
     "Þétta skáparöðina?": "Close up the row of cabinets?",
+    "Smelltu á Hanna til að hanna þessa hurð": "Click Hanna to design this door",
     "Minnkaði skáp um 2 cm til að koma fyrir úthlið.": "Made a cabinet 2 cm narrower to fit an end panel.",
     "Skápurinn er læstur — opnaðu lásinn til að breyta honum.": "The cabinet is locked — unlock it to change it.",
     "Úthliðin er læst við skápinn — hún fylgir honum.": "The end panel is locked to the cabinet — it follows it.",
