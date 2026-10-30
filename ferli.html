@@ -520,12 +520,25 @@
     var boardEl = document.getElementById("board");
     boardEl.style.display = "block";
     boardEl.innerHTML = '<div class="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
-    var fml = '{Staða í söluferli}="🏆 Tækifæri unnið"';
+    // delivered projects are excluded server-side, so the 100-per-page window is only live work (and we follow `offset` anyway)
+    var fml = 'AND({Staða í söluferli}="🏆 Tækifæri unnið",{Staða í framleiðslu}!="' + PROD_DONE + '")';
+    // reads every page; REJECTS on an API error (403/500 used to render as four empty columns)
+    function apiAll(path, extra) {
+      var out = [];
+      function page(off, n) {
+        return api(path, extra + (off ? "&offset=" + encodeURIComponent(off) : "")).then(function (d) {
+          if (!d || d.error || !Array.isArray(d.records)) throw new Error("load");
+          out = out.concat(d.records);
+          return d.offset && n < 20 ? page(d.offset, n + 1) : out;
+        });
+      }
+      return page(null, 0);
+    }
     Promise.all([
-      api(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&" + BOARD_FIELDS.map(function (f) { return "fields%5B%5D=" + encodeURIComponent(f); }).join("&") + "&pageSize=100"),
-      api(PANTADIR, "pageSize=100")
+      apiAll(TAEKIFAERI, "filterByFormula=" + encodeURIComponent(fml) + "&" + BOARD_FIELDS.map(function (f) { return "fields%5B%5D=" + encodeURIComponent(f); }).join("&") + "&pageSize=100"),
+      apiAll(PANTADIR, "pageSize=100")
     ]).then(function (res) {
-      renderBoard(res[0].records || [], res[1].records || []);
+      renderBoard(res[0], res[1]);
     }).catch(function () { boardEl.innerHTML = retryNote("Tókst ekki að sækja verkin.", loadBoard); });
   }
 
