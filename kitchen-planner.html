@@ -2150,6 +2150,9 @@
   .uw-smrow input{ width:76px; }
   .uw-smrow .uw-sm-ok{ width:auto; margin:0; min-width:56px; }
   .uw-smtyp{ display:inline-flex; gap:4px; }
+  .uw-smgood{ margin:4px 0 8px; color:var(--ink-soft); }
+  .uw-smhit b{ display:block; margin-bottom:2px; }
+  .uw-smhit{ padding:9px 11px; border-radius:10px; background:var(--danger-soft, #fbebe7); color:var(--danger, #d70015); margin:6px 0 10px; font-size:13px; line-height:1.4; }
   .uw-scrname{ margin:2px 0 10px; font-size:15px; font-weight:700; color:var(--ink); }
   .uw-scr .uw-smrow > label{ flex:0 0 130px; }
   .uw-scr .uw-scr-ok{ min-width:96px; }
@@ -8441,10 +8444,10 @@
     ];
     var hoverKey = uw.hoverDim ? uw.hoverDim.k : null, sm = !!uw.smida;
     if (sm){ picked = {}; ["w", "h", "d"].forEach(function(k){ picked[k] = smAckNow(k); }); } // Smíða: confirmed = dark with a tick, the rest a pale ghost
-    var secPH = sm && (uw.sec === "pos" || uw.sec === "hw"); // Staðsetning / Vélbúnaður: the marks below, not the three dimension lines
+    var secPH = sm && (uw.sec === "pos" || uw.sec === "lam"); // Staðsetning / Lamir: the marks below, not the three dimension lines
     var marks = "";
     if (secPH && uw.smMarks && uw.smMarks[uw.sec]){
-      if (uw.sec === "hw") (uw.smZones || []).forEach(function(zn){ // where a hinge must not be (30 mm round a shelf hole / fixed shelf / runner row): light blue
+      if (uw.sec === "lam") (uw.smZones || []).forEach(function(zn){ // where a hinge must not be (30 mm round a shelf hole / fixed shelf / runner row): light blue
         var yl = x.y0 + (x.plinthM || 0) + Math.max(0, zn.lo) / 1000, yh = x.y0 + (x.plinthM || 0) + zn.hi / 1000, q = [P(x.a0, yl, x.d), P(x.a1, yl, x.d), P(x.a1, yh, x.d), P(x.a0, yh, x.d)];
         marks += '<polygon points="' + q.map(function(pt){ return pt.x + "," + pt.y; }).join(" ") + '" fill="#0071e3" fill-opacity=".16" stroke="#0071e3" stroke-opacity=".35" stroke-dasharray="3 3"/>';
       });
@@ -8453,8 +8456,10 @@
         var abs = uw.smDrag && uw.smDrag.id === m.id ? uw.smDrag.abs : m.abs, mmTxt = m.hinge ? Math.round(abs - m.hinge.dbot) : (uw.smDrag && uw.smDrag.id === m.id ? Math.round(abs) : m.mm);
         var y = x.y0 + (x.plinthM || 0) + abs / 1000, a = P(x.a0, y, x.d), z = P(x.a1, y, x.d), on = uw.smItem === uw.sec + ":" + m.id || (uw.smDrag && uw.smDrag.id === m.id);
         var hit = m.hinge && (uw.smZones || []).some(function(zn){ return abs > zn.lo && abs < zn.hi; });
-        if (m.cur){ var by = [y - 0.011, y + 0.011], bq = [P(x.a0, by[0], x.d), P(x.a1, by[0], x.d), P(x.a1, by[1], x.d), P(x.a0, by[1], x.d)]; marks += '<polygon points="' + bq.map(function(pt){ return pt.x + "," + pt.y; }).join(" ") + '" fill="#0071e3" fill-opacity=".30" stroke="#0071e3" stroke-opacity=".6"/>'; on = true; } // the shelf being set: a blue band
+        if (m.cur && m.band){ var by = [y - 0.011, y + 0.011], bq = [P(x.a0, by[0], x.d), P(x.a1, by[0], x.d), P(x.a1, by[1], x.d), P(x.a0, by[1], x.d)]; marks += '<polygon points="' + bq.map(function(pt){ return pt.x + "," + pt.y; }).join(" ") + '" fill="#0071e3" fill-opacity=".30" stroke="#0071e3" stroke-opacity=".6"/>'; } // the shelf being set: a blue band
+        if (m.cur) on = true;
         var col = hit ? "#d70015" : on ? "#0058a3" : m.ok ? "#2b2b2e" : "#8e8e93", txt = (m.ok && !hit ? "✓ " : "") + mmTxt, tw = String(txt).length * 7.4 + 14;
+        if (m.hinge){ var sd0 = (uw.smHingeSides || ["r"])[0], lp = P(sd0 === "l" ? x.a0 + 0.035 : x.a1 - 0.035, y, x.d); z = { x:sd0 === "l" ? lp.x + 8 : lp.x - tw - 20, y:lp.y }; } // a hinge: the number sits beside the hinge, in the frame when the camera is close
         marks += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + z.x + '" y2="' + z.y + '" stroke="' + col + '" stroke-width="' + (on ? 2.6 : 1.4) + '"' + (on || m.ok ? '' : ' stroke-dasharray="5 4"') + '/>' +
           '<rect x="' + (z.x + 6) + '" y="' + (z.y - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (on ? col : "#fff") + '" fill-opacity="' + (on || m.ok ? 1 : .85) + '" stroke="' + col + '"/><text x="' + (z.x + 6 + tw / 2) + '" y="' + (z.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="' + (on ? "#fff" : col) + '">' + txt + '</text>';
         if (m.hinge) (uw.smHingeSides || ["r"]).forEach(function(sd){ var hp = P(sd === "l" ? x.a0 + 0.035 : x.a1 - 0.035, y, x.d);
@@ -8491,14 +8496,18 @@
     // a low unit gets more room round it (user, 2026-10-26: a bath vanity was cut off, the tap out of the frame) — the
     // drawers slide ~45 cm toward the camera in Innvols, and the dimension pills sit outside the box
     var small = hM < 1.5, dist = Math.max(Math.max(hM, 0.5) / 2 / Math.tan(vHalf), (Math.max(wM, x.d) + (small ? 0.3 : 0)) / 2 / Math.tan(hHalf)) * (small ? 1.4 : 1.3) + (small ? 0.6 : 0.35);
-    var sec = uw.sec, n = g.normal, a = g.axis, dir, lift = 0, fa = (sec === "pos" || sec === "hw") && uw.smida && uw.smFocusAbs != null ? uw.smFocusAbs : null; // Smíða: one shelf / one hinge at a time — the camera goes to it
+    var sec = uw.sec, n = g.normal, a = g.axis, dir, lift = 0, fa = (sec === "pos" || sec === "lam") && uw.smida && uw.smFocusAbs != null ? uw.smFocusAbs : null; // Smíða: one shelf / one hinge at a time — the camera goes to it
     if (fa != null){ cy = x.y0 + (x.plinthM || 0) + fa / 1000; dist = Math.max(dist * 0.5, 0.9); }
     if (sec === "d"){ dir = { x:a.x * 0.94 + n.x * 0.34, z:a.z * 0.94 + n.z * 0.34 }; }
-    else if (sec === "w" || sec === "inn" || sec === "pos" || sec === "hw" || sec === "yfir"){ dir = { x:n.x, z:n.z }; }
+    else if (sec === "w" || sec === "inn" || sec === "pos" || sec === "lam" || sec === "hw" || sec === "yfir"){ dir = { x:n.x, z:n.z }; }
     else { dir = { x:n.x * 0.74 + a.x * 0.67, z:n.z * 0.74 + a.z * 0.67 }; lift = hM * 0.12; }
+    if (fa != null && sec === "lam"){ // a hinge: close, from the hinge side, the camera on the hinge itself
+      var sg = uw.smFocusSide === "r" ? 1 : -1, off = Math.max(0, wM / 2 - 0.1);
+      dir = { x:n.x * 0.84 + a.x * 0.54 * sg, z:n.z * 0.84 + a.z * 0.54 * sg }; cx += a.x * sg * off; cz += a.z * sg * off; dist = Math.max(dist * 0.85, 0.75);
+    }
     var to = new T.Vector3(cx + dir.x * dist, cy + lift, cz + dir.z * dist), tgt = new T.Vector3(cx, cy, cz);
     st.controls.target.copy(tgt);
-    if (sec === "inn" || sec === "pos" || sec === "hw") KP3D.setAllParts(true); else if (!uwView.open) KP3D.setAllParts(false);
+    if (sec === "inn" || sec === "pos" || sec === "lam" || sec === "hw") KP3D.setAllParts(true); else if (!uwView.open) KP3D.setAllParts(false);
     cancelAnimationFrame(uwAimAnim);
     if (!animate){ st.camera.position.copy(to); st.controls.update(); return; }
     var from = st.camera.position.clone(), t0 = performance.now();
@@ -18506,15 +18515,15 @@
   function smInnSig(b){ var c = CATALOG[b.type] || {}; return JSON.stringify([b.type, c.shelfRange ? KP3D.shelvesOf(b) : null, c.railRange ? KP3D.railsOf(b) : null, b.interior && [b.interior.mode, b.interior.codes, b.interior.count], b.ovenCombo, b.burCodes, b.innerCodes, b.swing, b.thvo, b.single, b.slideDoors, b.closetRecipe, b.sinkTop, b.frontAll]); }
   function smInnOk(b){ return !!(b.smidaAck && b.smidaAck.inn === smInnSig(b)); }
   function smMalDone(x){ return x.dims.every(function(d){ return smAckOk(x.b, d.k, d.mm); }); }
-  function smOrder(){ return ["w", "h", "d"].concat(uw.smHasInn ? ["inn"] : [], uw.smHasPos ? ["pos"] : [], uw.smHasHw ? ["hw"] : [], ["yfir"]); }
-  function smSecDone(x, k){ return k === "inn" ? smInnOk(x.b) : k === "pos" || k === "hw" ? smGrpDone(x, k) : k === "yfir" ? proReady(x.b) : smAckOk(x.b, k, smMm(k)); }
+  function smOrder(){ return ["w", "h", "d"].concat(uw.smHasInn ? ["inn"] : [], uw.smHasPos ? ["pos"] : [], uw.smHasLam ? ["lam"] : [], uw.smHasHw ? ["hw"] : [], ["yfir"]); }
+  function smSecDone(x, k){ return k === "inn" ? smInnOk(x.b) : k === "pos" || k === "lam" || k === "hw" ? smGrpDone(x, k) : k === "yfir" ? proReady(x.b) : smAckOk(x.b, k, smMm(k)); }
   function smFirstSec(b, c){
     var fb = findBlock(b.id), dm = { w:b.widthMm, h:proBodyMm(b, c, fb ? fb.zone : "floor"), d:b.depthMm || c.d };
     var first = ["w", "h", "d"].find(function(k){ return !smAckOk(b, k, dm[k]); });
     if (first) return first;
     if (!smInnOk(b)) return "inn";
     var x = { b:b, c:c, zone:fb ? fb.zone : "floor" };
-    return ["pos", "hw"].find(function(g){ return !smGrpDone(x, g) && smItems(g, x).length; }) || "yfir";
+    return ["pos", "lam", "hw"].find(function(g){ return !smGrpDone(x, g) && smSecItems(g, x).length; }) || "yfir";
   }
   function smQueue(){ var list = proSkList(), me = list.find(function(x){ return x.id === uw.b.id && x.cat === (state.activeCategory || ""); }) || list.find(function(x){ return x.id === uw.b.id; }); return { list:list, me:me, ok:list.filter(function(x){ return x.st === "ok"; }).length }; }
   function smHead(b, c){
@@ -18534,7 +18543,7 @@
     if (grp === "inn") delete a.inn; else { a[grp] = Object.assign({}, a[grp]); delete a[grp][id]; }
     a.at = new Date().toISOString(); x.b.smidaAck = a;
     if (x.b.smidaReady) proSetReadyQuiet(x.b, false);
-    save(); uwPrevKey = ""; uw.sec = grp === "mal" ? id : grp; if (grp === "mal") uw.smFocus = true; else if (id) uw.smFocusItem = grp + ":" + id;
+    save(); uwPrevKey = ""; uw.sec = grp === "mal" ? id : grp === "inn" ? "inn" : (uw.sec === "pos" || uw.sec === "lam" || uw.sec === "hw" ? uw.sec : grp); if (grp === "mal") uw.smFocus = true; else if (id) uw.smFocusItem = grp + ":" + id;
     renderUnitWizard();
   }
   // Breidd / Hæð / Dýpt: an empty field; the value is on the drawing, as a ghost
@@ -18553,9 +18562,9 @@
     var b = x.b, c = x.c, m = [];
     x.dims.forEach(function(d){ if (!smAckOk(b, d.k, d.mm)) m.push({ sec:d.k, text:d.label + " er ekki staðfest" }); });
     if (uw.smHasInn && !smInnOk(b)) m.push({ sec:"inn", text:"Innvols er ekki staðfest" });
-    [["pos", "Staðsetning"], ["hw", "Vélbúnaður"]].forEach(function(g){
-      if (g[0] === "pos" ? !uw.smHasPos : !uw.smHasHw) return;
-      smItems(g[0], x).filter(smReal).forEach(function(it){ if (!smItemAckOk(b, g[0], it)) m.push({ sec:g[0], grp:g[0], id:it.kind === "mm" ? it.id : null, text:g[1] + ": " + it.label }); });
+    [["pos", "Staðsetning"], ["lam", "Lamir"], ["hw", "Grip"]].forEach(function(g){
+      if (g[0] === "pos" ? !uw.smHasPos : g[0] === "lam" ? !uw.smHasLam : !uw.smHasHw) return;
+      smSecItems(g[0], x).filter(smReal).forEach(function(it){ if (!smItemAckOk(b, smAckGrp(g[0]), it)) m.push({ sec:g[0], grp:smAckGrp(g[0]), id:it.kind === "mm" ? it.id : null, text:g[1] + ": " + (g[0] === "lam" && it.group ? it.group.split(" — ")[0] + " · " : "") + it.label }); });
     });
     proClashes(b, c, x.zone).reverse().forEach(function(t){ m.unshift({ sec:"pos", text:t }); }); // first: a clash is what she has to act on
     proIssues(b, c, x.zone, true).forEach(function(i){ m.push({ sec:"yfir", text:i.text, fix:i.fix }); });
@@ -18574,13 +18583,13 @@
       (ready ? '<button type="button" class="btn btn-secondary btn-small" data-sm-unready>Taka af merkingu</button> ' : '')));
   }
   function smChips(x){
-    var b = x.b, c = x.c, sm = smidaFor(b, c, x.zone), inn = smInnOk(b) && (!uw.smHasPos || smGrpDone(x, "pos")), hwOk = !uw.smHasHw || smGrpDone(x, "hw"), out = [{ t:"Mál", v:x.dims.map(function(d){ return d.mm; }).join(" × "), sec:"w", done:smMalDone(x) }];
+    var b = x.b, c = x.c, sm = smidaFor(b, c, x.zone), inn = smInnOk(b) && (!uw.smHasPos || smGrpDone(x, "pos")), hwOk = !uw.smHasHw || smGrpDone(x, "hw"), lamOk = !uw.smHasLam || smGrpDone(x, "lam"), out = [{ t:"Mál", v:x.dims.map(function(d){ return d.mm; }).join(" × "), sec:"w", done:smMalDone(x) }];
     var sh = sm.shelves ? (sm.shelves.list ? sm.shelves.list.length : (sm.shelves.loose || 0) + (sm.shelves.fixed || 0)) : 0;
     if (sh) out.push({ t:"Hillur", v:sh, sec:"inn", done:inn });
     if (sm.fronts && sm.fronts.length) out.push({ t:"Skúffur", v:sm.fronts.length + (b.interior && Array.isArray(b.interior.frontsMm) ? " (Sérhæð)" : ""), sec:"inn", done:inn });
     var doors = proDoorsOf(b, c, x.zone), hn = 0;
     doors.forEach(function(d, i){ var sp = proSpec(b, doors, i); if (sp.type === "hinged") hn += CNCSIDES.specToPositions(sp.hinges, d.box).length; });
-    if (hn) out.push({ t:"Lamir", v:hn * (KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner" ? 2 : 1), sec:"hw", done:hwOk });
+    if (hn) out.push({ t:"Lamir", v:hn * (KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner" ? 2 : 1), sec:"lam", done:lamOk });
     if (sm.oven) out.push({ t:"Ofn", v:sm.oven.h + " mm", sec:"inn", done:inn });
     if (sm.rails && sm.rails.length) out.push({ t:"Slár", v:sm.rails.length, sec:"inn", done:inn });
     if (sm.grip && sm.grip.length) out.push({ t:"Grip", v:sm.grip.length, sec:"hw", done:hwOk });
@@ -18789,32 +18798,50 @@
   }
   function smItemAckOk(b, grp, it){ return !!(b.smidaAck && b.smidaAck[grp] && b.smidaAck[grp][it.id] === it.val); }
   function smReal(it){ return it.kind === "mm" || it.kind === "choice"; }
-  function smGrpDone(x, grp){ return smItems(grp, x).filter(smReal).every(function(it){ return smItemAckOk(x.b, grp, it); }); }
+  // Round 2: the old Vélbúnaður list is split — "lam" = door setup (Skipting, Hlið, Gerð) + one screen per hinge, "hw" = Grip. All of it is still
+  // acked under smidaAck.hw (same keys as before, so a cabinet already Klár stays Klár); only the sections it is shown in differ.
+  var SM_LAM = /^(split|spl\d+|side|dt\d+|dp\d+|hg\d+_\d+)$/;
+  function smSecItems(sec, x){ if (sec === "pos") return smItems("pos", x); return smItems("hw", x).filter(function(it){ return (sec === "lam") === SM_LAM.test(it.id); }); }
+  function smAckGrp(sec){ return sec === "lam" ? "hw" : sec; }
+  function smGrpDone(x, sec){ return smSecItems(sec, x).filter(smReal).every(function(it){ return smItemAckOk(x.b, smAckGrp(sec), it); }); }
   function smItemSecs(b, c, secHtml){
-    var x = smCtx(); uw.smHasPos = false; uw.smHasHw = false; uw.smMarks = {}; uw.smZones = []; uw.smFocusAbs = null;
-    if (uw.sec !== "pos") uw.smPos = null;
+    var x = smCtx(); uw.smHasPos = false; uw.smHasLam = false; uw.smHasHw = false; uw.smMarks = {}; uw.smZones = []; uw.smFocusAbs = null; uw.smFocusSide = null;
+    if (uw.smPosSec !== uw.sec){ uw.smPos = null; uw.smPosSec = uw.sec; }
     var both = !!(KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner" && proDoorsOf(b, c, x.zone).length);
     uw.smHingeSides = both ? ["l", "r"] : [b.swing === "vinstri" ? "l" : "r"];
-    [["pos", "Staðsetning"], ["hw", "Vélbúnaður"]].forEach(function(g){
-      var items = smItems(g[0], x), real = items.filter(smReal), scr = g[0] === "pos" ? smPosScreens(items) : null, cur = scr && uw.sec === "pos" ? smPosCur(x, scr) : -1, curItems = cur >= 0 ? scr[cur].items : null;
-      uw.smMarks[g[0]] = real.filter(function(it){ return !curItems || curItems.indexOf(it) >= 0; }).map(function(it){ return { id:it.id, abs:it.abs, mm:it.kind === "mm" ? it.mm : "", ok:smItemAckOk(b, g[0], it), hinge:it.hinge || null, hit:!!it.hit, cur:!!(curItems && scr[cur].kind === "shelf" && /^sh\d+$/.test(it.id)) }; });
-      if (cur >= 0 && scr[cur].kind === "shelf"){ var shIt = scr[cur].items[0]; uw.smFocusAbs = shIt.abs; }
+    [["pos", "Staðsetning"], ["lam", "Lamir"], ["hw", "Grip"]].forEach(function(g){
+      var sec = g[0], ag = smAckGrp(sec), items = smSecItems(sec, x), real = items.filter(smReal), scr = sec === "hw" ? null : smScreens(sec, items), cur = scr && uw.sec === sec ? smPosCur(x, sec, scr) : -1, curItems = cur >= 0 ? scr[cur].items : null;
+      uw.smMarks[sec] = real.filter(function(it){ return !curItems || curItems.indexOf(it) >= 0; }).map(function(it){ var isSh = /^sh\d+$/.test(it.id), isHg = !!it.hinge; return { id:it.id, abs:it.abs, mm:it.kind === "mm" ? it.mm : "", ok:smItemAckOk(b, ag, it), hinge:it.hinge || null, hit:!!it.hit, cur:!!(curItems && scr[cur].kind !== "rest" && (isSh || isHg)), band:isSh }; });
+      if (cur >= 0 && scr[cur].kind !== "rest"){ var fIt = scr[cur].items[0]; uw.smFocusAbs = fIt.abs; if (scr[cur].kind === "hinge"){ uw.smFocusSide = uw.smHingeSides[0]; uw.smSeen = uw.smSeen || {}; uw.smSeen[fIt.id] = true; } }
       if (!items.length) return;
-      if (g[0] === "pos") uw.smHasPos = real.length > 0; else { uw.smHasHw = real.length > 0; uw.smZones = proShelfRows(b, proBodyMm(b, c, x.zone)).map(function(r){ return { lo:r.at - 30, hi:r.at + 30, what:r.what }; }); }
-      var done = real.filter(function(it){ return smItemAckOk(b, g[0], it); }).length, html;
-      if (scr && scr.length) html = cur >= 0 ? smScreenHtml(x, scr, cur) : ''; // (a closed section draws no body)
-      else html = '<p class="sec-note">Staðfestu hverja löm, hurð og grip — sláðu inn, dragðu lömina í teikningunni, eða ýttu á Rétt / veldu. Ljósbláu svæðin eru þar sem löm má ekki vera.</p>' + smRowsHtml(g[0], items, b);
-      secHtml.push(uwSec(g[0], g[1], real.length ? (done === real.length ? done + " ✓" : done + "/" + real.length) : "", html));
+      if (sec === "pos") uw.smHasPos = real.length > 0; else if (sec === "lam"){ uw.smHasLam = real.length > 0; }
+      else uw.smHasHw = real.length > 0;
+      if (sec === "lam"){ // the clearance bands: only round the hinge being set (everything else stays out of the picture)
+        var near = cur >= 0 && scr[cur].kind === "hinge" ? scr[cur].items[0].abs : null;
+        uw.smZones = near == null ? [] : proShelfRows(b, proBodyMm(b, c, x.zone)).map(function(r){ return { lo:r.at - 30, hi:r.at + 30, what:r.what }; }).filter(function(zn){ return Math.abs((zn.lo + zn.hi) / 2 - near) < 230; });
+      }
+      var done = real.filter(function(it){ return smItemAckOk(b, ag, it); }).length, html;
+      if (scr && scr.length) html = cur >= 0 ? smScreenHtml(x, sec, scr, cur) : ''; // (a closed section draws no body)
+      else html = '<p class="sec-note">Veldu grip fyrir hvern frontur — ýttu á Rétt / veldu.</p>' + smRowsHtml(ag, items, b);
+      secHtml.push(uwSec(sec, g[1], real.length ? (done === real.length ? done + " ✓" : done + "/" + real.length) : "", html));
     });
   }
-  // ---- Round 2 (owner 2026-10-30): Staðsetning one thing at a time. Each shelf is its own screen ("Hilla 2 af 4"): the camera lifts to its
+  // ---- Round 2 (owner 2026-10-30): Staðsetning and Lamir one thing at a time. Staðsetning: each shelf is its own screen ("Hilla 2 af 4"): the camera lifts to its
   // height, a blue band + line marks it on the drawing, the field holds its CURRENT position, Föst / Laus / Læst (blue when chosen), and
   // fjöldi gata + bil milli gata appear only for a Laus shelf, pre-filled. ONE Rétt confirms what the screen shows (mm, and for Laus the
   // two hole values) — the acks stay per item (pos.shK / shpK / shgK), same shapes. Everything else (Sérhæð, ofn, Raðborun, slár,
-  // innskúffur, bath holes) keeps its rows, grouped on "other" screens before / after the shelves. ----
-  function smPosScreens(items){
+  // innskúffur, bath holes) keeps its rows, grouped on "other" screens before / after the shelves. Lamir: one "Hurðir" screen (Skipting,
+  // Hlið, Gerð), then one screen per hinge ("Löm 2 af 4 · Hurð 1": camera close from the hinge side, bands only round it, red + reason,
+  // "Færa í N mm", Rétt, and "Allar lamir rétt" on the last hinge of a door). ----
+  function smScreens(sec, items){
     var scr = [], rest = [];
-    function flush(){ if (rest.length){ scr.push({ kind:"rest", items:rest }); rest = []; } }
+    if (sec === "lam"){
+      var setup = items.filter(function(it){ return !/^hg\d+_\d+$/.test(it.id); });
+      if (setup.length) scr.push({ kind:"rest", title:"Fyrir lamirnar", items:setup });
+      items.filter(function(it){ return /^hg\d+_\d+$/.test(it.id); }).forEach(function(it){ var m = /^hg(\d+)_(\d+)$/.exec(it.id); scr.push({ kind:"hinge", i:+m[1], j:+m[2], items:[it] }); });
+      return scr;
+    }
+    function flush(){ if (rest.length){ scr.push({ kind:"rest", title:"Aðrir hlutir", items:rest }); rest = []; } }
     items.forEach(function(it){
       var m = /^(sh|shp|shg)(\d+)$/.exec(it.id), last = scr[scr.length - 1];
       if (m && m[1] === "sh"){ flush(); scr.push({ kind:"shelf", k:+m[2], items:[it] }); }
@@ -18824,17 +18851,45 @@
     flush();
     return scr;
   }
-  function smScrDone(x, s){ return s.items.filter(smReal).every(function(it){ return smItemAckOk(x.b, "pos", it); }); }
-  function smPosCur(x, scr){
+  function smScrDone(x, sec, s){ return s.items.filter(smReal).every(function(it){ return smItemAckOk(x.b, smAckGrp(sec), it); }); }
+  function smPosCur(x, sec, scr){
     var i = uw.smPos;
-    if (i == null || i < 0 || i >= scr.length){ i = scr.findIndex(function(q){ return !smScrDone(x, q); }); if (i < 0) i = 0; }
-    uw.smPos = i; uw.smPosN = scr.length;
+    if (i == null || i < 0 || i >= scr.length){ i = scr.findIndex(function(q){ return !smScrDone(x, sec, q); }); if (i < 0) i = 0; }
+    uw.smPos = i; uw.smPosN = scr.length; uw.smPosSec = sec;
     return i;
   }
-  function smPosScreenOf(id){ var x = smCtx(); if (!x) return 0; var scr = smPosScreens(smItems("pos", x)), i = scr.findIndex(function(s){ return s.items.some(function(it){ return it.id === id; }); }); return i < 0 ? 0 : i; }
-  function smScreenHtml(x, scr, i){
-    var s = scr[i], b = x.b, c = x.c, shelves = scr.filter(function(q){ return q.kind === "shelf"; }).length, done = smScrDone(x, s);
-    if (s.kind === "rest") return '<div class="uw-scr"><p class="uw-scrname">Aðrir hlutir</p><p class="sec-note">Sláðu inn hverja stöðu eða ýttu á Rétt. Mælt frá botni skáps.</p>' + smRowsHtml("pos", s.items, b) + '</div>';
+  function smPosScreenOf(sec, id){ var x = smCtx(); if (!x) return 0; var scr = smScreens(sec, smSecItems(sec, x)), i = scr.findIndex(function(s){ return s.items.some(function(it){ return it.id === id; }); }); return i < 0 ? 0 : i; }
+  function smPosTo(sec, i){ uw.smPos = i; uw.smPosSec = sec; }
+  // the nearest spot a hinge can go to — the same rule as proAutoHinges (≥ 30 mm from shelf holes / fixed shelves / runners, ≥ 30 mm from the door's ends, ≥ 60 mm from its other hinges), worked out for ONE hinge
+  function smHingeSuggest(b, c, zone, i, j){
+    var doors = proDoorsOf(b, c, zone), body = proBodyMm(b, c, zone), rows = proShelfRows(b, body), bottom = body, d = doors[i];
+    for (var q = 0; q <= i; q++) bottom -= doors[q].box;
+    var sp = proSpec(b, doors, i), pos = CNCSIDES.specToPositions(sp.hinges, d.box).map(Math.round).sort(function(a, z){ return a - z; }), p = pos[j];
+    if (p == null) return null;
+    function clear(v){ return v >= 30 && v <= d.box - 30 && !rows.some(function(r){ return Math.abs(bottom + v - r.at) < 30; }) && !pos.some(function(q2, k){ return k !== j && Math.abs(q2 - v) < 60; }); }
+    if (clear(p)) return null;
+    for (var step = 5; step < d.box; step += 5){
+      var dirs = p <= d.box / 2 ? [1, -1] : [-1, 1];
+      for (var t = 0; t < 2; t++){ var cand = p + dirs[t] * step; if (clear(cand)) return Math.round(cand); }
+    }
+    return null;
+  }
+  function smHingeHtml(x, scr, i){
+    var s = scr[i], it = s.items[0], mine = scr.filter(function(q){ return q.kind === "hinge" && q.i === s.i; }), n = mine.length, door = (it.group || "").split(" — ")[0] || ("Hurð " + (s.i + 1));
+    var done = smItemAckOk(x.b, "hw", it), hit = it.hit, sug = hit ? smHingeSuggest(x.b, x.c, x.zone, s.i, s.j) : null;
+    var lastOfDoor = s.j === n - 1, seenAll = mine.every(function(q){ return uw.smSeen && uw.smSeen[q.items[0].id]; }), anyRed = mine.some(function(q){ return q.items[0].hit; }), key = "hw:" + it.id;
+    return '<div class="uw-scr" data-sm-hinge="' + it.id + '"><p class="uw-scrname">Löm ' + (s.j + 1) + ' af ' + n + ' · ' + escapeHtmlPro(door) + '</p>' +
+      '<div class="uw-smrow' + (hit ? ' hit' : '') + '"><label>Frá botni hurðar</label><input type="text" inputmode="decimal" autocomplete="off" placeholder="mm" data-sm-pin="' + key + '" value="' + it.mm + '"><small>mm</small></div>' +
+      (hit ? '<div class="uw-smhit"><b>Of nálægt ' + escapeHtmlPro(it.hit.what) + '</b> — löm þarf minnst 30 mm frá því.' + (sug != null ? '<br><button type="button" class="btn btn-secondary btn-small" data-sm-move="' + it.id + ':' + sug + '">Færa í ' + sug + ' mm</button>' : '') + '</div>'
+        : '<p class="sec-note uw-smgood">Laus við hillugöt, fastar hillur og brautir.</p>') +
+      '<div class="uw-smrow"><button type="button" class="btn ' + (done ? 'btn-secondary on' : 'btn-primary') + ' btn-small uw-sm-ok uw-scr-ok" data-sm-hok="' + it.id + '"' + (hit && !done ? ' disabled' : '') + (done ? ' title="Ýttu aftur til að taka staðfestinguna af"' : '') + '>' + (done ? '✓ Rétt' : 'Rétt') + '</button>' +
+      (lastOfDoor && seenAll && !anyRed ? '<button type="button" class="btn btn-secondary btn-small" data-sm-hall="' + s.i + '">Allar lamir rétt</button>' : '') + '</div>' +
+      '<div class="uw-smrow">' + (it.del ? '<button type="button" class="iconbtn" data-sm-del="' + key + '" title="Taka þessa löm">✕ Taka löm</button>' : '') + (it.add ? '<button type="button" class="btn btn-secondary btn-small" data-sm-add="' + key + '">＋ Löm</button>' : '') + '</div></div>';
+  }
+  function smScreenHtml(x, sec, scr, i){
+    var s = scr[i], b = x.b, c = x.c, shelves = scr.filter(function(q){ return q.kind === "shelf"; }).length, done = smScrDone(x, sec, s);
+    if (s.kind === "hinge") return smHingeHtml(x, scr, i);
+    if (s.kind === "rest") return '<div class="uw-scr"><p class="uw-scrname">' + s.title + '</p><p class="sec-note">' + (sec === "lam" ? 'Staðfestu hurðirnar áður en lamirnar eru stilltar.' : 'Sláðu inn hverja stöðu eða ýttu á Rétt. Mælt frá botni skáps.') + '</p>' + smRowsHtml(smAckGrp(sec), s.items, b) + '</div>';
     var sh = s.items[0], shp = s.items.find(function(it){ return /^shp/.test(it.id); }), shg = s.items.find(function(it){ return /^shg/.test(it.id); }), key = "pos:" + sh.id, name = c.oven ? "Ofnhilla" : "Hilla";
     function row(it, label, unit){ return '<div class="uw-smrow"><label>' + label + '</label><input type="text" inputmode="decimal" autocomplete="off" placeholder="' + unit + '" data-sm-pin="pos:' + it.id + '" value="' + it.mm + '"><small>' + unit + '</small></div>'; }
     return '<div class="uw-scr" data-sm-scr="' + i + '"><p class="uw-scrname">' + name + ' ' + (s.k + 1) + ' af ' + shelves + '</p>' +
@@ -18847,9 +18902,9 @@
   // every item of the screen exactly as shown, and go on to the next screen. Pressed again on a confirmed screen it takes the confirmation back.
   function smScreenOk(i){
     var x = smCtx(); if (!x) return;
-    var scr = smPosScreens(smItems("pos", x)), s = scr[i]; if (!s || s.kind !== "shelf") return;
+    var scr = smScreens("pos", smItems("pos", x)), s = scr[i]; if (!s || s.kind !== "shelf") return;
     var side = document.getElementById("uwSide"), reals = s.items.filter(smReal), k = s.k;
-    if (smScrDone(x, s)){
+    if (smScrDone(x, "pos", s)){
       var a = Object.assign({}, x.b.smidaAck); a.pos = Object.assign({}, a.pos); reals.forEach(function(it){ delete a.pos[it.id]; }); a.at = new Date().toISOString(); x.b.smidaAck = a;
       if (x.b.smidaReady) proSetReadyQuiet(x.b, false);
       save(); uwPrevKey = ""; renderUnitWizard(); return;
@@ -18862,24 +18917,55 @@
       if (v !== it.mm){ var res = it.set(v); if (res === false){ renderUnitWizard(); return; } if (typeof res === "string" && /^sh\d+$/.test(it.id)) k = +res.slice(2); }
     }
     save(); uwPrevKey = "";
-    x = smCtx(); scr = smPosScreens(smItems("pos", x));
+    x = smCtx(); scr = smScreens("pos", smItems("pos", x));
     var si = scr.findIndex(function(q){ return q.kind === "shelf" && q.k === k; }); if (si < 0) si = i;
     scr[si].items.filter(smReal).forEach(function(it){ smAckItem("pos", it.id); });
     save();
-    smPosGoNext(x, scr, i); // (from the screen she was on: if the shelf passed another, that screen now holds the shelf that is still open)
+    smPosGoNext(x, "pos", scr, i); // (from the screen she was on: if the shelf passed another, that screen now holds the shelf that is still open)
     uw.smFocus2 = true; renderUnitWizard();
   }
   // after an item row in Staðsetning is confirmed: the next open item of the same screen, else the next screen, else the next section
-  function smPosAfter(){
-    var x = smCtx(), scr = smPosScreens(smItems("pos", x)), i = uw.smPos || 0, s = scr[i];
-    if (s){ var it = s.items.filter(smReal).find(function(q){ return !smItemAckOk(x.b, "pos", q); }); if (it){ uw.smFocusItem = "pos:" + it.id; return; } }
-    smPosGoNext(x, scr, i);
+  function smPosAfter(sec){
+    var x = smCtx(), scr = smScreens(sec, smSecItems(sec, x)), i = uw.smPos || 0, s = scr[i];
+    if (s && s.kind !== "hinge"){ var it = s.items.filter(smReal).find(function(q){ return !smItemAckOk(x.b, smAckGrp(sec), q); }); if (it){ uw.smFocusItem = smAckGrp(sec) + ":" + it.id; return; } }
+    smPosGoNext(x, sec, scr, i);
   }
   // the next screen still open — from here on, then from the top; none left = the next section
-  function smPosGoNext(x, scr, from){
-    var open = function(q, k){ return !smScrDone(x, q); }, nx = scr.findIndex(function(q, k){ return k >= from && open(q); });
+  function smPosGoNext(x, sec, scr, from){
+    var open = function(q){ return !smScrDone(x, sec, q); }, nx = scr.findIndex(function(q, k){ return k >= from && open(q); });
     if (nx < 0) nx = scr.findIndex(open);
-    if (nx >= 0) uw.smPos = nx; else smAdvanceFrom("pos");
+    if (nx >= 0) smPosTo(sec, nx); else smAdvanceFrom(sec);
+  }
+  // ---- the hinge screens' actions ----
+  // apply what the field shows, then (if clear) confirm and go on; a typed spot that is red stays on the screen and says why
+  function smHingeOk(id){
+    var x = smCtx(); if (!x) return;
+    var f = smFindItem("hw:" + id), it = f.it; if (!it) return;
+    if (smItemAckOk(x.b, "hw", it)){ smUnack("hw", id); return; }
+    var side = document.getElementById("uwSide"), inp = side && side.querySelector('[data-sm-pin="hw:' + id + '"]'), raw = inp ? String(inp.value).trim().replace(",", ".") : String(it.mm), v = Math.round(parseFloat(raw)), id2 = id;
+    if (!raw || isNaN(v)){ toast("Sláðu inn tölu í mm."); if (inp){ inp.focus(); inp.select(); } return; }
+    if (v !== it.mm){ var res = it.set(v); if (res === false){ renderUnitWizard(); return; } if (typeof res === "string") id2 = res; save(); uwPrevKey = ""; }
+    x = smCtx(); var it2 = smSecItems("lam", x).find(function(q){ return q.id === id2; });
+    if (!it2) return;
+    if (it2.hit){ smPosTo("lam", smPosScreenOf("lam", id2)); toast("Löm er of nálægt " + it2.hit.what + " — færðu hana."); renderUnitWizard(); return; }
+    smAckItem("hw", id2); save();
+    var scr = smScreens("lam", smSecItems("lam", x)), si = scr.findIndex(function(q){ return q.items.some(function(q2){ return q2.id === id2; }); });
+    smPosGoNext(x, "lam", scr, si < 0 ? (uw.smPos || 0) : si); uw.smFocus2 = true; renderUnitWizard();
+  }
+  // "Allar lamir rétt" (last hinge of a door, none red, all shown): the door's hinges are confirmed one by one at the values shown
+  function smHingeAll(i){
+    var x = smCtx(); if (!x) return;
+    var mine = smSecItems("lam", x).filter(function(it){ var m = /^hg(\d+)_\d+$/.exec(it.id); return m && +m[1] === i; });
+    if (mine.some(function(it){ return it.hit; })){ toast("Ein löm er rauð — lagaðu hana fyrst."); return; }
+    mine.forEach(function(it){ smAckItem("hw", it.id); }); save();
+    var scr = smScreens("lam", smSecItems("lam", x)), last = -1; scr.forEach(function(q, k){ if (q.kind === "hinge" && q.i === i) last = k; });
+    smPosGoNext(x, "lam", scr, Math.max(0, last)); uw.smFocus2 = true; renderUnitWizard();
+  }
+  // "Færa í N mm": the hinge goes to the suggested spot; it is NOT confirmed — she looks at it and presses Rétt
+  function smHingeMove(id, mm){
+    var f = smFindItem("hw:" + id), it = f.it; if (!it) return;
+    var res = it.set(mm); if (res === false){ renderUnitWizard(); return; }
+    save(); uwPrevKey = ""; smPosTo("lam", smPosScreenOf("lam", typeof res === "string" ? res : id)); renderUnitWizard();
   }
   // one row per item (mm field + Rétt, choice buttons + Rétt, actions) — the Vélbúnaður list and the "other items" screen of Staðsetning
   function smRowsHtml(grp, items, b){
@@ -18912,7 +18998,7 @@
     var m = Object.assign({}, x.b.smidaAck && x.b.smidaAck[grp]); m[id] = it.val;
     x.b.smidaAck = Object.assign({}, x.b.smidaAck, { at:new Date().toISOString() }); x.b.smidaAck[grp] = m;
   }
-  function smNextItem(grp){ var x = smCtx(), it = smItems(grp, x).filter(smReal).find(function(i){ return !smItemAckOk(x.b, grp, i); }); return it ? it.id : null; }
+  function smNextItem(sec){ var x = smCtx(), it = smSecItems(sec, x).filter(smReal).find(function(i){ return !smItemAckOk(x.b, smAckGrp(sec), i); }); return it ? it.id : null; }
   function smItemDone(grp, id, raw, choice){
     var f = smFindItem(grp + ":" + id), it = f.it; if (!it) return;
     var res = true;
@@ -18924,7 +19010,8 @@
     if (res === false){ renderUnitWizard(); return; }
     save(); uwPrevKey = "";
     smAckItem(grp, typeof res === "string" ? res : id); save();
-    if (grp === "pos") smPosAfter(); else { var nx = smNextItem(grp); if (nx) uw.smFocusItem = grp + ":" + nx; else smAdvanceFrom(grp); }
+    var sec = uw.sec === "pos" || uw.sec === "lam" || uw.sec === "hw" ? uw.sec : grp;
+    if (sec === "pos" || sec === "lam") smPosAfter(sec); else { var nx = smNextItem(sec); if (nx) uw.smFocusItem = grp + ":" + nx; else smAdvanceFrom(sec); }
     renderUnitWizard();
   }
   // the finished sections glide off the top: the open one is brought up under the header (smooth, from where the list was — never a jump)
@@ -18955,10 +19042,10 @@
     var svg = document.getElementById("uwDims"); if (!svg || svg.__smDrag) return; svg.__smDrag = true;
     svg.addEventListener("pointerdown", function(e){
       var h = e.target.closest && e.target.closest("[data-sm-hd]"); if (!h || !uw || !uw.smida) return;
-      var id = h.dataset.smHd, m = ((uw.smMarks || {}).hw || []).find(function(q){ return q.id === id; }); if (!m || !m.hinge) return;
+      var id = h.dataset.smHd, m = ((uw.smMarks || {}).lam || []).find(function(q){ return q.id === id; }); if (!m || !m.hinge) return;
       e.preventDefault(); uw.smDrag = { id:id, abs:m.abs, pointer:true };
       function mv(ev){ var a = smAbsAt(ev.clientY, m); uw.smDrag.abs = Math.max(m.hinge.dbot + 30, Math.min(m.hinge.dbot + m.hinge.box - 30, a)); drawUwDims(); var inp = document.querySelector('[data-sm-pin="hw:' + id + '"]'); if (inp && document.activeElement !== inp) inp.value = Math.round(uw.smDrag.abs - m.hinge.dbot); }
-      function up(){ window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); var d = uw && uw.smDrag; if (uw) uw.smDrag = null; if (d) smItemDone("hw", id, String(Math.round(d.abs - m.hinge.dbot))); }
+      function up(){ window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); var d = uw && uw.smDrag; if (uw) uw.smDrag = null; if (d) smHingeMove(id, Math.round(d.abs - m.hinge.dbot)); } // the drop moves the hinge; Rétt confirms it
       window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
     });
   }
@@ -18982,6 +19069,13 @@
       var k = inp.dataset.smPin, i0 = k.indexOf(":");
       inp.addEventListener("focus", function(){ uw.smItem = k; });
       inp.addEventListener("blur", function(){ if (uw.smItem === k) uw.smItem = null; });
+      var hgEl = inp.closest("[data-sm-hinge]");
+      if (hgEl){
+        inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smHingeOk(hgEl.dataset.smHinge); } });
+        inp.addEventListener("input", function(){ var m = ((uw.smMarks || {}).lam || []).find(function(q){ return q.id === hgEl.dataset.smHinge; }), v = parseFloat(String(inp.value).replace(",", ".")); if (m && m.hinge && !isNaN(v)){ uw.smDrag = { id:m.id, abs:m.hinge.dbot + v }; drawUwDims(); } });
+        inp.addEventListener("blur", function(){ if (uw && uw.smDrag && !uw.smDrag.pointer){ uw.smDrag = null; drawUwDims(); } });
+        return;
+      }
       var scrEl = inp.closest("[data-sm-scr]"); // a shelf screen: Enter confirms the whole screen, a typed value shows live on the drawing
       if (scrEl){
         inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smScreenOk(+scrEl.dataset.smScr); } });
@@ -18992,6 +19086,9 @@
       inp.addEventListener("change", function(){ if (!inp.__sent) smItemDone(k.slice(0, i0), k.slice(i0 + 1), inp.value); });
       inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smItemDone(k.slice(0, i0), k.slice(i0 + 1), inp.value); } });
     });
+    side.querySelectorAll("[data-sm-hok]").forEach(function(el){ el.addEventListener("click", function(){ smHingeOk(el.dataset.smHok); }); });
+    side.querySelectorAll("[data-sm-hall]").forEach(function(el){ el.addEventListener("click", function(){ smHingeAll(+el.dataset.smHall); }); });
+    side.querySelectorAll("[data-sm-move]").forEach(function(el){ el.addEventListener("click", function(){ var p = el.dataset.smMove.split(":"); smHingeMove(p[0], +p[1]); }); });
     side.querySelectorAll("[data-sm-scrok]").forEach(function(el){ el.addEventListener("click", function(){ smScreenOk(+el.dataset.smScrok); }); });
     side.querySelectorAll("[data-sm-pok]").forEach(function(el){ el.addEventListener("click", function(){
       var f = smFindItem(el.dataset.smPok); if (!f.it) return;
@@ -19004,31 +19101,36 @@
       var p = el.dataset.smTyp.split(":"), fixed = p.pop() === "1", f = smFindItem(p.join(":")); if (f.it && f.it.typ){ f.it.typ(fixed); save(); uwPrevKey = ""; renderUnitWizard(); }
     }); });
     side.querySelectorAll("[data-sm-del],[data-sm-add]").forEach(function(el){ el.addEventListener("click", function(){
-      var f = smFindItem(el.dataset.smDel || el.dataset.smAdd), fn = f.it && (el.dataset.smDel ? f.it.del : f.it.add); if (fn){ fn(); save(); uwPrevKey = ""; uw.sec = f.grp; renderUnitWizard(); }
+      var f = smFindItem(el.dataset.smDel || el.dataset.smAdd), fn = f.it && (el.dataset.smDel ? f.it.del : f.it.add); if (fn){ fn(); save(); uwPrevKey = ""; if (f.grp === "pos") uw.sec = "pos"; if (f.grp === "hw" && uw.sec === "lam") smPosTo("lam", Math.min(uw.smPos || 0, Math.max(0, (uw.smPosN || 1) - 1))); renderUnitWizard(); }
     }); });
     var un = side.querySelector("[data-sm-unready]"); if (un) un.addEventListener("click", function(){ proSetReadyQuiet(b, false); renderUnitWizard(); });
     var ed = side.querySelector("[data-sm-editor]"); if (ed) ed.addEventListener("click", function(){ smOldEditor(b.id); });
-    var bk = side.querySelector("[data-sm-back]"); if (bk) bk.addEventListener("click", function(){ if (uw.sec === "pos" && (uw.smPos || 0) > 0){ uw.smPos--; renderUnitWizard(); return; } if (smUndoOk()){ smUndoNew(); return; } var ord = smOrder(), i = ord.indexOf(uw.sec); if (i > 0){ uw.sec = ord[i - 1]; renderUnitWizard(); } });
+    var bk = side.querySelector("[data-sm-back]"); if (bk) bk.addEventListener("click", function(){ if ((uw.sec === "pos" || uw.sec === "lam") && (uw.smPos || 0) > 0){ uw.smPos--; renderUnitWizard(); return; } if (smUndoOk()){ smUndoNew(); return; } var ord = smOrder(), i = ord.indexOf(uw.sec); if (i > 0){ uw.sec = ord[i - 1]; renderUnitWizard(); } });
     function smGoMissing(m){
       toast((m.sec === "yfir" ? "Lagaðu: " : "Vantar: ") + m.text);
       if (m.sec === "yfir") return;
-      uw.sec = m.sec; if (m.grp === "pos" && m.id) uw.smPos = smPosScreenOf(m.id); else if (m.sec === "pos") uw.smPos = null; if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard();
+      uw.sec = m.sec; if ((m.sec === "pos" || m.sec === "lam") && m.id) smPosTo(m.sec, smPosScreenOf(m.sec, m.id)); else if (m.sec === "pos" || m.sec === "lam") smPosTo(m.sec, null); if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard();
     }
-    side.querySelectorAll("[data-sm-goto]").forEach(function(el){ el.addEventListener("click", function(){ var m = (uw.smMiss || [])[+el.dataset.smGoto]; if (m){ uw.sec = m.sec; if (m.grp === "pos" && m.id) uw.smPos = smPosScreenOf(m.id); else if (m.sec === "pos") uw.smPos = null; if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard(); } }); });
-    side.querySelectorAll("[data-sm-act]").forEach(function(el){ el.addEventListener("click", function(){ var f = smFindItem(el.dataset.smAct); if (f.it && f.it.run){ var r = f.it.run(); if (r !== false){ save(); uwPrevKey = ""; uw.sec = f.grp; renderUnitWizard(); } } }); });
+    side.querySelectorAll("[data-sm-goto]").forEach(function(el){ el.addEventListener("click", function(){ var m = (uw.smMiss || [])[+el.dataset.smGoto]; if (m){ uw.sec = m.sec; if ((m.sec === "pos" || m.sec === "lam") && m.id) smPosTo(m.sec, smPosScreenOf(m.sec, m.id)); else if (m.sec === "pos" || m.sec === "lam") smPosTo(m.sec, null); if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard(); } }); });
+    side.querySelectorAll("[data-sm-act]").forEach(function(el){ el.addEventListener("click", function(){ var f = smFindItem(el.dataset.smAct); if (f.it && f.it.run){ var r = f.it.run(); if (r !== false){ save(); uwPrevKey = ""; if (f.grp === "pos") uw.sec = "pos"; renderUnitWizard(); } } }); });
     side.querySelectorAll("[data-sm-lock]").forEach(function(el){ el.addEventListener("click", function(){ var f = smFindItem(el.dataset.smLock); if (f.it && f.it.lock){ f.it.lock(); save(); renderUnitWizard(); } }); });
     if (uw.sec === "more") smMountPanels(b);
     smBindDrag();
     var nx = side.querySelector("[data-sm-next]"); if (nx) nx.addEventListener("click", function(){
       var miss = smMissing(x), ord = smOrder(), cur = uw.sec && ord.indexOf(uw.sec) >= 0 ? uw.sec : "yfir";
       if (cur !== "yfir"){
-        if (cur === "pos" && uw.smPosN > 1){ // one screen at a time: this one first, then the next
-          var scr = smPosScreens(smItems("pos", x)), pi = uw.smPos || 0, ps = scr[pi];
-          if (ps && !smScrDone(x, ps)){ var pm = ps.items.filter(smReal).find(function(it){ return !smItemAckOk(b, "pos", it); }); toast("Staðfestu fyrst: " + (pm ? pm.label : "þennan skjá")); if (pm && ps.kind === "rest") uw.smFocusItem = "pos:" + pm.id; renderUnitWizard(); return; }
-          if (pi < scr.length - 1){ uw.smPos = pi + 1; renderUnitWizard(); return; }
+        if ((cur === "pos" || cur === "lam") && uw.smPosN > 1){ // one screen at a time: this one first, then the next
+          var scr = smScreens(cur, smSecItems(cur, x)), pi = uw.smPos || 0, ps = scr[pi], ag = smAckGrp(cur);
+          if (ps && ps.kind === "hinge"){ // hinges can be paged through to look at them; a red one holds the page until it is fixed
+            if (ps.items[0].hit){ toast("Löm er of nálægt " + ps.items[0].hit.what + " — lagaðu hana fyrst."); renderUnitWizard(); return; }
+            if (pi < scr.length - 1){ uw.smPos = pi + 1; renderUnitWizard(); return; }
+          } else {
+            if (ps && !smScrDone(x, cur, ps)){ var pm = ps.items.filter(smReal).find(function(it){ return !smItemAckOk(b, ag, it); }); toast("Staðfestu fyrst: " + (pm ? pm.label : "þennan skjá")); if (pm && ps.kind === "rest") uw.smFocusItem = ag + ":" + pm.id; renderUnitWizard(); return; }
+            if (pi < scr.length - 1){ uw.smPos = pi + 1; renderUnitWizard(); return; }
+          }
         }
         var m1 = miss.find(function(m){ return m.sec === cur; });
-        if (m1){ toast("Staðfestu fyrst: " + m1.text); if (m1.grp === "pos" && m1.id) uw.smPos = smPosScreenOf(m1.id); if (m1.grp && m1.id) uw.smFocusItem = m1.grp + ":" + m1.id; else if (!m1.grp) uw.smFocus = true; renderUnitWizard(); return; }
+        if (m1){ toast("Staðfestu fyrst: " + m1.text); if ((cur === "pos" || cur === "lam") && m1.id) smPosTo(cur, smPosScreenOf(cur, m1.id)); if (m1.grp && m1.id) uw.smFocusItem = m1.grp + ":" + m1.id; else if (!m1.grp) uw.smFocus = true; renderUnitWizard(); return; }
         uw.sec = ord[ord.indexOf(cur) + 1]; renderUnitWizard(); return;
       }
       if (miss.length){ smGoMissing(miss[0]); return; }
@@ -19077,7 +19179,7 @@
     var cut = String(uid).lastIndexOf("|"), cat = cut >= 0 ? uid.slice(0, cut) : state.activeCategory, id = cut >= 0 ? uid.slice(cut + 1) : uid;
     if (cat && state.activeCategory && cat !== state.activeCategory){ save(); closeUnitWizard(); smOpenAt(uid); return; } // another room: leave, open that room, come back in
     var fb = findBlock(id); if (!fb) return;
-    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uw.smDone = false; uw.smFocus = true; uw.smPos = null; uwPrevKey = ""; selectedBlockId = fb.block.id; closetInnTab = "";
+    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uw.smDone = false; uw.smFocus = true; uw.smPos = null; uw.smSeen = {}; uwPrevKey = ""; selectedBlockId = fb.block.id; closetInnTab = "";
     renderUnitWizard();
   }
   var smReturn = null;

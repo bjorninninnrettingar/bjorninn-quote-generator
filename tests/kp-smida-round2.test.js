@@ -60,5 +60,20 @@ test("C: Staðsetning shows one shelf per screen; one Rétt confirms exactly wha
   assert.ok(/smAckItem\("pos", it\.id\)/.test(ok) && /delete a\.pos\[it\.id\]/.test(ok), "acks stay per item under smidaAck.pos; the same button takes them back");
   assert.ok(/!\/\^sh\\d\+\$\/\.test\(it\.id\)/.test(ok), "hole values are applied before the position (which may re-sort)");
   assert.ok(/smFocusAbs/.test(fnBody("uwAimCamera")) && /m\.cur/.test(fnBody("drawUwDims")), "camera lifts to the shelf, a blue band marks it");
-  assert.ok(/pos:sh/.test(fnBody("smItems") + "pos:sh") && /grp === "pos"\) smPosAfter\(\)/.test(fnBody("smItemDone")));
+  assert.ok(/pos:sh/.test(fnBody("smItems") + "pos:sh") && /sec === "pos" \|\| sec === "lam"\) smPosAfter\(sec\)/.test(fnBody("smItemDone")));
+});
+
+test("D: Lamir is its own section after Staðsetning, one hinge per screen, still acked under smidaAck.hw (shapes unchanged)", () => {
+  assert.ok(/uw\.smHasPos \? \["pos"\] : \[\], uw\.smHasLam \? \["lam"\] : \[\], uw\.smHasHw \? \["hw"\] : \[\]/.test(fnBody("smOrder")), "pos → lam → hw (Grip)");
+  assert.ok(/function smAckGrp\(sec\)\{ return sec === "lam" \? "hw" : sec; \}/.test(html), "Lamir items are acked under hw like before");
+  const h = fnBody("smHingeHtml");
+  assert.ok(/Löm ' \+ \(s\.j \+ 1\) \+ ' af ' \+ n \+ ' · '/.test(h), "'Löm 2 af 4 · Hurð 1'");
+  assert.ok(/data-sm-move/.test(h) && /Færa í ' \+ sug/.test(h) && /hit && !done \? ' disabled'/.test(h), "suggestion button; Rétt is dead while red");
+  assert.ok(/lastOfDoor && seenAll && !anyRed/.test(h), "'Allar lamir rétt' only on a door's last hinge, all shown, none red");
+  const sg = fnBody("smHingeSuggest");
+  assert.ok(/< 30/.test(sg) && /< 60/.test(sg) && /d\.box - 30/.test(sg), "the proAutoHinges rule (30 mm from holes/ends, 60 mm between hinges) for one hinge");
+  assert.ok(/Math\.abs\(\(zn\.lo \+ zn\.hi\) \/ 2 - near\) < 230/.test(fnBody("smItemSecs")), "clearance bands only near the hinge being set");
+  assert.ok(/smHingeMove\(id,/.test(fnBody("smBindDrag")), "dragging a hinge on the preview still works (the drop moves it, Rétt confirms)");
+  assert.ok(/uw\.smFocusSide/.test(fnBody("uwAimCamera")) && /m\.hinge\)\{ var sd0/.test(fnBody("drawUwDims")), "camera close from the hinge side; the number sits beside the hinge");
+  assert.ok(!/smidaAck/.test(fnBody("smidaFor")) && !/smidaAck/.test(fnBody("proReady")));
 });
