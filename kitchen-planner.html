@@ -19907,7 +19907,7 @@
         html:'<p>Teikningin hefur ekki þessa skápa lengur. Veldu hverja á að <b>eyða úr Airtable (og tilboðinu)</b>. Ef skápur á að vera áfram: hættu við og teiknaðu hann aftur inn.</p>' +
           list.map(function(o){ return '<label style="display:block;margin:4px 0">' + (o.eydublad ? '<input type="checkbox" disabled> ' : '<input type="checkbox" data-orph="' + escapeHtmlPro(o.key) + '" checked> ') +
             '<b>' + escapeHtmlPro(o.key) + '</b>' + (o.eydublad ? ' — hefur Eyðublað, eyddu því í Airtable fyrst' : ' — eyða línunni') + '</label>'; }).join(""),
-        ok:"Eyða völdum línum", cancel:"Hætta við" });
+        ok:"Eyða völdum línum", cancel:"Hætta við", focus:"cancel" });
     } finally { document.removeEventListener("change", onch); }
     var keys = Object.keys(sel);
     if (go !== true || !keys.length) return;
@@ -20830,12 +20830,15 @@
         (o.alt ? '<button type="button" class="pd-alt" data-pd="alt">' + escapeHtmlPro(o.alt) + '</button>' : '') + // a second real choice (resolves "alt"); Esc stays the safe one
         '<button type="button" class="pd-ok" data-pd="1">' + escapeHtmlPro(o.ok || "Í lagi") + '</button></div></div>';
       document.body.appendChild(el);
+      // o.focus = "cancel" | "alt" for a dialog whose OK is destructive: the safe button gets the focus (and Enter), not the overwrite
+      var defSel = o.focus === "cancel" && !o.noCancel ? '[data-pd="0"]' : o.focus === "alt" && o.alt ? '[data-pd="alt"]' : ".pd-ok";
       function done(v){ window.removeEventListener("keydown", key, true); el.remove(); resolve(v); }
-      function key(e){ if (e.key === "Escape"){ e.preventDefault(); e.stopImmediatePropagation(); done(false); } else if (e.key === "Enter"){ e.preventDefault(); e.stopImmediatePropagation(); done(!(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.pd === "0")); } }
+      function key(e){ if (e.key === "Escape"){ e.preventDefault(); e.stopImmediatePropagation(); done(false); } else if (e.key === "Enter"){ e.preventDefault(); e.stopImmediatePropagation(); // Enter = a click on the focused button (never a silent "overwrite"); focus elsewhere in the card (a checkbox) = the dialog's default button
+        var ae = document.activeElement; (ae && ae.tagName === "BUTTON" && el.contains(ae) ? ae : el.querySelector(defSel)).click(); } }
       window.addEventListener("keydown", key, true);
       el.addEventListener("pointerdown", function(e){ if (e.target === el) done(false); });
       el.querySelectorAll("[data-pd]").forEach(function(b){ b.addEventListener("click", function(){ done(b.dataset.pd === "alt" ? "alt" : b.dataset.pd === "1"); }); });
-      el.querySelector(".pd-ok").focus();
+      el.querySelector(defSel).focus();
     });
   }
   function escapeHtmlPro(s){ return String(s).replace(/[&<>"]/g, function(ch){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[ch]; }); }
@@ -20917,7 +20920,7 @@
         var ch = await proDialog({ title:"Einhver vistaði þetta verkefni " + proClock(d.savedAt) + " í annarri tölvu",
           html:'<p>Útgáfan hér byggir á vistun ' + (state.proSavedAt ? escapeHtmlPro(proClock(state.proSavedAt)) : "frá því áður en verkefnið var vistað í PRO") + '. Ef þú vistar núna fer það sem var vistað í hinni tölvunni.</p>' +
             '<p><b>Sækja nýrri útgáfu</b> = breytingarnar hér hverfa og nýja útgáfan opnast. <b>Skrifa samt yfir</b> = þessi teikning gildir.</p>',
-          cancel:"Hætta við", alt:"Sækja nýrri útgáfu", ok:"Skrifa samt yfir" });
+          cancel:"Hætta við", alt:"Sækja nýrri útgáfu", ok:"Skrifa samt yfir", focus:"cancel" });
         if (ch === "alt"){ try{ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(STORAGE_KEY + ":dirty"); localStorage.removeItem(STORAGE_KEY + ":at"); }catch(e2){} location.reload(); return false; }
         if (ch === true) return proSaveRun(resolve, true);
       }
