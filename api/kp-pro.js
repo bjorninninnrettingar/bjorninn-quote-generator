@@ -88,19 +88,23 @@ export function validate(body) {
   return null;
 }
 
-// Airtable's long text holds 100 000 characters (P-01): drop the bulk keys, least important first, rather than fail.
+// Airtable's long text holds 100 000 characters (P-01). Only what every Vista re-derives may be left out to make it fit
+// (handlesPrint: the quote's >2-handle rows, rebuilt from handleSkus on the next save). The designer's own data —
+// measurement (the on-site measurement), proAck, categoryData (every parked room's drawing) — is NEVER dropped (audit
+// 2026-10-30 #5): if it still doesn't fit, the save is refused with a 413 before anything is written.
 export const PLANNER_JSON_MAX = 99000;
-export const TRIM_KEYS = ["measurement", "proAck", "categoryData"];
+export const DERIVED_KEYS = ["handlesPrint"];
 export function fitPlannerJson(state, build) {
-  let json = build(state);
+  let json = build(state, []);
   if (json.length <= PLANNER_JSON_MAX) return { json, dropped: [] };
-  const st = Object.assign({}, state), dropped = [];
-  for (const k of TRIM_KEYS) {
-    if (!(k in st)) continue;
-    delete st[k]; dropped.push(k); json = build(st);
-    if (json.length <= PLANNER_JSON_MAX) return { json, dropped };
-  }
-  return { json: null, dropped };
+  json = build(state, DERIVED_KEYS);
+  if (json.length <= PLANNER_JSON_MAX) return { json, dropped: DERIVED_KEYS.slice() };
+  return { json: null, dropped: [], size: json.length };
+}
+// "categoryData 61 000, walls 20 000" — the biggest parts of a drawing that is too large, so the designer knows what to cut
+export function biggestParts(state, n = 3) {
+  return Object.entries(state || {}).map(([k, v]) => [k, JSON.stringify(v === undefined ? null : v).length]).sort((a, b) => b[1] - a[1]).slice(0, n)
+    .map(([k, len]) => k + " " + String(len).replace(/\B(?=(\d{3})+$)/g, "\u00a0")).join(", ");
 }
 
 export async function save(at, body) {
@@ -227,10 +231,14 @@ export async function save(at, body) {
 
   // The state goes last, so liSent only ever records what really reached the Line Items.
   const proSavedAt = new Date().toISOString();
-  const build = (st) => JSON.stringify(Object.assign({}, st, old.submissionId ? { submissionId: old.submissionId } : {},
-    { liSent, liExtra, projSent, proSavedAt, handlesPrint }));
-  const { json, dropped } = fitPlannerJson(body.state, build);
-  if (!json) { const e = new Error("Teikningin er of st\u00f3r til a\u00f0 vista (" + build(body.state).length + " stafir)"); e.status = 413; throw e; }
+  const build = (st, omit = []) => JSON.stringify(Object.assign({}, st, old.submissionId ? { submissionId: old.submissionId } : {},
+    { liSent, liExtra, projSent, proSavedAt }, omit.includes("handlesPrint") ? {} : { handlesPrint }));
+  const { json, dropped, size } = fitPlannerJson(body.state, build);
+  if (!json) {
+    const e = new Error("Teikningin er of st\u00f3r til a\u00f0 vista (" + size + " stafir, h\u00e1mark " + PLANNER_JSON_MAX + "). Ekkert var vista\u00f0 \u2014 hvorki l\u00ednurnar n\u00e9 teikningin \u00ed Airtable breyttust. " +
+      "Stærst: " + biggestParts(body.state) + ". Fækkaðu skápum eða herbergjum í teikningunni, eða skiptu verkefninu í tvennt.");
+    e.status = 413; e.size = size; throw e;
+  }
   // A 422 naming one of the material link fields (not created in Airtable yet) → the same batch without them.
   const noMats = (r) => { matsSkipped = true; return stripMats(r); };
   for (let i = 0; i < updates.length; i += 10) {
@@ -317,7 +325,7 @@ export default async function handler(req, res) {
   } catch (e) {
     if (e.status === 409 && e.savedAt) return res.status(409).json({ error: e.message, conflict: true, savedAt: e.savedAt });
     if (e.partial) return res.status(502).json(Object.assign({ error: e.message, partial: true }, e.partial));
-    if (e.status === 413) return res.status(413).json({ error: e.message });
+    if (e.status === 413) return res.status(413).json({ error: e.message, tooBig: true, size: e.size, max: PLANNER_JSON_MAX });
     return res.status(e.status && e.status < 500 && e.status !== 429 ? 400 : 502).json({ error: e.message });
   }
 }

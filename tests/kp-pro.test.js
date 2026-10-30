@@ -232,17 +232,40 @@ test("handleSkus → Höldur ✊ / ✊2.0 slots, Halda 2 set by hand survives a 
 
 // ---- PRO save path fixes (2026-10-28: P-01, P-03, P-04) ----
 const PJ = "Sjálfsafgreiðsla skipulag (JSON) 📐";
-test("P-01: planner JSON over 99 000 chars drops measurement/proAck/categoryData first and says so; never-fits = 413 before any write", async () => {
+test("P-01 (2026-10-30 #5): over 99 000 chars never drops measurement/proAck/categoryData — only re-derived handlesPrint may go; else 413 with an Icelandic reason, before any write", async () => {
   const big = "x".repeat(60000);
+  // a big but fitting drawing is saved whole — the measurement included
   let f = fakeFetch(routes);
-  const out = await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [], measurement: big, proAck: big }, smida: { Sk1: SM(797) } });
-  assert.deepEqual(out.trimmed, ["measurement"]);
-  const proj = f.calls.find((c) => c.method === "PATCH" && c.url.includes("tbl4LMXlQjp66RFKI"));
-  const saved = JSON.parse(proj.body.records[0].fields[PJ]);
-  assert.ok(!("measurement" in saved) && "proAck" in saved);
+  const out = await save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [], measurement: { note: big } }, smida: { Sk1: SM(797) } });
+  assert.deepEqual(out.trimmed, []);
+  const saved0 = JSON.parse(f.calls.find((c) => c.method === "PATCH" && c.url.includes("tbl4LMXlQjp66RFKI")).body.records[0].fields[PJ]);
+  assert.equal(saved0.measurement.note.length, 60000, "the measurement is kept");
+  // does not fit even without the derived key: refused, nothing written
   f = fakeFetch(routes);
-  await assert.rejects(save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [], x: "y".repeat(100000) }, smida: { Sk2: SM(467) } }), (e) => e.status === 413);
+  await assert.rejects(
+    save(makeAirtable("t", { fetchImpl: f, delays: [] }), { recordId: OPP, state: { walls: [], measurement: { note: big }, categoryData: { bad: { s: big } } }, smida: { Sk2: SM(467) } }),
+    (e) => e.status === 413 && /of stór/.test(e.message) && /Ekkert var vistað/.test(e.message) && /categoryData/.test(e.message));
   assert.ok(!f.calls.some((c) => c.method === "PATCH" || c.method === "POST"), "nothing written when the JSON can never fit");
+});
+
+test("P-01: fitPlannerJson leaves every designer key alone and only omits the derived ones; the handler answers 413 with tooBig", async () => {
+  const { fitPlannerJson, DERIVED_KEYS, PLANNER_JSON_MAX } = await import("../api/kp-pro.js");
+  const st = { walls: [], measurement: { a: 1 }, proAck: { b: 2 }, categoryData: { c: 3 } };
+  const build = (s, omit = []) => JSON.stringify(Object.assign({}, s, omit.includes("handlesPrint") ? {} : { handlesPrint: "h".repeat(PLANNER_JSON_MAX) }));
+  const r = fitPlannerJson(st, build);
+  assert.deepEqual(r.dropped, DERIVED_KEYS);
+  for (const k of ["measurement", "proAck", "categoryData"]) assert.ok(k in JSON.parse(r.json), k + " kept");
+  const never = fitPlannerJson(st, (s) => JSON.stringify(Object.assign({}, s, { x: "y".repeat(PLANNER_JSON_MAX) })));
+  assert.equal(never.json, null);
+  process.env.AIRTABLE_TOKEN = "t"; process.env.VERK_KEY = "secret";
+  const realFetch = globalThis.fetch; globalThis.fetch = fakeFetch(routes);
+  try {
+    const res = mockRes();
+    await handler({ method: "POST", body: { k: "secret", recordId: OPP, state: { walls: [], measurement: { note: "x".repeat(100000) } }, smida: { Sk2: SM(467) } } }, res);
+    assert.equal(res.statusCode, 413);
+    assert.equal(res.body.tooBig, true);
+    assert.ok(res.body.size > res.body.max);
+  } finally { globalThis.fetch = realFetch; }
 });
 
 test("P-03: handleSkus [] clears both handle slots; undefined (no handle info) leaves them alone", async () => {

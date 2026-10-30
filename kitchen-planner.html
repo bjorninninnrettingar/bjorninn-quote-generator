@@ -20890,7 +20890,7 @@
   function proSaveErrText(status, msg){
     if (!status) return "Ekkert samband við þjóninn — athugaðu nettenginguna og reyndu aftur.";
     if (status === 401 || status === 403) return "Lykillinn vantar eða er útrunninn — ýttu á „Velja verkefni“ og opnaðu verkefnið aftur (teikningin er geymd í þessum vafra).";
-    if (status === 413) return "Teikningin er of stór til að vista — fækkaðu herbergjum eða skiptu verkefninu.";
+    if (status === 413) return msg || "Teikningin er of stór til að vista — fækkaðu herbergjum eða skiptu verkefninu. Ekkert var vistað."; // the server says how big and which parts are biggest
     if (status === 409) return "Einhver annar vistaði verkefnið á undan þér — ekkert var vistað.";
     if (status === 400) return "Airtable tók ekki við gögnunum" + (msg ? ": " + msg : ".");
     if (status === 429) return "Airtable er upptekið í augnablikinu — bíddu smá og reyndu aftur.";
@@ -20947,7 +20947,7 @@
     }
     pc.saving = false; pc.saveErr = null; proSaveErrShow();
     if (d.liSent) state.liSent = d.liSent;
-    if (d.trimmed && d.trimmed.length) toast("Teikningin var of stór — þessu var sleppt við vistun: " + d.trimmed.join(", ") + ".");
+    if (d.trimmed && d.trimmed.length) toast("Teikningin er við stærðarmörk — tilboðsröð með fleiri en 2 höldum var sleppt úr vistuninni (hún kemur aftur þegar teikningin minnkar). Annað var vistað óskert.");
     if (d.proSavedAt) state.proSavedAt = d.proSavedAt; // the next Vista is based on this one
     save(); // keeps the frozen Sk numbers
     if (d.conflicts && d.conflicts.length && !resolve){
