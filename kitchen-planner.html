@@ -3123,7 +3123,7 @@
   var steppingHistory = false; // Afturkalla/Endurgera: the re-render's own sync saves (end panels, sk labels) must not push a new snapshot on top — that cut the redo tail and left Afturkalla stuck on the same state (2026-10-29)
   function pushHistory(){
     if (state.step !== "editor" || steppingHistory) return;
-    var j = JSON.stringify(state);
+    var j = proStateSig(); // JSON of the state without proSavedAt/liSent: a save is not an undo step, and undo never rewinds the save stamps
     if (histIdx >= 0 && undoStack[histIdx] === j) return;
     // a snapshot that differs from the top one only by "sk" labels (assigned by the render after the save) is the same step:
     // keep the newer one in place, else Afturkalla needed two clicks after an insert
@@ -3144,7 +3144,11 @@
     var next = histIdx + dir;
     if (next < 0 || next >= undoStack.length) return;
     histIdx = next;
+    var keep = { proSavedAt:state.proSavedAt, liSent:state.liSent, roomMats:state.roomMats }; // what Airtable has now, not what it had when the snapshot was taken (else the next Vista is a false 409)
     state = JSON.parse(undoStack[histIdx]);
+    if (keep.proSavedAt) state.proSavedAt = keep.proSavedAt;
+    if (keep.liSent) state.liSent = keep.liSent;
+    if (keep.roomMats) state.roomMats = keep.roomMats;
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
     if (selectedBlockId && !findBlock(selectedBlockId)) selectedBlockId = null;
     updateHistoryButtons();
@@ -20903,8 +20907,8 @@
     pr.then(clear, clear);
     return pr;
   }
-  // the drawing as the server sees it, minus the two stamps the save response itself rewrites (proSavedAt, liSent)
-  function proStateSig(){ var o = Object.assign({}, state); delete o.proSavedAt; delete o.liSent; return JSON.stringify(o); }
+  // the drawing as the server sees it, minus what a save itself rewrites (proSavedAt, liSent from the response; roomMats before it)
+  function proStateSig(){ var o = Object.assign({}, state); delete o.proSavedAt; delete o.liSent; delete o.roomMats; return JSON.stringify(o); } // roomMats: re-derived by every proSaveRun, never an edit
   async function proSaveRun(resolve, force){
     try{ state.roomMats = projectRoomMats(); }catch(e){} // every room's materials → the quote PDF's EFNISVAL
     var bt = document.getElementById("proSave"); if (bt) bt.disabled = true;
