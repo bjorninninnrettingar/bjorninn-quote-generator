@@ -104,3 +104,118 @@ Skrár: `kitchen-planner-3d.js` (`afellaMm` les `wall.afella`, `addAfellur` nota
 - `docs/kitchen-planner.md` (úthlið `:70`, `:76`, `:82`); `docs/pro-finish.md:597` (G6).
 - Airtable grunnur `app91U15z9K704Okd` (lesið, ekkert skrifað): Útfærslur `tbl8HjvBwNJ41cTV0` — úthlið UHGR `recUKqD3UKKWQ8J7g`, UHLK `recEpLxCpHtbBHRkV`, UHHA `recgcU94bpLvATm0r`, UHEF `recvaMCqmYlQur8Wr` (Frontur/Hlið tegund = *Úthlið/blindlok*, `fld23mgo1syTKNUB6`; *Áfella* = `selRDuofamNzHSAIQ`); ÚRVINNSLA `tblR1TpicLRVTXHql` — *Áfella* `rec6VMJSfyn4qX7As`, *Úthlið/blindlok* `recEUl2uZVkOqA3fc` (B Breidd, H Hæð, Þ Dýpt), *Sökkul cover* `recJ5Zq06DsH8lM3X`; Eyðublað `tbl0WcyHhz63pSzZX` — `Tegund einingu` `fldYLxl8GdUg1FPEr` (formúla), `Frontur / Hlið tegund` `fldtjjheg55kiuXWw`; Vörulisti `tblzuuRSRkeXaLWxC` — UHGR `recH5yEhYQY5olsAZ`, UHLK `recNnGALFUo49ogJb`, UHHA `recQ7wp7FHiD69MIT`; engin „Áfella“-vara til.
 - **Ekki lesið:** kóði Sögunarlista-/Pöntunarlista-skriptanna sjálfra (aðeins gögnin). Hegðun þeirra gagnvart Áfella byggist á 10 núverandi Eyðublöðum og lýsingu í ~/CLAUDE.md; staðfest á T-32.
+
+---
+
+## Airtable-færslur: tillaga (bíður samþykkis eiganda)
+
+Staða 30.10.2026: **ekkert hefur verið búið til, breytt eða eytt í Airtable.** Allt hér að neðan er lesið úr lifandi grunninum (`app91U15z9K704Okd`) og borið saman reit fyrir reit við úthliðs-færslurnar (UHGR/UHHA/UHLK). Þegar eigandi samþykkir býr aðallotan til tvær færslur (vara, svo Útfærsla), setur id Útfærslunnar í `kitchen-planner-linemap.js` (`afellaId`) og þá er prófað á T-32.
+
+Smíðahlutinn (umferð 1) er kominn á main og sendir **enga** AF-línu á meðan `afellaId` er `PLACEHOLDER_AFELLA_UTFAERSLA_ID`.
+
+### 1. Ný vara í Vörulisti 🚪 (`tblzuuRSRkeXaLWxC`)
+
+Verðið á línu kemur **ekki** beint úr vörunni heldur úr Útfærslunni sem les vöruna (`api/kp-price.js`: söluverð vöru + frontaplata × „fm fronta“ × álagning 2,05 + kantlímingarmetrar × m-verð). Þess vegna ræður varan þessu:
+
+| Reitur (id) | Gildi | Af hverju |
+|---|---|---|
+| Heiti vöru 📣 (`fld2eaMu1s2beJLK4`) | Áfella (frontaefni, 19 mm) | Sama stíl og „Úthlið á grunnskáp“. Sést á tilboði. |
+| SKU (`fldTUoa4wg4hftHO0`) | `AF` | Enginn annar hefur `AF` (athugað). |
+| Flokkur (`fldmfha5f6EZLKrKq`) | Úthlið (til) | Formúlan `fldtfQLTIJiXzVt6q` sleppir skrokkplötu fyrir Úthlið → aðeins frontaefni er talið, eins og á úthlið. |
+| Breidd mm (`fldmgFIZy3K9GMLKX`) | 100 | Viðmiðunarstærð. Verð á áfellu er **fast á stykki** (sjá fyrirvara). |
+| Hæð mm (`fldBxGigJOw2FSDje`) | 800 | Dæmigerð hæð gólfskáps (sama og Útfærslan). |
+| Fjöldi plötuhluta (`fldf74wqHyJCZtmTT`) | 1 | Eitt stykki á einingu. |
+| Afföll % (`fldDTCv3pJ0De77aH`) | 0 % | Úthlið er með 3 %, en það er lagt við sem **heil plata** (0,03 × plata) óháð stærð — fyrir mjóa ræmu yrði það margfalt verð efnisins. 0 % = verðið fylgir bara flatarmálinu. (Eigandi má setja 3 %.) |
+| Mínútur, 5 reitir (`fldg2U0QIsZkiLVM7`, `fldG5dtxsW2ljrrSH`, `fldNkxo1p7vNOlVJW`, `fldD7HFFb33ZegSsh`, `fldMUCnsxlUYZcO61`) | 0, 0, 0, 0, 0 | Ákvörðun eiganda: áfella er verðlögð með efninu eftir flatarmáli, ekki vinnu. Þá er söluverð vörunnar 0 og línan = frontaefni × flatarmál × álagning. **Kostur B (eins og úthlið):** 10, 10, 0, 5, 3 mínútur = 28 mín. ≈ 8.867 kr. án vsk. á stykki. |
+| Starfsmaður fyrir útreikninga (`fldnU4cVmm6Lkdk7H`) | tengja `recUhUS8yuNyAwAfU` | Eins og úthlið: timakaupið (9.500) kemur þaðan. Skaðar ekki þótt mínútur séu 0. |
+| Álagning % (`fldQxpqA2m3kwSh0S`) | 200 % (gildið `2`) | Eins og úthlið. |
+| Kostnaður vélbúnaðar (`fldxQkro6tLV0hjdz`) | tómt | Úthlið hefur hann tóman. |
+| Flokkun (`fldiJSFtAXYqUlYPV`), Birgir (`fldvJNNoV4ETzvugO`), Birgjatengill (`fldbY3jhgUVT6WqM6`) | tómt | Úthlið hefur þetta tómt (frontaefnið er pantað með plötunum). |
+
+**Reitir sem eru formúlur/rollup og verða ekki skrifaðir (reiknast sjálfir):** Söluverð Bjarnarins 💰 (`fldCJjSJWoUWyT7iv`), kostnaður (`fld5rs9k7Kf7K3UxO`), vinnukostnaður (`fldepSPKStX9Up8dl`), tímar (`fldS2kCOREhzXqv4z`), m² (`fldmquNWPDjbovVOZ`, `fldvVc1YsjqRVLHSd`), hlutfall úr plötu (`fld9NJuLrLcl6ah6q`), kantlímingarmetrar (`fldv0At9QxY3tqTuQ`), auk allra tenginga til baka (`fldNZkwAvYs5wMsfK` o.fl.).
+
+**Það sem aðeins eigandi getur gert í viðmóti:** ekkert — allir valmöguleikar sem þarf (Flokkur *Úthlið*, *Áfella* í „Frontur / Hlið tegund“, *Front / Hlið*) eru nú þegar til.
+
+**Fyrirvarar (eigandi ákveður):**
+1. **Verðið er fast á stykki, ekki eftir raunverulegum mm.** Bæði Airtable og `kp-price` margfalda tölur Útfærslunnar (fast 100 × 800 = 0,08 m²). Áfella sem er 19 mm breið er samt verðlögð eins og 100 mm. Nákvæmt flatarmál á línu þarf nýjan formúlureit á Line Items sem les `w`/`h` úr Smíðagögnum — það er sér-umferð, ekki gert hér.
+2. **Kantlímingarmetrar fylgja með í verðinu** (vörureiturinn reiknar `(Dýpt+Hæð)×2/1000` = 1,6 m). Það er sama og á úthlið og aðeins nokkur hundruð krónur (m-verð 120–1.200 kr.). Ákvörðunin „engin kantlíming“ gildir um **ÚRVINNSLA-sniðmátið** (þar eru kantreitirnir tómir, staðfest) — ekki um verðið.
+3. **Mínútur = 0** þýðir líka að tímaáætlun (rollup „tímar“) fyrir áfellu er 0. Ef framleiðsluyfirlit les þá tölu sést áfellan ekki þar.
+
+### 2. Ný Útfærsla í Útfærslur 🎨 (`tbl8HjvBwNJ41cTV0`) — borin saman við UHGR (`recUKqD3UKKWQ8J7g`)
+
+| Reitur (id) | UHGR hefur | Áfella fær | Athugasemd |
+|---|---|---|---|
+| Lýsing á útfærslu (`fldbG3jw1tEPEchGr`) | Úthlið á grunnskáp | Áfella | |
+| Vörunúmer (`fldpHihoAgFxkjTVy`) | UHGR | `AF` | |
+| Flokkur (`fldrFCpVB3Wrzm4BA`) | Úthliðar | Úthliðar | |
+| Hvað viltu smíða? (`fldceWYVphsBK6JZW`) | Front / Hlið | Front / Hlið | Það gerir línuna „gilda“: formúlan `fldjx6q3oWtJ451ej` (Keyra skipulag) krefst þess. |
+| Frontur / Hlið tegund - Skipulag (`fld23mgo1syTKNUB6`) | Úthlið/blindlok | **Áfella** (`selRDuofamNzHSAIQ`) | Verður að vera *Áfella* — það ræður `Tegund einingu` á Eyðublaði og þar með sniðmátinu. |
+| Búa til Eyðublað (`fldMZXkLkXLBMiH7d`) | ✔ | ✔ | |
+| V1 vara (`fldbnVgbWTgSXLjMm`) | Úthlið á grunnskáp | nýja varan AF | Ein vara, V1 (⛔ viðvörun ef fleiri). |
+| Skipulag - Breidd (`fldQPlO9WAYtixvw0`) | 600 | 100 | Varagildi; Smíðagögn yfirskrifa alltaf. |
+| Skipulag - Hæð (`fldzGkX4wBDFxOlUB`) | 800 | 800 | Sama. |
+| Skipulag - Dýpt (`fldRRCx4JqLtQZau9`) | tómt | tómt (eða 19) | Úthlið hefur það tómt; Smíðagögn gefa `d:19`. |
+| Reitur `fld7EqNCvAy0JDWhp` (13.000 kr.) og `fldoCiqz9NnyA5abU` (35 %) | 13.000 / 35 % | sömu gildi | Viðmiðunargildi á öllum úthliðs-Útfærslum; verðútreikningur les þau ekki (staðfest í `api/kp-price.js`). Nafn reitanna sést ekki í lestrartólinu — eigandi má staðfesta í viðmóti. |
+| Reitir sem eru ekki fylltir á úthlið: skúffukerfi (`fld08OQYCqF3HPciG`), ofn/vifta (`fldKTi6JX39Q3S8Rb`, `fldHPlgFNZoXiACOX`), höldur (`fldAA63gsi3Gsy87g`), Frontstaða (`fld65nMEGI1UcmIrP`), Aukahlutaflokkur (`fldtt1D4OJtNwuneU`), Skápategund (`fldMyM7diYcMAMbN4`) | tómt | tómt | Þá kemur enginn fronti/hólf/aukahlutur á Eyðublaðið. |
+
+Formúlur/rollup á Útfærslunni (skrifast ekki): `Samtals Söluverð útfærslu` (`fld36kgODkNOZNOeU`), „fm fronta“ (`fldVq3i01NtRfM5sz`), kantlímingarmetrar (`fldnSzFZvb5QHv4dr`), allir rollup/lookup reitir (V1…V7 summur).
+
+### 3. Þurrkeyrsla: hvað Keyra skipulag gerir við línuna `AF1`
+
+Lesið úr scriptinu sjálfu (`wflPGRyv0VYi4AZpd`, aðeins lestur):
+
+1. **Gild lína?** Formúlan krefst: engin Eyðublað enn, „Hvað viltu smíða?“ af V1 ≠ tómt (✔ *Front / Hlið*), Rými sett, 🔑 sett, Magn ≥ 1 og engin ⛔ villa. Áfellan uppfyllir þetta ef Útfærslan er eins og lýst er. (Dæmi úr lifandi grunni: T-32 línan `UH1` fer sömu leið.)
+2. **Eyðublað er búið til** með: Athugasemd = línunafn (`AF1 | AF`), Fjöldi eininga = Magn (1), **Breidd = `w`, Hæð = `h`, Dýpt = `d`** úr Smíðagögnum (annars Skipulag-Breidd/Hæð/Dýpt Útfærslunnar: 100/800), Hvað viltu smíða? = *Front / Hlið*, Frontur / Hlið tegund = *Áfella* (af Útfærslunni; valkosturinn er til á Eyðublaði), Rými, Frontaefni #2 og eigið skrokkefni/borðplata af línunni. Skúffur, hillur, höldur, ofn, aukahlutir: tómt.
+3. **`Tegund einingu`** (formúla) verður *Áfella* → Sögunarlisti-scriptan les ÚRVINNSLA-sniðmátið `rec6VMJSfyn4qX7As` og býr til röðina „Áfella“: frontaefni, B = Breidd, H = Hæð, Þykkt = „Þykkt fronta“ (19), Magn = Fjöldi eininga, **engin kantlíming** (kantreitirnir eru tómir á sniðmátinu — staðfest, ólíkt úthlið sem hefur kant á öllum fjórum brúnum).
+4. **Pöntunarlisti (full)** telur flatarmálið með í plötunýtingu frontaefnis; sérlína birtist aðeins ef varan hefur verð (við kost A er verð vörunnar 0 → engin sérlína, efnið er í plötunum).
+5. **Staðfest á T-32** eftir að færslurnar eru búnar til: lína `AF1` → Eyðublað „Áfella“ 60 × hæð → röð í Sögunarlista → plötufjöldi. **Ekki lesið:** kóði Sögunarlista-/Pöntunarlistaskriptanna sjálfra (aðeins Keyra skipulag og sniðmátið).
+
+### Tvær spurningar til eiganda
+
+1. **Vinnan í verðinu:** kostur A (aðeins efni eftir flatarmáli, mínútur 0 — **mín tillaga, það sem þú sagðir**) eða kostur B (eins og úthlið, 28 mín. ≈ 8.867 kr. á stykki)?
+2. **Afföll 0 % eða 3 %** á áfellu (tillaga: 0 %)?
+
+### Viðauki — nákvæm JSON-gildi (kostur A)
+
+Vörulisti 🚪, ný færsla (reitir eftir id; prósentur eru brot: `2` = 200 %, `0.03` = 3 %):
+
+```json
+{
+  "fld2eaMu1s2beJLK4": "Áfella (frontaefni, 19 mm)",
+  "fldTUoa4wg4hftHO0": "AF",
+  "fldmfha5f6EZLKrKq": "Úthlið",
+  "fldmgFIZy3K9GMLKX": 100,
+  "fldBxGigJOw2FSDje": 800,
+  "fldf74wqHyJCZtmTT": 1,
+  "fldDTCv3pJ0De77aH": 0,
+  "fldg2U0QIsZkiLVM7": 0,
+  "fldG5dtxsW2ljrrSH": 0,
+  "fldNkxo1p7vNOlVJW": 0,
+  "fldD7HFFb33ZegSsh": 0,
+  "fldMUCnsxlUYZcO61": 0,
+  "fldnU4cVmm6Lkdk7H": ["recUhUS8yuNyAwAfU"],
+  "fldQxpqA2m3kwSh0S": 2
+}
+```
+
+Kostur B: breyta mínútureitunum í `10, 10, 0, 5, 3` (í sömu röð og að ofan) og `fldDTCv3pJ0De77aH` í `0.03` ef Afföll eiga að vera eins og úthlið.
+
+Útfærslur 🎨, ný færsla (`<ID-VÖRU>` = id nýju vörunnar úr skrefinu á undan):
+
+```json
+{
+  "fldbG3jw1tEPEchGr": "Áfella",
+  "fldpHihoAgFxkjTVy": "AF",
+  "fldrFCpVB3Wrzm4BA": "Úthliðar",
+  "fldceWYVphsBK6JZW": "Front / Hlið",
+  "fld23mgo1syTKNUB6": "Áfella",
+  "fldMZXkLkXLBMiH7d": true,
+  "fldbnVgbWTgSXLjMm": ["<ID-VÖRU>"],
+  "fldQPlO9WAYtixvw0": 100,
+  "fldzGkX4wBDFxOlUB": 800,
+  "fld7EqNCvAy0JDWhp": 13000,
+  "fldoCiqz9NnyA5abU": 0.35
+}
+```
+
+Eftir að Útfærslan er til: id hennar (`rec…`) fer í `kitchen-planner-linemap.js` (`window.KP_LINEMAP.afellaId`), `npm run test:live` athugar að hún sé í Útfærslum, og áfellur byrja að fara með Line Items.
