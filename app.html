@@ -55,6 +55,8 @@
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { background:var(--bg); color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased; line-height:1.5; }
+  .offline-bar { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(12px + env(safe-area-inset-bottom)); z-index:60; display:none; align-items:center; gap:8px; min-height:44px; padding:0 16px; border-radius:999px; background:var(--amber); color:#1a1300; font-weight:800; font-size:.95rem; box-shadow:0 6px 20px rgba(0,0,0,.35); }
+  .offline-bar.show { display:flex; }
   .wrap { max-width:640px; margin:0 auto; padding:calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom)); }
 
   .hd { display:flex; align-items:center; justify-content:space-between; gap:10px; }
@@ -699,6 +701,33 @@
 </div>
 
 <script src="/bjorninn-icons.js"></script>
+<script>
+/* "Ekkert net" banner: shown when the browser says it is offline or a call to our own /api fails; hides again on the
+   next successful /api call or the online event. Only watches fetch results — requests and responses are untouched. */
+(function () {
+  var bar = null;
+  function el() {
+    if (bar) return bar;
+    bar = document.createElement("div");
+    bar.className = "offline-bar"; bar.id = "offlineBar"; bar.setAttribute("role", "status");
+    bar.innerHTML = BJICON("wifiOff", 20) + "<span>Ekkert net</span>";
+    (document.body || document.documentElement).appendChild(bar);
+    return bar;
+  }
+  function set(off) { el().classList.toggle("show", !!off); }
+  window.addEventListener("offline", function () { set(true); });
+  window.addEventListener("online", function () { set(false); });
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { set(!navigator.onLine); }); else set(!navigator.onLine);
+  var orig = window.fetch;
+  window.fetch = function (input) {
+    var u = typeof input === "string" ? input : (input && input.url) || "";
+    var mine = u.indexOf("/api/") !== -1;
+    var p = orig.apply(this, arguments);
+    if (mine) p.then(function () { set(false); }, function () { set(true); });
+    return p;
+  };
+})();
+</script>
 <script src="/floor-key.js"></script>
 <script src="/virkni-bell.js"></script>
 <script>
@@ -776,8 +805,18 @@
   tickClock(); setInterval(tickClock, 15000);
 
   // ── PWA: service worker + install prompt ──
+  // Each deploy registers /sw.js?v=<sha> so the worker (and its offline-shell cache) is replaced on every deploy.
+  // No answer from /api/version (offline) → keep whatever worker is already registered.
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(function () {});
+    fetch("/api/version", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return j && j.version ? "/sw.js?v=" + encodeURIComponent(j.version) : "/sw.js"; })
+      .catch(function () { return null; })
+      .then(function (url) {
+        if (url) return navigator.serviceWorker.register(url);
+        return navigator.serviceWorker.getRegistration().then(function (r) { return r || navigator.serviceWorker.register("/sw.js"); });
+      })
+      .catch(function () {});
   }
   var isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
   var deferredInstall = null;
