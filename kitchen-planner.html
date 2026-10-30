@@ -191,6 +191,7 @@
   .hint-pop{ position:fixed; left:76px; bottom:24px; z-index:320; max-width:340px; background:#191919; color:#fff; border-radius:12px; box-shadow:0 12px 34px rgba(0,0,0,.25); padding:12px 38px 12px 14px; font-size:13.5px; line-height:1.45; animation:hintIn .25s ease; }
   .hint-pop b{ color:#f3d27a; } .hint-pop button{ position:absolute; top:6px; right:6px; background:none; border:0; color:#bbb; font-size:18px; line-height:1; cursor:pointer; padding:4px 6px; }
   @keyframes hintIn{ from{ opacity:0; transform:translateY(8px); } }
+  .hint-pop[data-hint="senda"]{ left:auto; right:24px; } /* Senda inn: bottom-left is the order expander (sweep customer #14) */
   @media (prefers-reduced-motion:reduce){ .hint-pop{ animation:none; } }
   /* first-time tour */
   .tour{ position:fixed; inset:0; z-index:400; pointer-events:none; }
@@ -16937,11 +16938,15 @@
         if ((nRooms !== 1 || designedDoors().length) && ob.length){ // several rooms, or doors: what's ordered, room by room
           // a small framed picture of each room above the list (round 3, B3) — the card pictures from the room list
           var th = hlThumbs(), pics = roomKeys.map(function(k){ var t = th[k];
-            return '<figure class="cp-room">' + (t && t.u ? '<img src="' + t.u + '" alt="">' : '<span class="cp-room-ic">' + icon(categoryDef(k).key, 26) + '</span>') + '<figcaption>' + escapeHtmlPro(homeNameOf(k)) + '</figcaption></figure>'; }).join("");
+            return '<figure class="cp-room">' + (t && t.u ? '<img src="' + t.u + '" alt="">' : '<span class="cp-room-ic" data-hlplan2d="' + escapeHtmlPro(k) + '">' + icon(categoryDef(k).key, 26) + '</span>') + '<figcaption>' + escapeHtmlPro(homeNameOf(k)) + '</figcaption></figure>'; }).join("");
           var dd0 = designedDoors()[0]; // the doors have a picture too (morning scan 2026-10-27: missing from the row)
           if (dd0 && !PRO) pics += '<figure class="cp-room">' + doorThumb(dd0, 120, 90) + '<figcaption>' + escapeHtmlPro(homeNameOf("hurdir")) + '</figcaption></figure>';
           box.innerHTML = (pics ? '<div class="cp-rooms">' + pics + '</div>' : '') + (nCab ? '<div class="cp-text"><strong>' + __("Skipulagið þitt") + '</strong> · ' + nCab + ' ' + plural(nCab, "skápur", "skápar") + '</div>' : '') + orderHtml(true);
-          box.hidden = false; return;
+          box.hidden = false;
+          // a room with no 3D picture (the wardrobe) shows its own floor plan, like its card in Rýmin þín (sweep studio2 #7)
+          box.querySelectorAll("[data-hlplan2d]").forEach(function(el){ var bl = roomBlobOf(el.dataset.hlplan2d); if (!bl) return;
+            try{ el.innerHTML = ""; KP3D.buildPlan2D(el, Object.assign({}, state, bl), { thumb:true }); }catch(e){ el.innerHTML = icon(categoryDef(el.dataset.hlplan2d).key, 26); } });
+          return;
         }
         if (oneMats != null) mats = oneMats;
         box.innerHTML = (lastThumb ? html : '<div class="cp-plan" id="cpPlan"></div>') + '<div class="cp-text"><strong>' + __("Skipulagið þitt") + '</strong> · ' + text + '</div><dl class="cp-mats">' + mats + '</dl>' +
