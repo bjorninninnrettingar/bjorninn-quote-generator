@@ -109,3 +109,14 @@ Same widget + endpoint as the public bot. A page adds one tag: `<script src="/ch
 
 ## skrifstofa-login brute-force protection (2026-10-30)
 `api/skrifstofa-login.js` counts failed PINs per IP (5), per PIN hash (5) and globally (60) within 15 min, answers 429 `TOO_MANY_ATTEMPTS` + `Retry-After`, and delays each wrong PIN 300 ms. In-memory per warm instance = best effort. PIN length rule (3–4 digits) deliberately unchanged — a 3-digit PIN may be in real use. **Real backstop (set by hand in the Vercel dashboard → Firewall → Rate limiting):** path equals `/api/skrifstofa-login`, method POST, key = IP, 10 requests / 1 minute (fixed window), action = deny (429).
+
+## Chatbot cost + fallback (2026-10-30)
+
+`/api/chat` (public, Studio, staff) — prepaid credits ran out once, so: **no spend cap, but cheap answers and a friendly failure.**
+- **Measured** (Haiku 4.5, `count_tokens`): public prompt 7.8k tokens, Studio 17.1k, staff 1.9–2.2k (staff is under Haiku's 4096 minimum, so its `cache_control` is a no-op). Prices $/MTok: in 1, cache read 0.1, cache write 1.25, out 5.
+- **Public used to send a plain-string system prompt = no caching at all** (~0.85¢ per answer). It is now a `cache_control: ephemeral` block like Studio (warm ≈ 0.14¢, cold write ≈ 1.04¢; a lone question after >5 min idle costs ~25 % more than before, any follow-up within 5 min is ~6× cheaper).
+- History sent to the model is capped to the last 6 messages (`MAX_HISTORY`, never starting on an assistant turn); the widget still keeps/logs the whole chat. Greetings/thanks/empty (`shortCircuit`) are answered with no model call. `max_tokens` stays 500 (only generated tokens are billed; lowering risks truncated JSON).
+- Every request logs `{"chat_usage":{bot,input,cache_read,cache_creation,output,stop,ms}}` via `console.log` (no conversation text) — search Vercel logs for `chat_usage`.
+- **Retrieval (top-k FAQ) NOT shipped**: Icelandic inflection makes keyword matching unreliable, there is no embedding store, and a wrong miss turns a correct answer into "veit ekki"; the cached full prompt is already only ~0.08¢ of input when warm.
+- **Fallback**: any upstream failure (402/billing, 4xx/5xx, 429, overload, network, 25 s timeout, non-JSON, unparsable/empty model output, missing key) returns **HTTP 200** `{answer, escalate, links, degraded:true}` — public: "Því miður get ég ekki svarað núna. Hafðu samband…" + `escalate:true` + the `samband` link; Studio: email text (is/en, no link); staff: "Spurðu Ísak eða Rakel". The raw upstream error is only `console.error`'d. chat-widget.js shows the same text locally on fetch failure / non-2xx / non-JSON / 35 s hang. `npm run eval:chat` treats `degraded` as an API failure and prints a token/cost total. Tests: tests/chat-fallback.test.js.
+- To simulate a failure without touching credits: run locally with `ANTHROPIC_API_KEY=bad` (Anthropic answers 401 → fallback), or unset the key.

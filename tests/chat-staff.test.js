@@ -106,8 +106,8 @@ test("public (no context) and Studio paths need no key and keep their prompts", 
     const pub = await call({ messages: MSG });
     const stu = await call({ messages: MSG, context: { app: "studio", step: "editor" } });
     assert.equal(pub.code, 200); assert.equal(stu.code, 200);
-    assert.equal(typeof seen[0].system, "string");
-    assert.match(seen[0].system, /spjallaðstoðarmaður á vefsíðu Björnsins/);
+    assert.match(seen[0].system[0].text, /spjallaðstoðarmaður á vefsíðu Björnsins/);
+    assert.deepEqual(seen[0].system[0].cache_control, { type: "ephemeral" }, "public prefix is cached");
     assert.match(seen[1].system[0].text, /BJÖRNINN STUDIO/);
     // a staff app name inside a studio-shaped call can't smuggle the staff prompt in
     assert.equal(cleanStudioContext({ app: "labels" }), null);

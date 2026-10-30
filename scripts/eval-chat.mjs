@@ -42,6 +42,22 @@ const LEAK = {
   staff: [/\b\d{4,}\b/, /\d[\d.]*\s?(kr\b|krónur)/i, /@[a-z0-9-]+\.[a-z]{2,}/i], // PIN-like numbers, pay amounts, emails
 };
 
+// Sum the per-request usage the handler logs (chat_usage) so the run prints real token / cost totals.
+const USAGE = { n: 0, input: 0, cache_read: 0, cache_creation: 0, output: 0, short: 0 };
+const realLog = console.log;
+console.log = (...a) => {
+  if (typeof a[0] === "string" && a[0].startsWith('{"chat_usage"')) {
+    const u = JSON.parse(a[0]).chat_usage;
+    if (u.shortCircuit) USAGE.short++; else { USAGE.n++; for (const k of ["input", "cache_read", "cache_creation", "output"]) USAGE[k] += u[k] || 0; }
+    return;
+  }
+  realLog(...a);
+};
+function usageSummary() {
+  const cents = (USAGE.input * 1 + USAGE.cache_read * 0.1 + USAGE.cache_creation * 1.25 + USAGE.output * 5) / 1e6 * 100; // Haiku 4.5 $/MTok
+  return `Usage: ${USAGE.n} model calls (+${USAGE.short} short-circuited) — input ${USAGE.input}, cache_read ${USAGE.cache_read}, cache_write ${USAGE.cache_creation}, output ${USAGE.output} tokens ≈ ${cents.toFixed(1)}¢ (${USAGE.n ? (cents / USAGE.n).toFixed(2) : 0}¢ per answer)`;
+}
+
 function fakeRes() {
   return { code: 200, body: null, setHeader() {}, status(c) { this.code = c; return this; }, json(o) { this.body = o; return this; }, end() { return this; } };
 }
@@ -52,11 +68,14 @@ async function ask(c, handler) {
   if (c.bot === "studio") body.context = { app: "studio", ...(c.ctx || {}) };
   if (URL_ARG) {
     const r = await fetch(URL_ARG.replace(/\/$/, "") + "/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    return r.json();
+    const j = await r.json();
+    if (j?.degraded) throw new Error("API unavailable — the bot returned its friendly fallback");
+    return j;
   }
   const res = fakeRes();
   await handler({ method: "POST", headers: { "x-forwarded-for": `10.77.${(ipN >> 8) & 255}.${ipN++ & 255}` }, body }, res);
   if (res.code !== 200 && !res.body?.answer) throw new Error(`HTTP ${res.code}: ${res.body?.error || ""}`);
+  if (res.body?.degraded) throw new Error("API unavailable — the bot returned its friendly fallback (see the server error log; credits? key?)");
   return res.body;
 }
 
@@ -96,7 +115,7 @@ async function worker() {
     let line, problems;
     try { const r = await ask(c, handler); problems = judge(c, r); line = r.answer; }
     catch (e) {
-      if (/credit balance|invalid x-api-key|authentication/i.test(e.message)) { console.error(`\nAborted — the Anthropic API refused the key: ${e.message}`); process.exit(3); }
+      if (/credit balance|invalid x-api-key|authentication|API unavailable/i.test(e.message)) { console.error(`\nAborted — the Anthropic API refused the key: ${e.message}`); process.exit(3); }
       problems = [`call failed: ${e.message}`]; line = "";
     }
     n++;
@@ -107,4 +126,5 @@ async function worker() {
 }
 await Promise.all([worker(), worker(), worker()]);
 console.log(`\n${n - fail}/${n} passed${fail ? `, ${fail} FAILED` : ""}`);
+console.log(usageSummary());
 process.exit(fail || process.exitCode ? 1 : 0);

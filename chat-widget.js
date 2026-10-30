@@ -48,24 +48,24 @@
   var CONTACT_URL = "https://www.bjorninninnrettingar.is/hafðu-samband";
   var T = FLOOR ? {
     greeting: "Hæ! Spurðu mig hvernig á að nota þetta tól — t.d. „hvernig prenta ég miða?“. Ég svara ekki um laun eða persónulegar upplýsingar.",
-    error: "Því miður kom upp villa. Reyndu aftur, eða spurðu Ísak eða Rakel.",
+    error: "Því miður get ég ekki svarað núna. Spurðu Ísak eða Rakel.",
     title: "Hjálp", placeholder: "Hvernig…?", send: "Senda", close: "Loka", open: "Hjálp", question: "Spurning",
     direct: "", contact: "", email: "", emailLabel: "", thanks: "", retry: ""
   } : !STUDIO ? {
     greeting: "Hæ! Ég get svarað spurningum um sérsmíði, verð, ferlið og fleira hjá Birninum. Hvað viltu vita?",
-    error: "Því miður kom upp villa. Endilega reyndu aftur, eða hafðu samband beint.",
+    error: "Því miður get ég ekki svarað núna. Hafðu samband við okkur beint og við hjálpum þér.",
     title: "BJÖRNINN", placeholder: "Skrifaðu spurningu...", send: "Senda", close: "Loka", open: "Opna spjall", question: "Spurning",
     direct: "Vilt þú fá svar frá okkur beint?", contact: "Hafðu samband", email: "netfangið þitt", emailLabel: "Netfang",
     thanks: "Takk! Við sendum þér svar á ", retry: "Náði ekki að senda — reyndu aftur."
   } : EN ? {
     greeting: "Hi! Ask me anything about the designer — measuring, adding units, materials or sending your design in.",
-    error: "Sorry, something went wrong. Please try again, or email us at " + STUDIO_EMAIL + ".",
+    error: "Sorry, I can't answer right now. Please email us at " + STUDIO_EMAIL + " and we'll help you.",
     title: "Ask a question", placeholder: "Type your question…", send: "Send", close: "Close", open: "Ask a question", question: "Question",
     direct: "Want an answer from our team?", contact: "Email " + STUDIO_EMAIL, email: "your email", emailLabel: "Email",
     thanks: "Thanks! We'll reply to ", retry: "Couldn't send — please try again."
   } : {
     greeting: "Hæ! Spurðu mig um hönnunartólið — mælingar, að bæta við skáp, efni eða að senda inn.",
-    error: "Því miður kom upp villa. Reyndu aftur, eða sendu okkur póst á " + STUDIO_EMAIL + ".",
+    error: "Því miður get ég ekki svarað núna. Sendu okkur tölvupóst á " + STUDIO_EMAIL + " og við hjálpum þér.",
     title: "Spyrja", placeholder: "Skrifaðu spurningu…", send: "Senda", close: "Loka", open: "Spyrja", question: "Spurning",
     direct: "Viltu fá svar frá söluaðila?", contact: "Senda póst á " + STUDIO_EMAIL, email: "netfangið þitt", emailLabel: "Netfang",
     thanks: "Takk! Við svörum þér á ", retry: "Náði ekki að senda — reyndu aftur."
@@ -615,8 +615,12 @@
     awaitingReply = true;
     input.disabled = true;
     sendBtn.disabled = true;
+    // A hung endpoint must end in the same friendly fallback as a failed one (the .catch below), not a spinner.
+    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var abortTimer = ctl ? setTimeout(function () { ctl.abort(); }, 35000) : 0;
     fetch(API_BASE + "/api/chat", {
       method: "POST",
+      signal: ctl ? ctl.signal : undefined,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(FLOOR ? { messages: apiMessages, context: ctx, k: floorKey() } : ctx ? { messages: apiMessages, context: ctx } : { messages: apiMessages }),
     })
@@ -628,6 +632,7 @@
       // human, unlike a real network failure below. Throwing routes both
       // cases through the same .catch(), which does escalate.
       .then(function (res) {
+        clearTimeout(abortTimer);
         // Staff: a 401 carries a plain "device not paired" answer — show it instead of the generic error
         if (FLOOR && res.status === 401) return res.json();
         if (!res.ok) throw new Error("chat API error " + res.status);

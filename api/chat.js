@@ -28,6 +28,10 @@ const MAX_TOKENS = 500;
 // Bounds on the untrusted input this endpoint accepts, since every request
 // costs a real Claude API call — cheap to check, expensive to skip.
 const MAX_MESSAGES = 20;
+// Cost (2026-10-30): the whole history is re-sent (and billed as input) every turn, so only the last few messages
+// go to the model. The widget still keeps and logs the full conversation.
+const MAX_HISTORY = 6;
+const UPSTREAM_TIMEOUT_MS = 25000;
 const MAX_MESSAGE_CHARS = 2000;
 const MAX_LINKS = 2;
 // The model can only pick link KEYS out of this table (see
@@ -43,7 +47,32 @@ const STUDIO_CONTEXT_KEYS = ["where", "step", "room", "rooms", "shape", "phase",
 const MAX_CONTEXT_CHARS = 200;
 const STUDIO_LINK_MAP = new Map([...LINK_MAP].filter(([k]) => STUDIO_LINK_KEYS.includes(k)));
 
-const FALLBACK_ANSWER = "Því miður gat ég ekki svarað þessu núna. Endilega hafðu samband beint.";
+// One friendly text for every failure (credits out, 429/5xx, timeout, unparsable output). Never the raw upstream error.
+const FALLBACK_ANSWER = "Því miður get ég ekki svarað núna. Hafðu samband við okkur beint og við hjálpum þér.";
+const STUDIO_EMAIL = "bjorninn@bjorninninnrettingar.is";
+const STAFF_FALLBACK_ANSWER = "Því miður get ég ekki svarað núna. Spurðu Ísak eða Rakel.";
+const STUDIO_FALLBACK = {
+  is: `Því miður get ég ekki svarað núna. Sendu okkur tölvupóst á ${STUDIO_EMAIL} og við hjálpum þér.`,
+  en: `Sorry, I can't answer right now. Please email us at ${STUDIO_EMAIL} and we'll help you.`,
+};
+// The payload the widget gets instead of an error. `degraded` lets scripts (eval) tell it from a real answer.
+export function fallbackPayload(kind, lang) {
+  if (kind === "staff") return { answer: STAFF_FALLBACK_ANSWER, escalate: false, links: [], degraded: true };
+  if (kind === "studio") return { answer: STUDIO_FALLBACK[lang === "en" ? "en" : "is"], escalate: true, links: [], degraded: true };
+  const contact = LINK_MAP.get("samband");
+  return { answer: FALLBACK_ANSWER, escalate: true, links: contact ? [contact] : [], degraded: true };
+}
+
+// Greetings / thanks need no model call (each one would otherwise cost a full cached-prompt read).
+const GREETINGS = new Set(["hæ", "hæ hæ", "halló", "hallo", "sæl", "sæll", "sæl og blessuð", "góðan daginn", "góðan dag", "gott kvöld", "hello", "hi", "hey", "hæ hæ hæ", ""]);
+const THANKS = new Set(["takk", "takk fyrir", "takk kærlega", "takk fyrir mig", "kærar þakkir", "þakka þér", "þakka þér fyrir", "bless", "bless bless", "ok takk", "ok", "ókei"]);
+export function shortCircuit(text, kind) {
+  const t = String(text || "").toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, " ").replace(/\s+/g, " ").trim();
+  const topic = kind === "staff" ? "þetta tól" : kind === "studio" ? "hönnunartólið" : "sérsmíði, verð eða ferlið";
+  if (GREETINGS.has(t)) return { answer: `Hæ! Hvað viltu vita um ${topic}?`, escalate: false, links: [] };
+  if (THANKS.has(t)) return { answer: "Verði þér að góðu! Spurðu endilega ef þú vilt vita meira.", escalate: false, links: [] };
+  return null;
+}
 
 // Per-IP limiter (2026-10-28): every request is a paid Claude call and the endpoint is anonymous. In-memory per
 // warm instance (best effort, like the other limiters here) — 20 per minute and 200 per day per IP.
@@ -73,7 +102,6 @@ export default async function handler(req, res) {
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
 
   const cleaned = validateMessages(req.body?.messages);
   if (cleaned.error) return res.status(400).json({ error: cleaned.error });
@@ -84,46 +112,66 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Floor key required", answer: STAFF_NO_KEY_ANSWER, escalate: false, links: [] });
   }
   const studio = staff ? null : cleanStudioContext(req.body?.context);
-  // Studio: the long static guide is cached (same text every request), the per-question context isn't
+  const kind = staff ? "staff" : studio ? "studio" : "public";
+  const lang = studio?.lang;
+  const label = staff ? `staff:${staff.app}` : kind;
+
+  if (!(studio && lang === "en")) {
+    const quick = shortCircuit(cleaned.messages[cleaned.messages.length - 1].content, kind);
+    if (quick) { console.log(JSON.stringify({ chat_usage: { bot: label, shortCircuit: true } })); return res.status(200).json(quick); }
+  }
+  if (!apiKey) { console.error("chat: ANTHROPIC_API_KEY not configured"); return res.status(200).json(fallbackPayload(kind, lang)); }
+
+  // The static guide is the cached prefix (byte-identical every request); only the small per-question context
+  // comes after the cache breakpoint. Public used to send a plain string, i.e. no caching at all.
   const system = staff
     ? [{ type: "text", text: buildStaffPrompt(staff.app), cache_control: { type: "ephemeral" } }, { type: "text", text: renderStaffContext(staff.app, staff.context) }]
     : studio
     ? [{ type: "text", text: buildStudioPrompt(), cache_control: { type: "ephemeral" } }, { type: "text", text: renderStudioContext(studio) }]
-    : buildSystemPrompt();
+    : [{ type: "text", text: buildSystemPrompt(), cache_control: { type: "ephemeral" } }];
 
-  let anthropicRes;
+  const started = Date.now();
   try {
-    anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        temperature: 0,
-        system,
-        messages: cleaned.messages,
-      }),
-    });
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), UPSTREAM_TIMEOUT_MS);
+    let anthropicRes, data;
+    try {
+      anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: MAX_TOKENS,
+          temperature: 0,
+          system,
+          messages: recentMessages(cleaned.messages),
+        }),
+        signal: ctl.signal,
+      });
+      data = await anthropicRes.json();
+    } finally { clearTimeout(timer); }
+    if (!anthropicRes.ok) throw new Error(`Anthropic ${anthropicRes.status}: ${data?.error?.type || ""} ${data?.error?.message || ""}`.trim());
+
+    const u = data.usage || {};
+    console.log(JSON.stringify({ chat_usage: { bot: label, input: u.input_tokens, cache_read: u.cache_read_input_tokens || 0, cache_creation: u.cache_creation_input_tokens || 0, output: u.output_tokens, stop: data.stop_reason, ms: Date.now() - started } }));
+
+    const text = (data.content || [])
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
+    const reply = parseModelReply(text, staff ? staffLinkMap() : studio ? STUDIO_LINK_MAP : LINK_MAP);
+    if (reply.answer === FALLBACK_ANSWER) { console.error("chat: unparsable model output, stop=" + data.stop_reason); return res.status(200).json(fallbackPayload(kind, lang)); }
+    return res.status(200).json(reply);
   } catch (err) {
-    return res.status(502).json({ error: "Failed to reach Claude API" });
+    // Credits out (402/400 billing text), 429, 5xx, overload, network, timeout, garbage: log the real reason here only.
+    console.error("chat: upstream failure — " + (err?.name === "AbortError" ? "timeout" : err?.message || err));
+    return res.status(200).json(fallbackPayload(kind, lang));
   }
-
-  const data = await anthropicRes.json();
-  if (!anthropicRes.ok) {
-    return res.status(502).json({ error: data?.error?.message || "Claude API error" });
-  }
-
-  const text = (data.content || [])
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
-
-  return res.status(200).json(parseModelReply(text, staff ? staffLinkMap() : studio ? STUDIO_LINK_MAP : LINK_MAP));
 }
 
 const STAFF_NO_KEY_ANSWER = "Þetta tæki er ekki tengt. Opnaðu verkstæðisappið í tækinu sem er parað við kerfið, eða spurðu Ísak.";
@@ -149,6 +197,13 @@ export function cleanStudioContext(ctx) {
     if (s) out[k] = s;
   }
   out.lang = out.lang === "en" ? "en" : "is";
+  return out;
+}
+
+// Last MAX_HISTORY messages, never starting on an assistant turn (the API wants a user message first).
+export function recentMessages(messages) {
+  const out = messages.slice(-MAX_HISTORY);
+  while (out.length > 1 && out[0].role !== "user") out.shift();
   return out;
 }
 
