@@ -20875,8 +20875,17 @@
       document.body.appendChild(el);
       // o.focus = "cancel" | "alt" for a dialog whose OK is destructive: the safe button gets the focus (and Enter), not the overwrite
       var defSel = o.focus === "cancel" && !o.noCancel ? '[data-pd="0"]' : o.focus === "alt" && o.alt ? '[data-pd="alt"]' : ".pd-ok";
-      function done(v){ window.removeEventListener("keydown", key, true); el.remove(); resolve(v); }
-      function key(e){ if (e.key === "Escape"){ e.preventDefault(); e.stopImmediatePropagation(); done(false); } else if (e.key === "Enter"){ e.preventDefault(); e.stopImmediatePropagation(); // Enter = a click on the focused button (never a silent "overwrite"); focus elsewhere in the card (a checkbox) = the dialog's default button
+      var back = document.activeElement; // focus returns here when the dialog closes
+      function done(v){ window.removeEventListener("keydown", key, true); el.remove(); try{ if (back && back.isConnected && back.focus) back.focus({ preventScroll:true }); }catch(e2){} resolve(v); }
+      function key(e){
+        if (e.key === "Tab"){ // focus trap: Tab / Shift+Tab cycle inside the dialog, never onto the page behind it
+          var f = Array.prototype.filter.call(el.querySelectorAll('button, input, select, textarea, a[href], [tabindex]'), function(n){ return !n.disabled && n.tabIndex >= 0 && n.offsetParent !== null; });
+          if (!f.length) return;
+          var ix = f.indexOf(document.activeElement);
+          if (ix < 0 || (e.shiftKey && ix === 0) || (!e.shiftKey && ix === f.length - 1)){ e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
+          return;
+        }
+        if (e.key === "Escape"){ e.preventDefault(); e.stopImmediatePropagation(); done(false); } else if (e.key === "Enter"){ e.preventDefault(); e.stopImmediatePropagation(); // Enter = a click on the focused button (never a silent "overwrite"); focus elsewhere in the card (a checkbox) = the dialog's default button
         var ae = document.activeElement; (ae && ae.tagName === "BUTTON" && el.contains(ae) ? ae : el.querySelector(defSel)).click(); } }
       window.addEventListener("keydown", key, true);
       el.addEventListener("pointerdown", function(e){ if (e.target === el) done(false); });
