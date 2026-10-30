@@ -39,3 +39,14 @@ test("A: Raðborun is unset (Af) for any cabinet that has not chosen it — the 
   const body = fnBody("smItems");
   assert.ok(/ch\("rb", "Raðborun", rb \? "1" : "0"/.test(body));
 });
+
+test("B: in PRO/Smíða items drag through each other — only the zone limits them, the list is written sorted, a clash is flagged afterwards", () => {
+  const mv = fnBody("smMoveThrough");
+  assert.ok(/shelfSpaceMm/.test(mv) && !/itemCrossBounds|info\.lo|info\.hi/.test(mv), "bounded by the zone, not by neighbours");
+  assert.ok(/info\.list\.sort\(function\(a, z\)\{ return a\.mm - z\.mm; \}\)/.test(mv), "ordering resolved: smidaFor/cnc-sides read the same sorted list");
+  assert.ok(/if \(smThrough\(\)\) return smMoveThrough/.test(fnBody("onShelfPosMove")));
+  assert.ok(/!!PRO \|\| !!\(uw && uw\.smida\)/.test(fnBody("smThrough")), "the customer's Studio wizard keeps its neighbour limits");
+  assert.ok(/proClashes/.test(fnBody("smMissing")), "Yfirlit lists a clash");
+  assert.ok(!/proClashes/.test(fnBody("proIssues")) && !/proClashes/.test(fnBody("proReady")), "proReady is untouched: a cabinet already Klár stays Klár");
+  assert.ok(/return "sh" \+ list\.indexOf\(me\)/.test(fnBody("smItems")), "typing a shelf past another confirms the shelf, not its old slot");
+});

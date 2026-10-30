@@ -12670,7 +12670,7 @@
   // a more honest answer than "how much further could I still drag it".
   // a block being dragged: one in the room, or the "+ Ný eining" wizard's own (not placed yet)
   function dragBlock(id){ var fb = findBlock(id); if (fb) return fb; return uw && uw.b && uw.b.id === id ? { block:uw.b, zone:CATALOG[uw.b.type].zone, wall:null } : null; }
-  function uwItemMoved(id){ if (uw && uw.b && uw.b.id === id){ uwPrevKey = ""; renderUnitWizard(); } else onShelfPosEnd(id); }
+  function uwItemMoved(id){ shelfDragSess = null; if (uw && uw.b && uw.b.id === id){ uwPrevKey = ""; renderUnitWizard(); } else onShelfPosEnd(id); }
   function shelfPosBounds(blockId, itemKind, idx){
     var fb = dragBlock(blockId); if (!fb) return null;
     var b = fb.block, c = CATALOG[b.type]; if (!c) return null;
@@ -12684,7 +12684,7 @@
         trueLo: idx > 0 ? rlist[idx - 1].mm : r.lo,
         trueHi: idx < rlist.length - 1 ? rlist[idx + 1].mm : r.hi };
     }
-    var list = KP3D.shelfLayoutOf(b, bodyMm, sysKey).map(function(s){ var o = { mm:s.mm, fixed:s.fixed, pos:s.pos, locked:s.locked }; if (s.tray) o.tray = true; return o; });
+    var list = KP3D.shelfLayoutOf(b, bodyMm, sysKey).map(function(s){ var o = { mm:s.mm, fixed:s.fixed, pos:s.pos, locked:s.locked }; if (s.tray) o.tray = true; if (s.gap) o.gap = s.gap; return o; });
     if (!list[idx]) return null;
     return { b:b, c:c, list:list, idx:idx, locked:!!(list[idx].fixed || list[idx].locked),
       lo: idx > 0 ? list[idx - 1].mm + SHELF_DRAG_MIN_GAP_MM : r.lo + KP3D.OVEN_BOARD_MM + 1,
@@ -12702,7 +12702,39 @@
     });
     return info;
   }
+  // Round 2 (owner 2026-10-30): in PRO (and Smíða) an item drags THROUGH its neighbours — a rail through a shelf and back; only the
+  // zone's own edges limit it. The list is rewritten sorted on every move (shelfLayoutOf/railLayoutOf read it sorted anyway, so
+  // smidaFor / cnc-sides see the same shape); a clash left at the drop is flagged in Smíða's Yfirlit (proClashes), not blocked.
+  var shelfDragSess = null;
+  function smThrough(){ return !!PRO || !!(uw && uw.smida); }
+  function smMoveThrough(blockId, itemKind, idx0, newMm){
+    var s = shelfDragSess;
+    if (!s || s.id !== blockId || s.kind !== itemKind || s.idx0 !== idx0){
+      var i0 = shelfPosBounds(blockId, itemKind, idx0); if (!i0) return null;
+      s = shelfDragSess = { id:blockId, kind:itemKind, idx0:idx0, mm:null, locked:i0.locked, sig:JSON.stringify(Object.assign({}, i0.list[idx0], { mm:0 })) };
+    }
+    if (s.locked) return null;
+    var info = shelfPosBounds(blockId, itemKind, idx0); if (!info) return null;
+    var idx = idx0;
+    if (s.mm != null){ // this item may have changed places in the sorted list by passing through another
+      var same = function(q){ return q.mm === s.mm; };
+      var j = info.list.findIndex(function(q){ return same(q) && JSON.stringify(Object.assign({}, q, { mm:0 })) === s.sig; });
+      if (j < 0) j = info.list.findIndex(same);
+      if (j >= 0) idx = j;
+    }
+    var fb = dragBlock(blockId), c = info.c, body = proBodyMm(info.b, c, fb ? fb.zone : "floor"), sys = drawerSys(), r = KP3D.shelfSpaceMm(info.b, body, sys);
+    var clamped = Math.round(Math.max(r.lo + KP3D.OVEN_BOARD_MM + 1, Math.min(r.hi - 10, newMm)));
+    info.list[idx].mm = clamped; s.mm = clamped;
+    var me = info.list[idx];
+    info.list.sort(function(a, z){ return a.mm - z.mm; });
+    if (itemKind === "rail"){ info.b.railPos = info.list; if (c.railRange) info.b.rails = info.list.length; }
+    else { info.b.shelfPos = info.list; if (!c.bur && c.shelfRange) info.b.shelves = info.list.length; }
+    var others = (itemKind === "rail" ? KP3D.shelfLayoutOf(info.b, body, sys) : KP3D.railLayoutOf(info.b, body, sys)).map(function(o){ return o.mm; }).concat(info.list.filter(function(q){ return q !== me; }).map(function(q){ return q.mm; })),
+      below = others.filter(function(v){ return v <= clamped; }), above = others.filter(function(v){ return v > clamped; });
+    return { mm:clamped, trueLo:below.length ? Math.max.apply(null, below) : r.lo, trueHi:above.length ? Math.min.apply(null, above) : r.hi };
+  }
   function onShelfPosMove(blockId, itemKind, idx, newMm){
+    if (smThrough()) return smMoveThrough(blockId, itemKind, idx, newMm);
     var info = shelfPosBounds(blockId, itemKind, idx); if (!info || info.locked) return null;
     itemCrossBounds(info, itemKind);
     var clamped = Math.round(Math.max(info.lo, Math.min(info.hi, newMm)));
@@ -12711,7 +12743,7 @@
     else { info.b.shelfPos = info.list; if (!info.c.bur && info.c.shelfRange) info.b.shelves = info.list.length; }
     return { mm:clamped, trueLo:info.trueLo, trueHi:info.trueHi };
   }
-  function onShelfPosEnd(blockId){ save(); refreshAfterEdit(); }
+  function onShelfPosEnd(blockId){ shelfDragSess = null; save(); refreshAfterEdit(); }
   // A wardrobe drawer dragged in 3D (user, 2026-10-26): its top edge follows the pointer in 2.5 cm steps, the drawers
   // above and the door/shelves over the stack move with it, and a taller slot gets the deeper drawer that fits it
   // (Legra K → C → F, Merivo K → E) — "til að stækka dýptina". topMm = pointer height above the carcass bottom.
@@ -17992,6 +18024,17 @@
     });
     return rows;
   }
+  // Round 2: shelves / rails may be dragged through each other, so a real clash (closer than 40 mm, board and rod would overlap) is
+  // reported here instead of blocked while dragging. Used by Smíða's Yfirlit and its Klár — NOT by proIssues/proReady, so a cabinet
+  // that is already Klár stays Klár.
+  function proClashes(b, c, zone){
+    var body = proBodyMm(b, c, zone), sys = drawerSys(), items = [], out = [];
+    KP3D.shelfLayoutOf(b, body, sys).forEach(function(sh, i){ items.push({ mm:sh.mm, t:(c.oven ? "Ofnhilla " : "Hilla ") + (i + 1) }); });
+    if (c.railRange) KP3D.railLayoutOf(b, body, sys).forEach(function(rl, i){ items.push({ mm:rl.mm, t:"Fataslá " + (i + 1) }); });
+    items.sort(function(a, z){ return a.mm - z.mm; });
+    for (var q = 1; q < items.length; q++) if (items[q].mm - items[q - 1].mm < 40) out.push(items[q - 1].t + " og " + items[q].t.charAt(0).toLowerCase() + items[q].t.slice(1) + " eru of nálægt hvort öðru (" + (items[q].mm - items[q - 1].mm) + " mm) — færðu annað");
+    return out;
+  }
   // withFix (2026-10-26): [{ text, fix }] instead of plain strings — fix = "drawers" / "hinges" (what "Laga" runs)
   function proIssues(b, c, zone, withFix){
     var doors = proDoorsOf(b, c, zone), body = proBodyMm(b, c, zone), out = [];
@@ -18509,6 +18552,7 @@
       if (g[0] === "pos" ? !uw.smHasPos : !uw.smHasHw) return;
       smItems(g[0], x).filter(smReal).forEach(function(it){ if (!smItemAckOk(b, g[0], it)) m.push({ sec:g[0], grp:g[0], id:it.kind === "mm" ? it.id : null, text:g[1] + ": " + it.label }); });
     });
+    proClashes(b, c, x.zone).reverse().forEach(function(t){ m.unshift({ sec:"pos", text:t }); }); // first: a clash is what she has to act on
     proIssues(b, c, x.zone, true).forEach(function(i){ m.push({ sec:"yfir", text:i.text, fix:i.fix }); });
     return m;
   }
@@ -18619,7 +18663,7 @@
           mm("sh" + k, (c.oven ? "Ofnhilla " : "Hilla ") + (k + 1), sh.mm, sh.mm, function(v){
             var list = KP3D.shelfLayoutOf(b, body, sys), r = KP3D.shelfSpaceMm(b, body, sys);
             if (!(v > r.lo + KP3D.OVEN_BOARD_MM && v < r.hi - 10)) toast("Hilla er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár.");
-            list[k].mm = v; smSetShelves(b, c, list); return true; },
+            var me = list[k]; me.mm = v; smSetShelves(b, c, list); return "sh" + list.indexOf(me); }, // the id it ended up with (typing past a neighbour re-sorts the list)
             { val:sh.mm + (sh.fixed ? "F" : "L"), fixed:!!sh.fixed, typ:function(f){ var list = KP3D.shelfLayoutOf(b, body, sys); list[k].fixed = f; if (!f){ list[k].pos = 3; delete list[k].gap; } else delete list[k].gap; smSetShelves(b, c, list); },
               locked:!!sh.locked, lock:function(){ var list = KP3D.shelfLayoutOf(b, body, sys); list[k].locked = !list[k].locked; smSetShelves(b, c, list); } });
           if (!sh.fixed){
@@ -18654,7 +18698,7 @@
           mm("rl" + k, "Fataslá " + (k + 1), rl.mm, rl.mm, function(v){
             var list = KP3D.railLayoutOf(b, body, sys), r = KP3D.shelfSpaceMm(b, body, sys);
             if (!(v > r.lo + KP3D.OVEN_BOARD_MM && v < r.hi - 10)) toast("Sláin er utan " + (r.lo + 17) + "–" + (r.hi - 11) + " mm bilsins — lagaðu áður en skápurinn er merktur klár.");
-            list[k].mm = v; smSetRails(b, c, list); return true; });
+            var me = list[k]; me.mm = v; smSetRails(b, c, list); return "rl" + list.indexOf(me); });
         });
       }
       if (c.bur){
@@ -18980,7 +19024,7 @@
   function smClose(){ if (uw && uw.smida) closeUnitWizard(); }
   // the old editor was opened from the wizard's Yfirlit and closed again: back into the wizard on the cabinet it ended on
   function smBack(last){ smReturn = null; if (last && findBlock(last)) openSmidaWizard(last); }
-  window.__sm = { open:function(id){ openSmidaWizard(id); }, uw:function(){ return uw; }, ctx:smCtx, go:smGo, queue:smQueue, chips:function(){ return smChips(smCtx()); }, nextRight:proNextRight, undoOk:smUndoOk, openAt:smOpenAt, stats:hlProStats, next:smNext, ready:function(id){ var fb = findBlock(id); if (fb) proSetReadyQuiet(fb.block, true); } }; // devtools / tests
+  window.__sm = { open:function(id){ openSmidaWizard(id); }, uw:function(){ return uw; }, ctx:smCtx, go:smGo, queue:smQueue, chips:function(){ return smChips(smCtx()); }, nextRight:proNextRight, undoOk:smUndoOk, openAt:smOpenAt, stats:hlProStats, next:smNext, drag:function(id, kind, idx, mm){ return onShelfPosMove(id, kind, idx, mm); }, dragEnd:function(id){ uwItemMoved(id); }, clashes:function(id){ var fb = findBlock(id); return fb ? proClashes(fb.block, CATALOG[fb.block.type], fb.zone) : []; }, ready:function(id){ var fb = findBlock(id); if (fb) proSetReadyQuiet(fb.block, true); } }; // devtools / tests
 
   function renderBoxEditor(){
     var fb = proEdId ? findBlock(proEdId) : null;
