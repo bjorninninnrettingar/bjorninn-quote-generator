@@ -61,13 +61,9 @@ export default async function handler(req, res) {
     if (Array.isArray(f[DRAWINGS_FIELD_NAME]) && f[DRAWINGS_FIELD_NAME].length) {
       return res.status(409).json({ error: "Teikningar eru þegar komnar" });
     }
-  } else if (Array.isArray(f[DRAWINGS_FIELD_NAME]) && f[DRAWINGS_FIELD_NAME].length) { // replace, don't pile up
-    const clr = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`, {
-      method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ fields: { [DRAWINGS_FIELD_ID]: [] } }),
-    });
-    if (!clr.ok) return res.status(502).json({ error: `Airtable ${clr.status}` });
   }
+  // PRO replace: the OLD drawing is only dropped after the NEW one is safely attached (a failed upload used to leave the project with no drawing)
+  const oldIds = (Array.isArray(f[DRAWINGS_FIELD_NAME]) ? f[DRAWINGS_FIELD_NAME] : []).map((a) => a && a.id).filter(Boolean);
 
   const date = new Date().toISOString().slice(0, 10);
   const up = await fetch(
@@ -83,5 +79,19 @@ export default async function handler(req, res) {
     }
   );
   if (!up.ok) return res.status(502).json({ error: `Airtable ${up.status}: ${await up.text()}` });
+  if (pro && oldIds.length) {
+    // uploadAttachment APPENDS and answers with the record: the attachment that wasn't there before is the new one
+    const upRec = await up.json().catch(() => ({}));
+    const now = ((upRec.fields || {})[DRAWINGS_FIELD_ID] || (upRec.fields || {})[DRAWINGS_FIELD_NAME] || []);
+    const fresh = now.filter((a) => a && a.id && !oldIds.includes(a.id));
+    if (fresh.length) {
+      const keep = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${PROJECTS_TABLE}/${recordId}`, {
+        method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { [DRAWINGS_FIELD_ID]: [{ id: fresh[fresh.length - 1].id }] } }),
+      });
+      // the new drawing is in either way; if the tidy-up failed the old one is still next to it (never zero drawings)
+      if (!keep.ok) return res.status(200).json({ ok: true, bytes: pdf.length, warning: "Gamla teikningin er enn á verkefninu við hliðina á nýju" });
+    }
+  }
   return res.status(200).json({ ok: true, bytes: pdf.length });
 }
