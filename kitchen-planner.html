@@ -90,6 +90,7 @@
 <script src="kitchen-planner-models.js"></script>
 <script src="kitchen-planner-linemap.js"></script>
 <script src="kitchen-planner-beam.js"></script>
+<script src="kitchen-planner-pocket.js"></script>
 <script src="kitchen-planner-3d.js"></script>
 <script src="kitchen-planner-doors.js"></script>
 <script src="kitchen-planner-showcase.js"></script>
@@ -13957,7 +13958,25 @@
     hltop: { label:"AVENTOS HL-Top", id:"recHqMOZkfg9tcWtn" },
     hlrafk: { label:"AVENTOS HL rafknúin", id:"recCMF1q3qNtZsb8l" }
   };
-  function pocketLeafOf(b, c){ return b.widthMm > 600 && !c.fridge && c.cls !== "corner" ? "duo" : "uno"; }
+  // Vasahurðir round 1 (2026-10-30): the version, side and the space it takes come from KPPOCKET (kitchen-planner-pocket.js);
+  // an old spec with no pocketVer means the Blum default for its width. Old rule here was "> 600 = duo".
+  function pocketSpecOf(b, c){
+    var sd = proSmidaDoors(b, c), sp = null;
+    if (sd) sd.forEach(function(d){ if (d && d.type === "pocket" && !sp) sp = d; });
+    return sp;
+  }
+  function pocketResOf(b, c, specIn){
+    var sp = specIn || pocketSpecOf(b, c); if (!sp || !window.KPPOCKET) return null;
+    var fb = findBlock(b.id), zone = fb ? fb.zone : (c.zone || "floor");
+    var dims = { widthMm:b.widthMm, bodyMm:proBodyMm(b, c, zone), depthMm:b.depthMm || c.d };
+    return KPPOCKET.resolve(sp, dims, b.swing === "haegri" ? "right" : "left");
+  }
+  function pocketLeafOf(b, c){
+    if (c.fridge || c.cls === "corner") return "uno";
+    var r = pocketResOf(b, c);
+    if (r) return KPPOCKET.leafOf(r);
+    return b.widthMm > 900 ? "duo" : "uno"; // no spec yet (wizard preview): Blum's own limit — uno reaches 900
+  }
   // V3 = accessories with an Aukahlutategund route: the bin insert (+ the LED, added in collectLineItems)
   function v3RecordsFor(b, c){
     var LM = window.KP_LINEMAP, out = [];
@@ -14135,8 +14154,10 @@
         var smDoorsN = proSmidaDoors(b, c);
         if (smDoorsN && smDoorsN.some(function(d){ return d && d.type === "pocket"; })){
           var pSysNote = (smDoorsN.filter(function(d){ return d && d.type === "pocket"; })[0] || {}).pocketSys || "revego";
+          var pResN = pocketResOf(b, c); // the version + side + space (round 1, 2026-10-30); same words as before when the spec is old
           notes.push("Rennihurð í hlið í stað lama (" + (pSysNote === "revego" ? "Blum Revego, INNVAL" : "Hawa Concepta III, Járn og gler") + ", " +
-            (pocketLeafOf(b, c) === "duo" ? "tvöfalt kerfi" : "einfalt kerfi") + ") — staðfestu að breiddin passi við kerfið og athuga verð hjá birgi, verðið í grunninum er nokkra mánaða gamalt.");
+            (pResN ? KPPOCKET.summary(pResN) : pocketLeafOf(b, c) === "duo" ? "tvöfalt kerfi" : "einfalt kerfi") + ") — staðfestu að breiddin passi við kerfið og athuga verð hjá birgi, verðið í grunninum er nokkra mánaða gamalt." +
+            (pResN && pResN.units.length > 1 ? " Útgáfan hefur " + pResN.units.length + " vasa — pantaðu eitt sett á hvern." : ""));
         }
         if (isDrawerUnit(b)){ // the stack as drawn, top → bottom, with front heights — also when it matched a combo
           var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dFr = KP3D.stackFrontsMm(b.interior, dCodes, drawerBodyMm(b, c)) || [];
@@ -18270,6 +18291,10 @@
     var top = body; // doors stack from the top
     doors.forEach(function(d, i){
       var sp = proSpec(b, doors, i), bottom = top - d.box;
+      if (sp.type === "pocket" && window.KPPOCKET && i === 0){ // the version's size limits (Blum / Hawa tables, 2026-10-30) — errors stop "klár", yellow notes do not
+        var pRes = pocketResOf(b, c, sp);
+        if (pRes) KPPOCKET.validate(pRes).forEach(function(v){ if (v.level === "err") add(v.text); });
+      }
       if (sp.type === "hinged"){ // lift/pocket doors have no side hinges to validate at all
         var pos = CNCSIDES.specToPositions(sp.hinges, d.box), need = proHingeMin(d.box);
         if (pos.length < need) add(KPPROTEXT.hingeCount(d.label, d.box, need, pos.length), "hinges");
@@ -20281,7 +20306,9 @@
     if (doors.length && b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") o.doorSys = b.doorSys;
     if (doors.length && b.smida) o.doors = doors.map(function(dr, i){ var sp = proSpec(b, doors, i);
       return { h:dr.box - 3, type:sp.type, side:b.swing || null, hinges:sp.type === "hinged" ? sp.hinges : [],
-        pocketSys:sp.type === "pocket" ? (sp.pocketSys || "revego") : undefined }; });
+        pocketSys:sp.type === "pocket" ? (sp.pocketSys || "revego") : undefined,
+        pocketVer:sp.type === "pocket" ? sp.pocketVer : undefined, pocketSide:sp.type === "pocket" ? sp.pocketSide : undefined, // only when chosen: older units hash exactly as before
+        toeKick:sp.type === "pocket" && sp.toeKick === false ? false : undefined, onWorktop:sp.type === "pocket" && sp.onWorktop ? true : undefined }; });
     // Grip svæði (Fræst grip) → Keyra skipulag (Eyðublað "Grip svæði (JSON)" + "alla" shrinks Sérhæð/Hæð frontur N
     // directly) → teikning + /cnc. Re-validated against the cabinet's CURRENT fronts, same as proSplit above —
     // a resized/reconfigured cabinet drops a grip zone whose front no longer exists instead of sending stale data.
@@ -20736,7 +20763,7 @@
       state.walls.forEach(function(w){ (w.floor || []).concat(w.wall || []).forEach(function(b){
         var c = CATALOG[b.type]; if (!c) return;
         if (b.doorSys && DOOR_SYSTEMS[b.doorSys]) add(doorSysRec(b).label);
-        else if ((proSmidaDoors(b, c) || []).some(function(d){ return d && d.type === "pocket"; })) add("Vasahurðir / rennihurð í hlið (Blum Revego)");
+        else if ((proSmidaDoors(b, c) || []).some(function(d){ return d && d.type === "pocket"; })) { var yRes = pocketResOf(b, c); add(yRes ? "Vasahurðir (" + (yRes.sys === "revego" ? "Blum " : "Hawa ") + KPPOCKET.summary(yRes) + ")" : "Vasahurðir / rennihurð í hlið (Blum Revego)"); }
         if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) add("Lyftihurð (" + AVENTOS_PRODUCTS[b.aventos].label + ")");
         if (b.closetInner) add("Innskúffur fyrir aftan hurð");
         if (b.mirrorFront) add("Spegilskápur");
