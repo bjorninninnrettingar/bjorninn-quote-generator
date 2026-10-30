@@ -213,3 +213,14 @@ test("SOP's: unreadable without a key, readable with the key (internal reference
   const url = f.calls[f.calls.length - 1].url;
   assert.ok(decodeURIComponent(url).includes("Lýsing á skrefum"), "fields come through with the key");
 });
+
+test("Pantaðir listar: PATCH (📧 Senda á birgja / Staða) needs ?k=VERK_KEY — it triggers a real supplier e-mail", async () => {
+  const path = "tblSccfV2lBp4FiFU/recAAAAAAAAAAAAAA";
+  const noKey = await patch(path, { "📧 Senda á birgja": true });
+  assert.equal(noKey.statusCode, 403);
+  const wrong = await patch(path, { "📧 Senda á birgja": true }, "nope");
+  assert.equal(wrong.statusCode, 403);
+  const ok = await patch(path, { "📧 Senda á birgja": true }, "verk-secret");
+  assert.equal(ok.statusCode, 200);
+  assert.deepEqual(f.calls.at(-1).body.fields, { "📧 Senda á birgja": true });
+});

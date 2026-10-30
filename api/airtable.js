@@ -760,7 +760,7 @@ export function pieceGetAllowed(scope, tableId, recordId, fml) {
   return tableId === UNIT_TBL && PIECE_UNITS_FILTER.test(fml);
 }
 
-const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU", "tbl3e5o0Klv9RcNQ4", "tbloXR7f9Q943O9el"]);
+const PATCH_REQUIRES_KEY = new Set(["tblQ8zeUanriESWvL", "tbl2akoCETBx9S1SK", "tbl8HjvBwNJ41cTV0", "tbl8CrVWKF8CuI7HD", "tbljdg6uxEfHE7uCU", "tbl3e5o0Klv9RcNQ4", "tbloXR7f9Q943O9el", "tblSccfV2lBp4FiFU"]);
 
 // Fields forced to a fixed value on create, regardless of what (or whether)
 // the client sends — applied after CREATABLE_FIELDS filtering, so these
