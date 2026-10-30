@@ -1,0 +1,53 @@
+# Sweep 2026-10-30 — Skipulag group (cutlist, grain, smida, bpp-viewer, eining)
+
+**Summary**
+1. No critical bugs found. All five pages parse, load with zero console errors, and show sane empty/error states (checked live, read-only).
+2. Biggest real finding: `/smida` and `/eining` cannot be opened without a key/token, and their error texts still send people to **"CNC"**, a page that no longer exists (`/cnc` → `/smida` since 2026-10-29). Same stale "/cnc" wording in `/bpp`.
+3. `/aedar` is the heaviest page (emoji everywhere, Efnislisti downloaded ~5× per project open), `/smida` is the lightest, most "Apple" looking; the five pages use **three different visual languages** (see fingerprint table).
+4. No chatbot widget and no help line component on any of the five pages (the chat widget is embedded only in `kitchen-planner.html`, Studio mode); each has a one-line subtitle only.
+5. NOT verified live: `/smida` main flow (needs the office key `k`) and `/eining` with a real unit (needs a 12h `/v` piece token) — I did not use or look for either; reviewed statically + `tests/cnc-export.test.js` (4/4 pass).
+
+Method: static server on :4399 that serves repo files with `vercel.json` rewrites and proxies `/api/*` GET-only to production (non-GET blocked; nothing was written to Airtable; no blocked write was attempted). `vercel dev` could not start (no Vercel credentials on this machine). Real data loaded for T-31 / T-157 etc.
+
+## Findings
+
+| # | Severity | Page | What | Customer-facing / internal | Fix size | Suggested fix |
+|---|---|---|---|---|---|---|
+| 1 | minor | /smida | Error texts say "Opnaðu síðuna úr PRO eða CNC" — CNC page is gone (redirects to /smida). Seen live with no key ("Lykil vantar") and bad key ("Lykillinn virkar ekki"). | internal | <10 min | `smida.html:286`, `:292`, `:301`: replace "PRO eða CNC" with "PRO (Yfirferð)" or "skrifstofunni". |
+| 2 | minor | /smida | "Reyna aftur" in the error screen is `location.reload()` — useless for "Lykil vantar"/"Lykillinn virkar ekki" (same result forever). Toolbar (Vista / Afturkalla / Skrifa á USB) stays visible, disabled, under the error. | internal | <10 min | `smida.html:279`: for key errors pass `extra=''` (no button) or an `<a href="/skrifstofa">Opna skrifstofu</a>`; hide `.toolbar` when `fail()` runs. |
+| 3 | minor | /smida | No project picker: bare `/smida` is always an error page. Only reachable via a deep link with `?recordId=`/`?t=` + key. A user who types the short URL (documented in CLAUDE.md as the page for CNC export) hits a dead end. | internal | bigger | When `!REC && !WANT_T` show a list of won projects (CNC page used to have one), or at least link to `/skrifstofa`. Code: `smida.html:284-292` (`boot()`). |
+| 4 | minor | /bpp | Subtitle says files "sem /cnc bjó til" and header comment mentions /cnc; /cnc is now /smida. | internal | <10 min | `bpp-viewer.html:97` → "sem /smida bjó til". |
+| 5 | polish | /bpp | Dropping/picking a non-`.bpp` file is silently ignored (checked: `y.txt` produced no card, no message). | internal | <10 min | `bpp-viewer.html` `addFiles()`: if `!/\.bpp$/i.test(f.name)` append a `.bpp-note.warn` "Aðeins .bpp skrár". |
+| 6 | polish | /bpp | No back link / site nav at all (only page of the group without one; others have `‹ Til baka`). | internal | <10 min | Add `<a href="/smida">‹ Til baka</a>` above `.kicker` (`bpp-viewer.html:~92`). |
+| 7 | minor | /aedar | Perf: Efnislisti (all boards, 6 fields, paged 100) is fetched ~5× on page load and again ~5× on project select (`fetchBoards()` has no cache); Sögunarlisti for all 9 candidate projects is also fetched twice per page-set. Slow on weak office wifi, wasteful against Airtable's 5 req/s. | internal | <10 min | `grain.html:965-967`: memoize `fetchBoards()` in a module-level promise (`let _boards; return _boards \|\|= airtableFetch(...)`); find the repeated callers with `grep -n fetchBoards grain.html`. |
+| 8 | polish | /aedar | Emoji in UI: 🪵 `:555`, 📄 `:576`, 🖨 `:655`, ✅ `:657`, plus ⚠ ✅ ✏️ 🆕 📐 🔒 ▶ ⊞ in JS-built strings. Studio's no-emoji rule applies to Studio only, but this is the main inconsistency for a unified look. | internal | bigger | Replace with line icons (`icon()` helper used in Studio) when unifying; not worth doing earlier. |
+| 9 | polish | /cutlist | Banner/chips use ✅ ✏️ ⚠ (`cutlist.html:708,719,724,725`). Everything else (buttons, labels) is plain text — this page is the cleanest of the two. | internal | <10 min | Swap for text or small CSS dots. |
+| 10 | polish | /cutlist | Dark theme CSS (`:root[data-theme="dark"]`, `cutlist.html:24-30`) is dead: nothing sets `data-theme` on this page (grain has none, eining reads `verkApp:theme`). | internal | <10 min | Delete the block or add the same `localStorage verkApp:theme` snippet eining uses (`eining.html:13`). |
+| 11 | polish | /cutlist, /aedar | Nav chip labelled **"SÖGUNARLISTI"** links to `/labels` (Merkingar). Chip names are F6 – CUTTY / F2 – ÆÐAR / SÖGUNARLISTI: third one is the odd one out (page title is "Merkingar (Sögun)"). | internal | <10 min | `cutlist.html:167`, same line in `grain.html`: label "MERKINGAR". Confirm wording with Isak first. |
+| 12 | polish | /cutlist | Oversize-fix rows show empty inputs rendered as " ×  mm" before the buttons "Leiðrétta og vista / Merkja sem handskorið" (T-31 error state). Works, just unlabeled. | internal | <10 min | `cutlist.html:~1215` add `placeholder="B"`/`"H"` (or `aria-label`) to the two number inputs. |
+| 13 | polish | /eining | Error state ("Fann ekki einingu") is a dead end: no link, no hint where to get a new QR. Text "hlekkinn vantar lykil" is the only guidance. | internal (floor, phone) | <10 min | `eining.html:162`: add `<a href="/app">‹ Verkstæðisappið</a>`. |
+| 14 | polish | all 5 | No on-screen help beyond a one-line subtitle (cutlist, aedar, saga, bpp). `/smida` and `/eining` have none. `/leidbeiningar` is the only help page and none of the five link to it. | internal | <10 min each | Add one `Leiðbeiningar ↗` text link to `/leidbeiningar` in the shared header row (cutlist/aedar `toolnav`, smida toolbar). |
+| 15 | polish | /saga (grain FLOOR_MODE) | Checked load only: project list renders, no errors. (A "403" in the console right after opening was a stale entry from the earlier /smida bad-key test — confirmed no failing resource on /saga via Resource Timing.) | internal | – | none |
+
+Checked and OK: `/cutlist` — project list (29 won, not delivered), empty state ("Engar Sögunarlisti færslur fundust"), error state with oversize/missing-dimension lists, USB button correctly disabled until resolved. `/aedar` — project list (3), material picker, fronts load, warnings for stale lines work, drawings count. `/bpp` — drop zone, bad-file card ("Fann ekki PAN=LPX/LPY"), clear button. `/smida` — no-key and bad-key states. `/eining` — no-token state. Wired links all valid: `/app`, `/aedar`, `/cutlist`, `/labels`, `/fraesing` (exists), `/leidbeiningar`.
+
+## Fingerprints
+
+| Page | Font | Base size | Background / surface | Primary / accent | Radius | Buttons | Header / logo | Density | Icons | Dark mode |
+|---|---|---|---|---|---|---|---|---|---|---|
+| /cutlist | system stack (`-apple-system, Segoe UI…`) | 16px | `#f3f4f6` / `#fff` | accent `#0f6cbd`, warn `#9a6700`, bad `#c4291c`, good `#1a7d36` | 8 (buttons), 12 (cards) | primary = solid blue fill, secondary = white + 1px border, 8px radius | `‹ Til baka` + h1 + subtitle + 3 text chips (F6 CUTTY active / F2 ÆÐAR / SÖGUNARLISTI); no logo | medium | text; a few emoji in banners | CSS defined, never activated |
+| /aedar (+/saga) | system stack, **plus Kumbh Sans loaded from Google Fonts** (link in head, but `--font` doesn't use it) | 16px | `#f3f4f6` / `#fff`, surface2 `#eef1f4` | blue `#0f6cbd` (same as cutlist), amber `#9a6700`, red `#c4291c` | 8–10 buttons/inputs, 16 cards, 999 pills | blue primary + `ghost` outline + `small`; many icon-leading buttons | same chip header as cutlist | **dense** (toolbar of ~10 buttons) | **heavy emoji** (🪵📄🖨✅🔒▶⊞📐) | none |
+| /smida | system stack incl. "SF Pro Text" | **14px** | `#f5f5f7` / `#fff`, lines `#e5e5ea` | blue `#0071e3`, green `#248a3d`, amber `#b25000`, red `#d70015`; ink `#1d1d1f` | 8 inputs/buttons, 9 list items, 16 sheets | black pill-ish `Skrifa á USB` (`#1d1d1f`, white text), text-style toolbar buttons | project name left + save dot/progress bar; no logo | airy, full-height app layout (`overflow:hidden`) | **no emoji**, text/SVG | none |
+| /bpp | **Kumbh Sans** (Google Fonts) | 16px | **dark** `#2a2a2a` / `#1c1c1c` | blue `#2196f3`, green `#30d158`, amber `#ffd60a`, red `#ff453a`; inner viewer uses BiesseWorks beige/olive palette on purpose | 9–14 | outlined ghost, grey fill | uppercase kicker "BJÖRNINN INNRÉTTINGAR" + h1 | medium | none (✕ glyph only) | dark only |
+| /eining | **Kumbh Sans** | 16px | **dark** `#0b0b0c` / `#161618` (light via `verkApp:theme`) | blue `#0a84ff`, amber `#ffd60a`, green `#4caf50`; section colors violet/teal/orange | 7–10 | large tappable tiles (`.tool` links), 800 weight | unit name as title; no logo | phone-density, big touch targets | emoji in rows/notes (📋 ⚠️ 🖼️) | dark default + light toggle |
+
+**Deviations / unification notes**
+- Two families: office light (cutlist, aedar → share `#0f6cbd`, identical tokens, the 2026-10-18 "office shell" retheme) vs floor dark (bpp, eining → Kumbh Sans, `#0a84ff`/`#ffd60a` iOS-style colors). `/smida` is a third: Apple light (`#0071e3`, 14px, SF Pro, no emoji) and is the closest to the Studio "no emoji, high end" direction — use it as the base.
+- Blues differ on every page: `#0f6cbd`, `#0071e3`, `#2196f3`, `#0a84ff`. Greens: `#1a7d36`, `#248a3d`, `#30d158`, `#4caf50`. Pick one set of tokens.
+- Font: Kumbh Sans is the floor font; `grain.html` loads it but never uses it (wasted request, `grain.html` `<link>` to Google Fonts) — either use it or drop the link.
+- Base size 14px (smida) vs 16px elsewhere; radius scale 8/10/16 in office pages vs 9/14 in bpp.
+- Header: cutlist + grain share the chip nav and `‹ Til baka → /app`; smida, bpp, eining have different (or no) navigation back.
+
+## Help / chatbot
+- Chat widget: not on any of the five pages. `chat-widget.js` is loaded only by `kitchen-planner.html` (Studio mode, `window.BJORNINN_CHAT.mode="studio"`) and by the Wix homepage via injected script (shadow DOM, homepage-only by code). Nothing to fix; just don't expect it on tools.
+- On-screen help: one-line subtitle on `/cutlist` ("Býr til CUTLST-skrár beint á USB-drif…"), `/aedar` ("Raðar frontum með samfelldri viðaræð…"), `/saga` ("Staðfest æðaskipulag frá skrifstofu — skref fyrir skref."), `/bpp` (a 2-sentence intro); `/smida` and `/eining` none. `title=` tooltips: grain 18, smida 4, cutlist 0.

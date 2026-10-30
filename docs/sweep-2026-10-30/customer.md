@@ -1,0 +1,59 @@
+# Customer-facing sweep — 2026-10-30
+
+Scope: `/skipuleggja` + `/hanna` (kitchen-planner.html, Studio), `/verkefni` (verkefni.html), links out of both, chatbot embed.
+Method: local `python3 -m http.server 4398` (planner, no `/api`), verkefni with a mock `/api/airtable` + a fake "Wix" host page with a height-listener iframe. Nothing submitted, kp-submit never hit, no writes to the live base. Planner walked at 1024×768 (pane size): welcome → Byrja → add Eldhús → shape (laga, stærð, hæð/útlit, op, vatn) → materials 1–5 → editor (suggestion prompt, tour, Ný eining, úthliðar prompt) → rýmin → Spurningar → Senda inn (stopped there) → reload (draft restore) → Hjálp → Spyrja.
+
+## Summary
+1. No customer-blocking bug found. Whole flow works at 1024×768, no console errors (only `/api/airtable` 404 which is expected without Vercel), no page scroll on any step (`scrollHeight == innerHeight` everywhere), "← Til baka / Áfram →" sit at the identical spot (right of title row) on shape, materials, intake and contact; draft restore ("Halda áfram") works.
+2. Real but small: the `⚠️` emoji on "Villa / hugmynd" is visible on **every** Studio page (rule: no emoji in Studio); the `/api`-less gate is only checked once at load (no resize listener); the Garðabær teikningavefur link 404s.
+3. verkefni.html is healthy as an iframe: height posts settle (no ResizeObserver loop), no horizontal overflow at 375 px, bad/missing `?t=` shows a friendly error. One field (`Harðviðargrip`) is not in the proxy allowlist so the "fræst grip" line can never show.
+4. `/hanna` is just a rewrite to the same file — there is **no** Hanna variant in code (no pathname check anywhere). If one was intended it does not exist.
+5. Chatbot: present in Studio (bottom-left launcher + Hjálp → Spyrja), correctly hidden in editor/heimili/hurdir; absent from verkefni.html (by design).
+
+## Findings
+
+| # | Sev | Page / step | What | Fix size | Suggested fix |
+|---|---|---|---|---|---|
+| 1 | minor | Every Studio page, Hjálp menu, report modal | Emoji `⚠️` in "Villa / hugmynd" top button, menu item and modal title. Breaks "no emoji in Studio". Code already has a line icon (`ICON_PATHS.alert`, line 2919) used in PRO. | <10 min | kitchen-planner.html:2346, 2354, 13501: drop `⚠️`, use the `alert` line icon (or plain text). Also remove the duplicate: the same action is in the top bar AND in the Hjálp menu (2354). Keep `kitchen-planner-i18n*.js` keys in sync (key text contains the emoji). |
+| 2 | minor | Gate (<768 px) | `checkMobileGate()` runs once (kitchen-planner.html:21585), no `resize`/`orientationchange` listener. Reproduced: first load happened while the pane was transiently narrow → gate shown, main hidden; after the pane widened the gate stayed until a manual reload. Same for a customer who maximises a small window or rotates a tablet. At 700 px the gate also did not appear after a resize. | <10 min | Add `addEventListener("resize", checkMobileGate)` (debounced) next to line 17824 definition; keep the intro's own `innerWidth < 768` check as is. |
+| 3 | minor | Gate copy | Text says "…raða upp **eldhúsinu** þínu" (kitchen-planner.html:2327) but Studio now covers fataskápur/bað/þvottahús/hurðir. | <10 min | "…til að hanna heimilið þitt." |
+| 4 | minor | Heimili → "Hjálp"/intake → hint text | Garðabær link in the "Teikningar af húsinu" hint (kitchen-planner.html:15902) is `https://www.gardabaer.is/en/kortavefur` → **404**, and an `/en/` URL in an Icelandic hint. `https://www.gardabaer.is/kortavefur` returns 200. (Reykjavík, island.is, skilmálar, algengar-spurningar all 200.) | <10 min | Replace with `https://www.gardabaer.is/kortavefur`. |
+| 5 | minor | Editor, first entry (1024 px) | The "Tillagan er bara byrjun" toast sits on top of the left part of the suggestion card's primary button ("Já, sýna tillögu" reads ", sýna tillögu"). Two overlays at once on the very first editor view. | <10 min | Don't show that toast while the suggestion card is up (or position the toast above it); find the toast call next to the suggestion prompt. |
+| 6 | minor | Editor header @1024 px | `#pageTitle` ("Hannaðu eldhúsið þitt") is clipped by the stepper pills that are overlaid in the editor top bar (title starts ~x=117, pills start ~x=208). Only fits on wider screens. | <10 min | In editor mode hide the title (the stepper already says where you are) or give the stepper `left` offset / `min-width` flex layout. |
+| 7 | minor | verkefni | `F.grip = "Harðviðargrip"` (verkefni.html ~l.386) is the only one of 31 field names not in `ALLOWED_FIELDS` of api/airtable.js — proxy strips it, so the "fræst grip: …" suffix/line never renders. Either the field is not on Tækifæri (dead code) or the allowlist is missing it. | <10 min | Check the Tækifæri field name; add to Tækifæri allowlist (api/airtable.js ~l.39–60 block) or delete the grip code (renderMaterials). |
+| 8 | polish | Studio, intro | First visit plays a ~7 s intro on a white screen with no visible "skip" hint (skip = click/any key, kitchen-planner.html:14489). Returning visitors with an empty draft get ~1 s "quick". Safety net at 9 s. | <10 min | Add a tiny "Sleppa" text bottom-centre after ~1.5 s, or cap the full intro at ~4 s. |
+| 9 | polish | Studio buttons | Two primary styles: welcome CTA = black pill (`#111`, ~999 px radius, 17 px); everything else = blue `#3d61c1` 9 px radius rectangle. "Áfram", "Já, sýna tillögu", "Senda til söluaðila", Hanna all blue. | bigger (design call) | Pick one primary for Studio and for the unified look (see fingerprint). |
+| 10 | polish | Studio CSS | Radius scale is ad-hoc (8/10/12/14/6/7 px, 999, 50% all common); font sizes fractional (12.5, 13.5, 11.5, 10.5 px) alongside 12/13/14. | bigger | When unifying: define 4 radii (6 / 10 / 14 / pill) and a 5-step type scale as tokens. |
+| 11 | polish | Materials ⟶ Framhlið/Borðplata | Material names are English Egger names ("Caramel Beige", "Alpine White", "Brown Orleans Oak", "Premium White") in an Icelandic UI; top bar tool name "X-Ray" in the editor toolbar. Probably intended (product names) but a customer sees mixed language. | <10 min if wanted | Keep product names; translate "X-Ray" (e.g. "Röntgen"/"Innvols") in kitchen-planner.html toolbar + EN dictionary. |
+| 12 | polish | Materials ⟶ Höldur | Page header here wraps the hint into 2–3 lines next to the buttons ("Veldu hönd — eða Þrýstiopnun undir Ekkert handfang") and pushes the title row taller than on the other four pages; Áfram is disabled until a handle is chosen (intentional, with toast). | <10 min | Shorten the hint to one line, or move it under the title as on other pages. |
+| 13 | polish | Shape → Gluggar og hurðir (wall 2+) | "← Fyrri veggur" button sits flush against the "Bæta við" label under it. | <10 min | Add ~8 px margin above "Bæta við". |
+| 14 | polish | Senda inn | Left summary shows a generic open grey box thumbnail instead of the customer's own cabinet/room; the "Það…" expander at the bottom of the card is partly under the "Ekkert er pantað núna" toast. | <10 min | Use the room thumbnail (`homeThumbs`) here; delay the toast. |
+| 15 | polish | `/` root | `https://bjorninn.vercel.app/` returns Vercel's plain "NOT_FOUND" page. bjorninn.html ("front door") has no rewrite. A customer who trims the URL lands on a Vercel error. | <10 min | Rewrite `/` → a customer-safe page (e.g. redirect to `https://www.bjorninninnrettingar.is`) — **not** the staff front door. |
+| 16 | info | `/hanna` | Same file as `/skipuleggja`, no behavioural difference (grep: no pathname logic). Only query flags change behaviour: `?pro=`, `?embedded=1`, `?scene=`, `?reset=1`, `?maeling=1`, `?smida=Sk…`. | n/a | If `/hanna` should differ (e.g. tag the Tækifæri source), nothing implements it. |
+| 17 | info | Performance | Frame rate could not be measured: pane throttled rAF (2 fps, 1000 ms frames). Needs a real window. 3D scene + drawer `.dae`/oven/dishwasher models loaded without errors; Collada Z-up console warnings only. | – | Re-measure in a real browser. |
+| 18 | info | verkefni iframe | Works: posts `{type:"verkefni:height"}` with `"*"` target to parent and top (only a number, harmless). Heights: 244 (loading) → 1301 stable, host iframe resized correctly, no loop. 375 px: no overflow. Emoji (👋 ✅ 📐 🔨 📦 🚚 🏡) are intentional on the portal. Requires the Wix Custom-Code listener (not in repo; not verifiable here). | – | – |
+
+Not checked: EN mode text sweep, Fataskápur/Bað/Þvottahús/Innihurðir sub-flows (only Eldhús walked), PRO, drag/drop placement, submit path and thank-you screen, real `/api/kp-*` behaviour (needs live env — deliberately avoided).
+
+## Visual fingerprint — Studio (candidate reference look)
+
+| Attribute | Value |
+|---|---|
+| Font | Kumbh Sans (Google Fonts, 400/500/600/700), fallback Arial. Same family in verkefni, faq, bjorninn.html |
+| Base text | 16 px body, UI mostly 12–14 px (111× 12 px, 101× 13 px, 62× 14 px); titles 15–22 px 600; welcome H1 `clamp(40px,4.6vw,68px)` 600, letter-spacing −.035em, line-height 1.03 |
+| Colour tokens (`:root`) | bg `#ffffff`, panel `#faf9f6`, ink `#191919`, ink-soft `#6f6d66`, line `#e6e3da`, gold `#a29c72`, gold-soft `#f5f3ea`, blue `#3d61c1`, blue-deep `#2c478e`, blue-soft `#eaeefb`, danger `#b3432f`, danger-soft `#fbebe7` (+ scene colours oven `#8a3b2c`, corner `#3b7a5a`) |
+| Primary button | blue `#3d61c1`, white 14.5 px/600, radius 9 px, padding 12×22; hover → `#2c478e`. Welcome CTA is the exception: black pill |
+| Secondary button | white, 1 px `#e6e3da` border, ink text, same size/radius |
+| Pills / chips | 999 px radius, 13 px/600, 1 px line border (Hjálp, Villa/hugmynd, Rýmin þín); stepper pills 12 px radius, gold-soft bg `#f5f3ea` + 1 px `#d9d3b3` |
+| Cards | white, 1 px line, 10–14 px radius, selected = blue border + blue-soft fill + blue check; no heavy shadows (focus ring `0 0 0 3px blue-soft`) |
+| Modals / toasts | white modal radius ~14 px, dim overlay; toasts dark `#191919`-ish with gold lead word, 12–13 px |
+| Header / logo | text wordmark "BJÖRNINN" gold small caps + "STUDIO" (welcome: stacked wordmark, 2 lines); inner pages: small gold caps "BJÖRNINN STUDIO" above the 15 px page title; Hjálp + Villa pills top right |
+| Layout / spacing | 24 px page gutter, single column; no page scroll on desktop, inner panels scroll; 8 px base grid (gaps 8/12/16/24) |
+| Icons | 1.5 px stroke line icons, 24 px viewBox, round caps (room cards, gate laptop, droplet), no emoji (except the ⚠️ in finding 1) |
+| Motion | quiet; intro 3D "STUDIO" extrusion on first visit; hover = preview, click = commit in material pickers |
+
+Other customer pages for comparison: **verkefni** — Kumbh Sans, light paper theme (`--paper #faf7f2`, ink `#2a2420`, walnut accent `#9c6b3f`, done green `#5f8f63`), max-width 720 px, 1.95 rem/600 greeting, soft shadow cards, emoji timeline. **faq (/adstod)** — Kumbh Sans, white bg. **bjorninn.html (staff front door)** — dark (`#0b0b0c`, blue `#0a84ff`), different system again. So three palettes exist across customer + staff pages; Studio's blue/gold/white is the most complete token set to unify on (verkefni's walnut + paper is the warmest and would need a decision: keep walnut as accent or switch to Studio blue).
+
+## Chatbot embed
+- Studio: `startChat()` (kitchen-planner.html:21664) sets `window.BJORNINN_CHAT = {mode:"studio", lang, getContext, launcher}` then injects `chat-widget.js`; launcher bottom-left (round 44 px button, line icon), hidden in editor/heimili/hurdir (`chatLauncherFits`), never in PRO. Also reachable via Hjálp → Spyrja (opens a left panel, greeting "Hæ! Spurðu mig um hönnunartólið…", input + "Senda"). Opened it; did not send a message. Context sent = step/room/materials only.
+- verkefni.html and faq.html: no chat widget (grep). The widget for the Wix site is injected from the Wix side (chat-widget.js header says so).
