@@ -50,3 +50,25 @@ test("(b) every entry (panel button, /smida Laga í PRO, new unit) lands in the 
   assert.ok(/smFirstSec\(b, c\)/.test(html.slice(html.indexOf("uw.sec = uw.smida ? smFirstSec"), html.indexOf("uw.sec = uw.smida ? smFirstSec") + 80)));
   assert.ok(/smFirstSec/.test(fnBody("smEnterNew")));
 });
+
+test("(c) Rýmin í þessu verki: PRO gets the home button, a working back link, X / Y Klár + errors per room, Áfram → Yfirferð", () => {
+  assert.ok(/PRO \? PRO\.ready : state\.home/.test(html) && /hb\.textContent = "Rýmin í þessu verki"/.test(html), "the button shows in PRO under its own name");
+  assert.ok(!/homeBackTo = !PRO &&/.test(fnBody("openHome")), "homeBackTo is set in PRO too");
+  const st = fnBody("hlProStats");
+  assert.ok(/withEachCategory/.test(st) && /proReady\(b\)/.test(st) && /proIssues\(b, c, zone\)/.test(st), "the same readiness / error rules as Yfirferð and Smíða's header");
+  const list = fnBody("renderHomeList");
+  assert.ok(/" Klár"/.test(list) && /með villur/.test(list) && /"Halda áfram"/.test(list) && /"Opna"/.test(list));
+  assert.ok(/hlcont/.test(list) && /smOpenAt\(st0\.first\)/.test(list), "Halda áfram goes through the one openRoom + openSmidaWizard path");
+  assert.ok(/if \(PRO\)\{ if \(proReadOnly\(\)\)[^]*proCheckOpen\(true\)/.test(html.slice(html.indexOf('getElementById("homeNextBtn").addEventListener("click"'))), "Áfram in PRO goes to Yfirferð, not Spurningar");
+  assert.ok(/PRO \? '' : '<button type="button" class="hl-x"/.test(list), "no stray × on a PRO room card");
+});
+
+test("(c) a finished room shows the overview with Næsta herbergi instead of jumping on; every room change shares one code path", () => {
+  const nx = fnBody("smNext");
+  assert.ok(/smRoomDone\(/.test(nx) && /smGo\(nx\.uid\)/.test(nx), "next cabinet in THIS room, else the overview");
+  const done = fnBody("smRoomDone");
+  assert.ok(/hlRoomDone = \{/.test(done) && /openHome\(\)/.test(done));
+  assert.ok(/smOpenAt\(uid\)/.test(fnBody("smGo")), "Klár across rooms uses the same door as the room card");
+  assert.ok(/data-hlnext/.test(fnBody("renderHomeList")) && /smOpenAt\(nx0\)/.test(fnBody("renderHomeList")));
+  assert.ok(/openRoom\(cat\)/.test(fnBody("smOpenAt")) && /openSmidaWizard\(id\)/.test(fnBody("smOpenAt")));
+});

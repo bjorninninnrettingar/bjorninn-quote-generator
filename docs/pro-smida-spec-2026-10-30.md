@@ -1,6 +1,6 @@
 # Smíða og Ný eining í PRO — tillaga að nýju flæði (2026-10-30)
 
-**Staða:** Þetta er TILLAGA, ekkert er byggt. Lestu, leiðréttu, svo byggjum við eina umferð í einu.
+**Staða:** Umferð 1 byggð 2026-10-30 (Ný eining í PRO jafnast á við Studio, Ný eining og Smíða eru eitt flæði, „Rýmin í þessu verki“). Umferðir 2 (lamir) og 3 (einn hlutur í einu) eru EKKI byggðar. Svör eiganda 2026-10-30: 1 Já, 2 Já, 3 Já, 4 Saman (ein tala í einu), 5 Yfirlit. Kóðatilvísanir aftast eru frá því áður en umferð 1 var byggð.
 Kóðatilvísanir (skrá:lína) eru aftast, í viðauka.
 
 ## Hvað þú baðst um
