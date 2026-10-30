@@ -20903,11 +20903,14 @@
     pr.then(clear, clear);
     return pr;
   }
+  // the drawing as the server sees it, minus the two stamps the save response itself rewrites (proSavedAt, liSent)
+  function proStateSig(){ var o = Object.assign({}, state); delete o.proSavedAt; delete o.liSent; return JSON.stringify(o); }
   async function proSaveRun(resolve, force){
     try{ state.roomMats = projectRoomMats(); }catch(e){} // every room's materials → the quote PDF's EFNISVAL
     var bt = document.getElementById("proSave"); if (bt) bt.disabled = true;
     proBar("Vista…"); pc.saving = true; if (pc.open) proCheckRender();
     var status = 0, d = {};
+    var sentSig = proStateSig(); // what this request carries: an edit made while it is in flight must keep the dirty flag
     try{
       var r = await fetch("/api/kp-pro", { method:"POST", headers:{ "Content-Type":"application/json" },
         body:JSON.stringify({ k:PRO.k, recordId:PRO.id, smida:proSmidaAll(), lineItems:collectAllLineItems(), project:projectMaterialFields(), handleSkus:projectHandleSkus(), state:state, resolve:resolve || undefined,
@@ -20945,13 +20948,15 @@
       proBar(); proSaveErrShow();
       return false;
     }
-    try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){}
+    var editedMeanwhile = proStateSig() !== sentSig; // typed/dragged while the request was out: that edit is NOT in Airtable
+    if (!editedMeanwhile){ try{ localStorage.removeItem(STORAGE_KEY + ":dirty"); }catch(e){} }
     proBar();
     if (pc.open) proCheckRender();
     toast("Vistað í Airtable: " + (d.created ? d.created + " " + plural(d.created, "ný lína", "nýjar línur") + ", " : "") +
       d.updated + " " + plural(d.updated, "lína uppfærð", "línur uppfærðar") + ", " + d.unchanged + " óbreyttar" +
       (d.projectUpdated && d.projectUpdated.length ? "; á Tækifærinu: " + d.projectUpdated.map(function(f){ return f.replace(/ (🔲|🖼️|🍽️|✊|🎨)| viðskiptavinar/g, ""); }).join(", ") : "") +
-      (d.removed && d.removed.length ? ". " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : "."));
+      (d.removed && d.removed.length ? ". " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : ".") +
+      (editedMeanwhile ? " Þú breyttir teikningunni á meðan — sú breyting er enn óvistuð, ýttu aftur á Vista." : ""));
     tp.last = null; proTilbodRefresh(true); // Airtable's own total just changed
     return true;
   }
