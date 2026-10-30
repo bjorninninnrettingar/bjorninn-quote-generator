@@ -516,7 +516,8 @@
         // opened without a session — send the person straight back once
         // they've logged in, instead of stranding them on the dashboard.
         var ret = new URLSearchParams(location.search).get("return");
-        if (ret) { location.href = ret; return; }
+        // only same-origin paths: no //host, no javascript:, no backslashes
+        if (ret && /^\/(?!\/)[^\\]*$/.test(ret)) { location.href = ret; return; }
         showShell(res.data.record, res.data.token);
       })
       .catch(function () { errEl.textContent = "Tókst ekki að tengjast"; pin = ""; renderDots(); });
@@ -1295,7 +1296,7 @@
   var existing = loadSession();
   if (existing && existing.record) {
     var ret0 = new URLSearchParams(location.search).get("return");
-    if (ret0) { location.href = ret0; }
+    if (ret0 && /^\/(?!\/)[^\\]*$/.test(ret0)) { location.href = ret0; }
     else showShell(existing.record, existing.token);
   }
 })();

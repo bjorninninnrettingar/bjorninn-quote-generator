@@ -44,3 +44,13 @@ test("kitchen-planner-linemap.js: every product id is a real record id", () => {
   })(map);
   assert.ok(n > 200, `found ${n} ids`);
 });
+
+test("skrifstofa.html: both ?return= redirects only accept same-origin paths", () => {
+  const src = fs.readFileSync(new URL("../skrifstofa.html", import.meta.url), "utf8");
+  const sinks = src.match(/location\.href = ret0?;/g) || [];
+  assert.equal(sinks.length, 2);
+  assert.ok(!/if \(ret0?\) \{ location\.href/.test(src), "unguarded ?return= redirect");
+  const re = /^\/(?!\/)[^\\]*$/;
+  for (const ok of ["/ferli?recordId=recX", "/pontun"]) assert.ok(re.test(ok));
+  for (const bad of ["javascript:alert(1)", "https://evil.example", "//evil.example", "/\\evil.example"]) assert.ok(!re.test(bad));
+});
