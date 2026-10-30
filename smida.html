@@ -220,12 +220,28 @@
   .bpp-rawlist div { padding:2px 0; }
   .bpp-rawlist .off { opacity:.45; }
   .bw-list { max-height:none; }
+
+  /* project picker (bare /smida) */
+  .main.picking { display:block; overflow:auto; }
+  .pick { width:min(640px, 100%); margin:0 auto; padding:28px 16px 40px; overflow:auto; }
+  .pick h2 { font-size:24px; font-weight:600; letter-spacing:-.01em; }
+  .pick .sub3 { color:var(--muted); margin-top:4px; }
+  .pick input[type=search] { width:100%; margin-top:16px; border:1px solid var(--line2); border-radius:10px; padding:11px 14px; background:#fff; font-size:16px; }
+  .pick input[type=search]:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px #3d61c133; }
+  .pick ul { list-style:none; margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .pick a.row { display:flex; align-items:center; gap:12px; padding:13px 16px; background:var(--surface); border:1px solid var(--line); border-radius:12px; color:inherit; text-decoration:none; min-height:52px; }
+  .pick a.row:hover, .pick a.row:focus-visible { border-color:var(--blue); outline:none; }
+  .pick .nm { flex:1; min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pick .chip { font-size:12px; padding:3px 9px; border-radius:99px; background:var(--blue-soft); color:var(--blue); white-space:nowrap; }
+  .pick .cnt { font-size:13px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .pick .none { text-align:center; color:var(--muted); padding:36px 0; }
+  .backl { color:var(--blue); text-decoration:none; font-size:13px; margin-right:14px; white-space:nowrap; }
 </style>
 </head>
 <body>
 <div class="shell">
   <div class="top">
-    <div class="brand"><b>Smíða</b><span id="pname">Sæki verkefni…</span></div>
+    <div class="brand"><a class="backl" id="backl" href="/app" hidden>‹ Til baka</a><b>Smíða</b><span id="pname">Sæki verkefni…</span></div>
     <div class="prog" id="prog"></div>
     <div class="acts">
       <span class="save" id="save"></span>
@@ -287,11 +303,63 @@
     if (!project) $("pname").textContent = "Opnaðist ekki";
   }
 
+  // ── project picker (bare /smida) ─────────────────────────────────────────────────────────
+  // PICKER-PURE-START
+  var PICK_FORMULA = 'AND({Staða í söluferli}="🏆 Tækifæri unnið",OR({Staða í skipulagi}="Í skipulagningu",{Staða í skipulagi}="Yfirfara",{Staða í skipulagi}="Klárt til framleiðslu"),{Staða í framleiðslu}!="Afhent (LOKIÐ ✅)",{Staða í framleiðslu}!="Lokið")';
+  // recs: Tækifæri records; counts: { "T-32": n } cabinets per T-number (may be empty). Newest T-number first.
+  function pickerRows(recs, counts, pname, pstatus) {
+    var known = !!counts; counts = counts || {};
+    return (recs || []).map(function (r) {
+      var f = r.fields || {}, name = String(f[pname] || r.id).trim(), m = name.match(/^(T-\d+)/);
+      return { id: r.id, name: name, tnum: m ? +m[1].slice(2) : -1, status: String(f[pstatus] || ""), count: !known || !m ? null : counts[m[1]] || 0 };
+    }).sort(function (a, b) { return b.tnum - a.tnum || a.name.localeCompare(b.name, "is"); });
+  }
+  function pickerFilter(rows, q) {
+    var t = String(q || "").trim().toLowerCase();
+    if (!t) return rows;
+    return rows.filter(function (r) { return (r.name + " " + r.status).toLowerCase().indexOf(t) !== -1; });
+  }
+  function pickerHref(id, k) { return "/smida?recordId=" + encodeURIComponent(id) + (k ? "&k=" + encodeURIComponent(k) : ""); }
+  // counts cabinets per T-prefix from the "Athugasemd + Tækifæri (fyrir yfirfara)" text ("T-32 | …")
+  function pickerCounts(units, field) {
+    var c = {};
+    (units || []).forEach(function (u) { var m = String((u.fields || {})[field] || "").match(/^(T-\d+) \|/); if (m) c[m[1]] = (c[m[1]] || 0) + 1; });
+    return c;
+  }
+  // PICKER-PURE-END
+  async function showPicker() {
+    document.querySelector(".acts").style.display = "none"; $("prog").style.display = "none"; $("backl").hidden = false;
+    $("pname").textContent = ""; $("main").classList.add("picking");
+    $("main").innerHTML = '<div class="pick"><h2>Veldu verkefni</h2><p class="sub3">Verkefni í skipulagi eða framleiðslu.</p><div class="msg" style="padding:30px 0"><p>Sæki verkefni…</p></div></div>';
+    var rows;
+    try {
+      var recs = await CD.fetchAll(PROXY, KEY, CD.PROJECTS, { filterByFormula: PICK_FORMULA, "fields[]": [CD.PNAME, "Staða í skipulagi"] });
+      var counts = null;
+      try { counts = pickerCounts(await CD.fetchAll(PROXY, KEY, CD.UNIT, { "fields[]": ["Athugasemd + Tækifæri (fyrir yfirfara)"] }), "Athugasemd + Tækifæri (fyrir yfirfara)"); } catch (e) { counts = null; }
+      rows = pickerRows(recs, counts, CD.PNAME, "Staða í skipulagi");
+    } catch (e) {
+      if (e.status === 401 || e.status === 403) fail("Lykillinn virkar ekki", "Opnaðu síðuna aftur úr PRO (Yfirferð) eða skrifstofunni.", e.message, TIL_SKRIF);
+      else fail("Gat ekki sótt verkefnalistann", "Athugaðu nettenginguna og reyndu aftur, eða opnaðu Smíða úr skrifstofunni.", e.message, '<button type="button" onclick="location.reload()">Reyna aftur</button> ' + TIL_SKRIF);
+            return;
+    }
+    if (!rows.length) { $("main").innerHTML = '<div class="pick"><h2>Veldu verkefni</h2><p class="none">Engin verkefni eru í skipulagi eða framleiðslu núna.</p><p style="text-align:center">' + TIL_SKRIF + "</p></div>"; return; }
+    var fk = qs.get("k") || "";
+    $("main").innerHTML = '<div class="pick"><h2>Veldu verkefni</h2><p class="sub3">' + rows.length + ' verkefni í skipulagi eða framleiðslu.</p><input type="search" id="pq" placeholder="Leita að verkefni…" autocomplete="off" aria-label="Leita að verkefni" /><ul id="pl"></ul></div>';
+    function draw() {
+      var shown = pickerFilter(rows, $("pq").value);
+      $("pl").innerHTML = shown.length ? shown.map(function (r) {
+        return '<li><a class="row" href="' + esc(pickerHref(r.id, fk)) + '"><span class="nm">' + esc(r.name) + "</span>" + (r.status ? '<span class="chip">' + esc(r.status) + "</span>" : "") +
+          (r.count != null ? '<span class="cnt">' + r.count + (r.count === 1 ? " eining" : " einingar") + "</span>" : "") + "</a></li>";
+      }).join("") : '<li class="none">Ekkert verkefni fannst.</li>';
+    }
+    $("pq").addEventListener("input", draw); draw();
+  }
+
   // ── load ──────────────────────────────────────────────────────────────────────────────────
   async function boot() {
     if (!KEY) { fail("Lykil vantar", "Opnaðu síðuna úr PRO (Yfirferð) eða skrifstofunni — hlekkurinn þar er með skrifstofulyklinum.", "", TIL_SKRIF); return; }
     var data;
-    if (!REC && !WANT_T) { fail("Veldu verkefni", "Opnaðu Smíða úr PRO (Yfirferð) eða skrifstofunni — þar velurðu verkefnið.", "", TIL_SKRIF); return; }
+    if (!REC && !WANT_T) { showPicker(); return; }
     try {
       var p;
       if (REC) p = (await CD.fetchAll(PROXY, KEY, CD.PROJECTS, { filterByFormula: 'RECORD_ID()="' + REC + '"', "fields[]": [CD.PNAME] }))[0];
