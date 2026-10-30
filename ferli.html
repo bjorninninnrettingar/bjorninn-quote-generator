@@ -1550,12 +1550,19 @@
     sogunRecs.forEach(function (r) { readyState["sog:" + r.id] = !!r.fields["Tilbúið 🔒"]; });
     el.querySelectorAll('input[data-kind="sog"]').forEach(function (cb) {
       cb.addEventListener("change", function () {
-        readyState["sog:" + cb.dataset.id] = cb.checked;
-        apiPatch(SOGUNARLISTI + "/" + cb.dataset.id, { "Tilbúið 🔒": cb.checked });
-        var rec = sogunRecs.filter(function (r) { return r.id === cb.dataset.id; })[0];
-        if (rec) rec.fields["Tilbúið 🔒"] = cb.checked;
+        var want = cb.checked, rec = sogunRecs.filter(function (r) { return r.id === cb.dataset.id; })[0];
+        readyState["sog:" + cb.dataset.id] = want;
+        if (rec) rec.fields["Tilbúið 🔒"] = want;
         updateApproveGate();
-        if (sogunFilter === "todo" && cb.checked) setTimeout(renderSogunFiltered, 250); // Óklárt: a ticked row leaves the list
+        saveFields(SOGUNARLISTI + "/" + cb.dataset.id, { "Tilbúið 🔒": want }, "lásinn").then(function (ok) {
+          if (ok) return;
+          // Airtable never stored it: undo the box and the approve gate so nothing looks locked that is not
+          cb.checked = !want;
+          readyState["sog:" + cb.dataset.id] = !want;
+          if (rec) rec.fields["Tilbúið 🔒"] = !want;
+          updateApproveGate();
+        });
+        if (sogunFilter === "todo" && want) setTimeout(renderSogunFiltered, 250); // Óklárt: a ticked row leaves the list
       });
     });
   }
@@ -1586,9 +1593,15 @@
       }).join("") + '</tbody></table>';
     el.querySelectorAll('input[data-kind="vor"]').forEach(function (cb) {
       cb.addEventListener("change", function () {
-        readyState["vor:" + cb.dataset.id] = cb.checked;
-        apiPatch(VORUR + "/" + cb.dataset.id, { "Rétt": cb.checked });
+        var want = cb.checked;
+        readyState["vor:" + cb.dataset.id] = want;
         updateApproveGate();
+        saveFields(VORUR + "/" + cb.dataset.id, { "Rétt": want }, "merkinguna").then(function (ok) {
+          if (ok) return;
+          cb.checked = !want;
+          readyState["vor:" + cb.dataset.id] = !want;
+          updateApproveGate();
+        });
       });
     });
   }
