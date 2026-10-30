@@ -8467,14 +8467,13 @@
   // rails and drawers drag — "Smíða lite".
   var uwAimAnim = 0;
   function uwLockView(st){
-    if (PRO || !uw || !uw.b) return;
+    if (!uw || !uw.b) return;
     st.controls.autoRotate = false; st.controls.enableRotate = true; // the cabinet can be turned by hand while choosing (owner, 2026-10-27) — it only stops turning by itself
     st.controls.minAzimuthAngle = -Infinity; st.controls.maxAzimuthAngle = Infinity;
   }
   function uwAimCamera(animate){
     var st = KP3D._three(), x = uwDimCtx; if (!st || !x || !uw || !uw.b) return;
     uwLockView(st);
-    if (PRO && !uw.smida) return;
     var T = window.__THREE__, g = x.g, hM = x.y1 - x.y0 + (x.extraTop || 0), wM = (x.a2 || x.a1) - x.a0, am = (x.a0 + (x.a2 || x.a1)) / 2; // a2: the pair of machines ends there
     var cx = g.origin.x + g.axis.x * am + g.normal.x * x.d / 2, cz = g.origin.z + g.axis.z * am + g.normal.z * x.d / 2, cy = x.y0 + hM / 2;
     var vHalf = (st.camera.fov || 45) * Math.PI / 360, hHalf = Math.atan(Math.tan(vHalf) * (st.camera.aspect || 1));
@@ -8632,7 +8631,7 @@
     return out;
   }
   // Bað's "Skúffur eða hurð" step (user, 2026-10-26): picture cards, like the wardrobe's Hurðir — not a toggle row
-  function bathFrontsWiz(b){ return isWallRoom() && !PRO && !!b && CATALOG[b.type].hasInterior && CATALOG[b.type].zone === "floor" && CATALOG[b.type].cls === "floor"; }
+  function bathFrontsWiz(b){ return isWallRoom() && !!b && CATALOG[b.type].hasInterior && CATALOG[b.type].zone === "floor" && CATALOG[b.type].cls === "floor"; }
   function bathFrontSvg(drawers){
     return '<svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><rect x="12" y="14" width="40" height="34" rx="1.5" fill="#e4ded0" stroke="#a9a196" stroke-width="1.2"/>' +
       (drawers ? '<path d="M12 31h40" stroke="#a9a196" stroke-width="1.2"/><path d="M27 22h10M27 39h10" stroke="#6d675e" stroke-width="1.6" stroke-linecap="round"/>'
@@ -8667,7 +8666,7 @@
   }
   function uwAdvance(key){ // a dimension was picked → fold it, open the next group still to do
     uw.picked = uw.picked || {}; uw.picked[key] = true;
-    var c = CATALOG[uw.b.type], bf = bathFrontsWiz(uw.b), shortWiz = uwShort(uw.b), order = [!c.panel && "w", c.minH !== c.maxH && !shortWiz && "h", c.minD !== c.maxD && !bf && !shortWiz && "d", ((isCloset() && closetTall(uw.b) && !uw.cornerUnit) || (bf && !PRO) || frontsWiz(uw.b)) && "door", !shortWiz && "inn"].filter(Boolean);
+    var c = CATALOG[uw.b.type], bf = bathFrontsWiz(uw.b), shortWiz = uwShort(uw.b), order = [!c.panel && "w", c.minH !== c.maxH && !shortWiz && "h", c.minD !== c.maxD && !bf && !shortWiz && "d", ((isCloset() && closetTall(uw.b) && !uw.cornerUnit) || bf || frontsWiz(uw.b)) && "door", !shortWiz && "inn"].filter(Boolean);
     uw.sec = order.slice(order.indexOf(key) + 1).find(function(k){ return !uw.picked[k]; }) || (shortWiz ? null : "inn");
   }
   function renderUnitWizard(){
@@ -8789,10 +8788,11 @@
       var innSum = c.hasInterior && b.interior && b.interior.mode === "skuffur" ? b.interior.count + " " + plural(b.interior.count, "skúffa", "skúffur")
         : shelfN != null ? shelfN + " " + plural(shelfN, "hilla", "hillur") : c.hasInterior && !c.shelfRange && b.interior ? __("Hurðir") : "";
       if (c.cls === "corner") innSum = (innSum ? innSum + " · " : "") + (b.swing === "vinstri" ? __("hurð vinstra megin") : __("hurð hægra megin"));
-      if (isCloset() && closetTall(b) && PRO && !uw.smida && !uw.cornerUnit) // PRO keeps its own Innvols (Smíða opens next) but gets the Hurðir step before it, with Rennihurð í hlið (2026-10-26)
+      var proDoorSec = isCloset() && closetTall(b) && PRO && !uw.smida && !uw.cornerUnit && !opt.doorSys; // PRO gets the Hurðir step before Innvols, with Rennihurð í hlið (2026-10-26); the door systems ask for their door count instead
+      if (proDoorSec)
         secHtml.push(uwSec("door", "Hurðir", b.type === "harskapurOpinn" ? "Opið" : uw.doorKind === "pocket" ? "Rennihurð í hlið" : "Með hurðum", closetDoorsHtml(b, true)));
-      if (isCloset() && closetTall(b) && (!PRO || uw.smida)){ // the same picture cards as the side panel; doors first — they change the options (user, 2026-10-26)
-        if (!opt.pocket && !opt.doorSys) secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
+      if (isCloset() && closetTall(b)){ // the same picture cards as the side panel, for the customer and PRO alike (2026-10-30); doors first — they change the options (user, 2026-10-26)
+        if (!opt.pocket && !opt.doorSys && !proDoorSec) secHtml.push(uwSec("door", __("Hurðir"), b.type === "harskapurOpinn" ? __("Opið") : __("Með hurðum"), closetDoorsHtml(b, true)));
         innHtml = slideDoorsHtml(b) + closetBayHtml(b, true, true);
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
         innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : opt.pocket ? __("Rennihurð í hlið") : opt.doorSys ? __(DOOR_SYSTEMS[opt.doorSys].short) : __("Með hurðum"));
@@ -9158,7 +9158,7 @@
       KP3D.buildScene(host, pv, { xray:true, clean:true, noGhost:true, onlySurfaceId:"UWP", freshCamera:true, darkBg:!!PRO && !uw.smida, afterFrame:drawUwDims, towerGlass:true, previewRoom:!PRO && (isBath() || isLaundry()), // bath / laundry: the room's own floor + wall // the washer + dryer show through the tower's doors (user, 2026-10-26)
         // Smíða lite: shelves / rails / drawers move in the preview too (user, 2026-10-26)
         onShelfPosMove:uw.b ? onShelfPosMove : null, onShelfPosEnd:uwItemMoved, onShelfPosInfo:uw.b ? onShelfPosInfo : null, onDrawerResize:uw.b ? onDrawerResize : null, onDrawerResizeEnd:uwItemMoved,
-        drawerDragAll:!!uw.b && !PRO }); // every room (owner, 2026-10-27): drag a drawer front's edge to resize it, typing optional
+        drawerDragAll:!!uw.b && !(PRO && uw.smida) }); // (Smíða keeps its own dragging) // every room (owner, 2026-10-27): drag a drawer front's edge to resize it, typing optional
       var st = KP3D._three(); if (!st) return;
       if (!uw.b){ // hovering a type: start closed and play the opening, rather than showing it already open (user, 2026-10-25)
         KP3D.snapParts(false);
