@@ -79,3 +79,10 @@ Also doubles as the vacation-request table since 2026-09-22 (merged in what used
 - Extend `Tímabil 🗓️` choices (both `Stimplanir` and `Launatímabil`) before 2029.
 - Byggiðn kjarasamningur changes → re-check the orlof ladder days/% (`Orlofsréttur` / `Orlofs%` formulas) and the 62.000 kr orlofsuppbót figure in the daily script.
 - Confirm with the bókari periodically: pre-day-start time stays unpaid; orlof paid-out-monthly model; the flat dagvinna/yfirvinna split (no YV1/YV2).
+
+## Dagvinnukvóti (2026-10-30)
+
+Dagvinna/yfirvinna er nú **dagleg kvóta-regla**, ekki fastur gluggi á hverja stimplun: starfsmaður fyllir dagvinnukvóta dagsins (glugginn mínus ólaunað hádegi: 7,5 klst mán–fim, 5 klst fös, Rakel 7,5 alla daga; hálfur frídagur → til 12:00) áður en yfirvinna byrjar. Allar lokaðar stimplanir sama manns sama dag eru lagðar saman í tímaröð. Tími fyrir upphaf dags er áfram hvorki dagvinna né yfirvinna. Helgar og rauðir dagar = bara yfirvinna.
+- Nýir tölureitir á `Stimplanir`: `Dagvinna kvóti (klst)` (`fldaF5fJBoLGC6Cyh`) og `Yfirvinna kvóti (klst)` (`fldmeBIBwYcPq1HJg`). `Dagvinna (klst)` og `Yfirvinna (klst)` (formúlurnar) nota þá ef þeir eru útfylltir, annars gömlu gluggaformúluna — allt downstream (rollups, Launatímabil) óbreytt.
+- Skrifað af automation `Laun · Dagvinnukvóti (stimplun breytist)` (`wflunhM4rS8Eg9ZRo`, trigger: `Inn`/`Út` breytist). Script hefur `EXCLUDED` (Ísak, Jóel, Anton — eru enn á gömlu reglunni, tæmið listann til að taka þá með) og sleppir stimplunum > 14 klst (gleymd útstimplun).
+- Okt 2026 var bakfyllt handvirkt fyrir alla nema EXCLUDED (29.9–30.10). Ef stimplun er leiðrétt aftur í tímann endurreiknast dagurinn sjálfkrafa.
