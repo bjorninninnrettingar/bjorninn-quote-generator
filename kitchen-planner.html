@@ -3273,6 +3273,7 @@
   function resetAll(){
     // the Studio's own question, not the browser's grey confirm() (morning scan 2026-10-27)
     var hm = document.getElementById("helpMenu"); if (hm) hm.hidden = true;
+    if (PRO){ askChoice("<b>Byrja teikninguna upp á nýtt?</b> Teikningin hér í vafranum verður tæmd. Teikningin í Airtable breytist ekki fyrr en þú ýtir á Vista — þá skrifast tóma teikningin yfir hana.", "Já, byrja upp á nýtt", "Hætta við", resetNow); return; }
     askChoice("<b>" + __("Byrja upp á nýtt?") + "</b> " + __("Núverandi hönnun verður eytt og það er ekki hægt að afturkalla."), __("Já, byrja upp á nýtt"), __("Hætta við"), resetNow);
   }
   function resetNow(){
@@ -3281,10 +3282,17 @@
     try{ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(HL_THUMB_KEY); }catch(e){}
     wallSeq = 2;
     openingSeq = 1;
-    state = freshState("welcome");
+    var keep = PRO ? { proSavedAt:state.proSavedAt, liSent:state.liSent } : null; // PRO: what Airtable has stays remembered, else the next Vista is a false 409 about "someone else"
+    state = freshState(PRO ? "byrja" : "welcome"); // PRO never shows the customer's welcome screen
     shapePhase = "pick";
     matPhase = null;
+    if (keep){
+      if (keep.proSavedAt) state.proSavedAt = keep.proSavedAt;
+      if (keep.liSent) state.liSent = keep.liSent;
+      save(); // an emptied drawing is an unsaved change: chip "● óvistað"
+    }
     render();
+    if (keep) proBar();
   }
 
   // ---------- intake step ----------
