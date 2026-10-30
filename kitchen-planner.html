@@ -12648,6 +12648,13 @@
     o.outMm = Math.max(0, Math.round(cN - nd / 2));
     return true;
   }
+  // what the beam's panel shows (mm / degrees): centre along the wall, the turned beam's nearest gap to the wall, its length and
+  // thickness, the angle of its long side against the wall (0 = along it), and how far it hangs below the ceiling
+  function beamFields(o, wall){
+    var K = window.KPBEAM, c = beamCentre(o), tot = K.normLine(beamTotal(o)), ex = K.extents(c.a, c.n, o.widthMm, o.depthMm, tot);
+    return { pos:Math.round(c.a), gap:Math.max(0, Math.round(ex.minN)), len:Math.max(o.widthMm, o.depthMm), wid:Math.min(o.widthMm, o.depthMm),
+      ang:Math.round(K.normLine(tot + (o.depthMm > o.widthMm ? 90 : 0)) * 10) / 10, drop:o.heightMm || 250 };
+  }
   // the lines a dragged beam is pulled to on a wall (mm): wall ends, window / door / cabinet edges, other obstacles' sides
   function beamSnapTargets(id, wallId){
     var wall = state.walls.find(function(w){ return w.id === wallId; }), a = [0], n = [0];
@@ -12916,17 +12923,24 @@
       return '<div class="dim-f"><label>' + label + '</label><input type="number" data-ob="' + key + '" data-len value="' + val + '" min="' + lo + '" max="' + hi + '" step="10" title="' + uNum(lo) + '–' + uLen(hi) + '"' + (dis ? ' disabled' : '') + '></div>';
     }
     var v = KP3D.obstacleVSpan(state, o);
+    var bm = def.ceiling && window.KPBEAM ? beamFields(o, wall) : null; // a ceiling beam has its own fields (2026-10-30)
+    function bfld(key, label, val, lo, hi, len, step){
+      return '<div class="dim-f"><label>' + label + '</label><input type="number" data-bm="' + key + '"' + (len ? ' data-len' : '') + ' value="' + val + '" min="' + lo + '" max="' + hi + '" data-lo="' + lo + '" data-hi="' + hi + '" step="' + step + '"' + (o.locked ? ' disabled' : '') + '></div>';
+    }
     host.innerHTML = '<div class="edit-panel"><div class="edit-panel-head"><div><h4>' + __(def.label) + '</h4><div class="sub">' + __("Hindrun · ekki í pöntun") + '</div></div><button class="iconbtn" data-role="close" title="' + __("Loka") + '">✕</button></div>' +
       '<div class="edit-field"><label>' + __("Veggur") + '</label><select data-ob="wallId">' + state.walls.filter(function(w){ return !w.open; }).map(function(w){
         return '<option value="' + w.id + '"' + (w.id === o.wallId ? ' selected' : '') + '>' + __(w.label) + ' · ' + uLen(w.lengthMm) + '</option>';
       }).join("") + '</select></div>' +
       '<div class="edit-field"><label>' + __("Mál ({u})", { u:uUnit() }) + '</label><div class="dim-grid">' +
+        (bm ? bfld("pos", __("Staða frá horni"), bm.pos, 0, L, true, 10) + bfld("gap", __("Bil frá vegg"), bm.gap, 0, 5000, true, 10) +
+              bfld("len", __("Lengd"), bm.len, 200, 6000, true, 10) + bfld("wid", __("Breidd"), bm.wid, 50, 2000, true, 10) +
+              bfld("ang", __("Snúningur (°)"), bm.ang, -90, 90, false, 5) + bfld("drop", __("Hæð frá lofti"), bm.drop, 50, Math.max(100, roomH - 1800), true, 10) : (
         fld("offsetMm", __("Frá vinstra horni"), o.offsetMm, 0, Math.max(0, L - o.widthMm)) +
         fld("widthMm", o.kind === "milliveggur" ? __("Þykkt") : __("Breidd"), o.widthMm, 20, L) +
         fld("depthMm", o.kind === "milliveggur" ? __("Lengd út í rýmið") : __("Dýpt út frá vegg"), o.depthMm, 20, 3000) +
         (full ? '' : fld("heightMm", __("Hæð"), o.heightMm, 20, roomH)) +
         (full || def.ceiling ? '' : fld("elevMm", __("Frá gólfi"), o.elevMm, 0, roomH - (o.heightMm || 0))) +
-        (def.free ? fld("outMm", __("Bil frá vegg"), o.outMm || 0, 0, 5000) : '') +
+        (def.free ? fld("outMm", __("Bil frá vegg"), o.outMm || 0, 0, 5000) : ''))) +
       '</div>' +
       (def.h == null ? '<label class="ob-full"><input type="checkbox" data-ob="full"' + (full ? ' checked' : '') + '> ' + __("Frá gólfi upp í loft") + '</label>' : '') +
       (def.blocks ? '' : '<p class="ov-mat" style="margin:8px 0 0;">' + __("Vaskaskápur eða uppþvottavél fer yfir það.") + '</p>') + '</div>' +
@@ -12942,6 +12956,23 @@
     var obRot = host.querySelector('[data-role="ob-rot"]'); if (obRot) obRot.addEventListener("click", function(){ rotateObstacle(o); });
     var obLock = host.querySelector('[data-role="ob-lock"]'); if (obLock) obLock.addEventListener("click", function(){ o.locked = !o.locked; if (!o.locked) delete o.locked; save(); refreshAfterEdit(); });
     host.querySelectorAll("[data-ob-shape]").forEach(function(b){ b.addEventListener("click", function(){ if (b.dataset.obShape === "round") o.shape = "round"; else delete o.shape; save(); refreshAfterEdit(); }); });
+    host.querySelectorAll("[data-bm]").forEach(function(inp){ // a ceiling beam's typed fields: each one changes only what it names
+      inp.addEventListener("change", function(){
+        var val = parseFloat(String(inp.value).replace(",", ".")); if (!isFinite(val) || !wall){ renderEditPanel(); return; }
+        var K = window.KPBEAM, k = inp.dataset.bm, c = beamCentre(o), tot = K.normLine(beamTotal(o));
+        var lo = +inp.dataset.lo, hi = +inp.dataset.hi; // (mm / degrees — the field itself may show cm) val = Math.max(lo, Math.min(hi, Math.round(val)));
+        if (k === "ang"){ var longDeg = val; if (!beamSetPose(o, wall, c.a, c.n, longDeg - (o.depthMm > o.widthMm ? 90 : 0))){ renderEditPanel(); return; } }
+        else if (k === "pos"){ if (!beamSetPose(o, wall, val, c.n, tot)){ renderEditPanel(); return; } }
+        else if (k === "gap"){ var ex0 = K.extents(c.a, c.n, o.widthMm, o.depthMm, tot); if (!beamSetPose(o, wall, c.a, c.n + (val - ex0.minN), tot)){ renderEditPanel(); return; } }
+        else if (k === "len" || k === "wid"){
+          var prev = [o.widthMm, o.depthMm], longIsD = o.depthMm > o.widthMm;
+          if ((k === "len") === longIsD) o.depthMm = val; else o.widthMm = val;
+          if (!beamSetPose(o, wall, c.a, c.n, tot)){ o.widthMm = prev[0]; o.depthMm = prev[1]; renderEditPanel(); return; }
+        }
+        else if (k === "drop") o.heightMm = val;
+        save(); refreshAfterEdit();
+      });
+    });
     host.querySelectorAll("[data-ob]").forEach(function(inp){
       inp.addEventListener("change", function(){
         var k = inp.dataset.ob;
