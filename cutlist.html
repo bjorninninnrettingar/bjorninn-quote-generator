@@ -21,12 +21,6 @@
     --warn-bg:#fdf2d9; --warn-line:#f0d78c; --good-bg:#e5f6ea; --good-line:#b7e3c2;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
-  :root[data-theme="dark"] {
-    --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
-    --text:#e7eaf0; --muted:#9aa3ad; --dim:#6b7380;
-    --accent:#3b9eff; --warn:#e3b341; --bad:#f2766b; --good:#4caf6e;
-    --warn-bg:#2e2408; --warn-line:#5a4a22; --good-bg:#122a16; --good-line:#2c5a33;
-  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: var(--bg);
@@ -705,7 +699,7 @@ async function renderAedarStatus(projectName) {
   }
   if (!plans.length) {
     banner.className = "statusBanner warn";
-    banner.innerHTML = `⚠ <b>Æðaskipulag ekki byrjað</b> — verður að klára áður en verkið fer á gólfið &nbsp; <a href="${href}" target="_blank">Byrja í Æðar →</a>`;
+    banner.innerHTML = `<b>Æðaskipulag ekki byrjað</b> — verður að klára áður en verkið fer á gólfið &nbsp; <a href="${href}" target="_blank">Byrja í Æðar →</a>`;
     return;
   }
   const allConfirmed = plans.every(p => p.fields[PL_CONFIRM]);
@@ -716,13 +710,13 @@ async function renderAedarStatus(projectName) {
       const [name, th] = String(p.fields[PL_EFNI] || "?").split("||");
       const efni = escapeHtml(th ? `${name} (${th}mm)` : name);
       const ok = !!p.fields[PL_CONFIRM];
-      return `<span class="statusChip">${ok ? "✅" : "✏️"} ${efni}</span>`;
+      return `<span class="statusChip">${ok ? "Staðfest" : "Í vinnslu"} · ${efni}</span>`;
     })
     .join("");
   banner.className = `statusBanner ${allConfirmed ? "ok" : "warn"}`;
   banner.innerHTML = allConfirmed
-    ? `✅ <b>Æðaskipulag staðfest</b> ${chips}`
-    : `⚠ <b>Æðaskipulag ekki klárt</b> — verður að klára áður en verkið fer á gólfið ${chips} &nbsp; <a href="${href}" target="_blank">Klára í Æðar →</a>`;
+    ? `<b>Æðaskipulag staðfest</b> ${chips}`
+    : `<b>Æðaskipulag ekki klárt</b> — verður að klára áður en verkið fer á gólfið ${chips} &nbsp; <a href="${href}" target="_blank">Klára í Æðar →</a>`;
 }
 
 // Scoped to one project server-side via the project's own name text, instead
@@ -1157,7 +1151,7 @@ function renderGroups() {
       statusHtml = `<span class="status-ok">Fann plötu</span>`;
     }
     if (writtenMaterialKeys.has(materialKey(g))) {
-      statusHtml += ` <span class="status-ok" style="margin-left:6px;">· ✅ á USB</span>`;
+      statusHtml += ` <span class="status-ok" style="margin-left:6px;">· á USB</span>`;
     }
     tr.innerHTML = `
       <td class="checkCol"><input type="checkbox" class="groupCheck" ${selectedGroupKeys.has(g.key) ? "checked" : ""} onchange="toggleGroupSelected('${g.key}', this.checked)" /></td>
@@ -1208,9 +1202,9 @@ function renderOversized() {
     li.innerHTML = `
       ${escapeHtml(p.label)} — <strong>${p.h}×${p.b}mm</strong> á ${p.thickness}mm ${escapeHtml(p.material)}
       (plata ${p.board.fields[E_LENGD]}×${p.board.fields[E_BREIDD]}mm)<br>
-      <input type="number" value="${p.h}" id="fixH-${idx}" style="width:90px;max-width:90px;display:inline-block;" />
+      <input type="number" value="${p.h}" placeholder="H" id="fixH-${idx}" style="width:90px;max-width:90px;display:inline-block;" />
       ×
-      <input type="number" value="${p.b}" id="fixB-${idx}" style="width:90px;max-width:90px;display:inline-block;" />
+      <input type="number" value="${p.b}" placeholder="B" id="fixB-${idx}" style="width:90px;max-width:90px;display:inline-block;" />
       mm
       <button class="secondary" style="margin-top:0;" onclick="fixOversized(${idx})">Leiðrétta og vista</button>
       <button class="secondary" style="margin-top:0;" onclick="markOversizedManual(${idx})">Merkja sem handskorið</button>

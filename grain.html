@@ -972,8 +972,14 @@ async function fetchFrontsForProject(name) {
     pageSize: 100,
   });
 }
-async function fetchBoards() {
-  return airtableFetch(EFNISLISTI_TABLE, { "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT, E_SUB, E_MYND], pageSize: 100 });
+// Memoised: Efnislisti is the same for every caller on a page load (a failed fetch is dropped so a retry works).
+let _boardsPromise = null;
+function fetchBoards() {
+  if (!_boardsPromise) {
+    _boardsPromise = airtableFetch(EFNISLISTI_TABLE, { "fields[]": [E_HEITI, E_BREIDD, E_LENGD, E_THYKKT, E_SUB, E_MYND], pageSize: 100 })
+      .catch(e => { _boardsPromise = null; throw e; });
+  }
+  return _boardsPromise;
 }
 // Airtable attachment → best thumbnail URL, same extraction eining.html uses
 // for its Efnislisti swatches.

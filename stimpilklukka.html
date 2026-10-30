@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0a" />
   <title>Stimpilklukka — Björninn</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -170,6 +171,11 @@
       width: 100%; background: #161616; color: #fff; border: 1px solid #333;
       border-radius: 10px; padding: 12px 14px; font-size: 1rem; margin: 12px 0;
     }
+    /* 1024x600 kiosk: tighten spacing so the PIN pad fits without a page scroll */
+    @media (max-height: 640px) {
+      body { padding: 10px 24px; gap: 10px; }
+    }
+
     #alloc-list { width: 100%; max-height: 46vh; overflow-y: auto; }
     .alloc-row {
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -229,9 +235,11 @@
     <div id="shortcut-box" class="hidden" style="margin-top:12px;width:100%;font-size:0.82rem;color:#bbb;line-height:1.5;">
       <p style="margin-bottom:6px;">Shortcuts → Automation → <b>Get Contents of URL</b> (Method: <b>POST</b>).</p>
       <p style="margin:8px 0 4px;"><b>„When I Arrive“</b> (vinnustaður) → þessi slóð:</p>
-      <textarea id="shortcut-inn" readonly rows="2" style="width:100%;background:#161616;border:1px solid #262626;border-radius:8px;color:#8bc34a;padding:8px;font-size:0.72rem;"></textarea>
+      <textarea id="shortcut-inn" readonly rows="2" style="width:100%;background:#161616;border:1px solid #262626;border-radius:8px;color:#8bc34a;padding:8px;font-size:0.72rem;user-select:text;-webkit-user-select:text;"></textarea>
+      <button type="button" class="secondary-btn copy-url" data-target="shortcut-inn">Afrita</button>
       <p style="margin:10px 0 4px;"><b>„When I Leave“</b> → þessi slóð:</p>
-      <textarea id="shortcut-ut" readonly rows="2" style="width:100%;background:#161616;border:1px solid #262626;border-radius:8px;color:#e0a030;padding:8px;font-size:0.72rem;"></textarea>
+      <textarea id="shortcut-ut" readonly rows="2" style="width:100%;background:#161616;border:1px solid #262626;border-radius:8px;color:#e0a030;padding:8px;font-size:0.72rem;user-select:text;-webkit-user-select:text;"></textarea>
+      <button type="button" class="secondary-btn copy-url" data-target="shortcut-ut">Afrita</button>
     </div>
     <button id="cancel-btn" class="link-btn">Hætta við</button>
   </div>
@@ -313,6 +321,19 @@
     if (OWNER_MODE) {
       const h1 = document.querySelector("header h1");
       if (h1) h1.textContent = "Eigendaklukka";
+      document.title = "Eigendaklukka — Björninn";
+      // phone page: allow pinch-zoom, and give "Add to Home Screen" a proper icon + name
+      const vp = document.querySelector('meta[name="viewport"]');
+      if (vp) vp.setAttribute("content", "width=device-width, initial-scale=1.0");
+      const addHead = (tag, attrs) => { const el = document.createElement(tag); Object.keys(attrs).forEach(k => el.setAttribute(k, attrs[k])); document.head.appendChild(el); };
+      addHead("link", { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" });
+      addHead("meta", { name: "apple-mobile-web-app-title", content: "Eigendaklukka" });
+    }
+
+    // HH:MM, same hand-rolled approach as the clock (toLocaleTimeString("is-IS") can fall back to another locale)
+    function hhmm(d) {
+      d = d instanceof Date ? d : new Date(d);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     }
 
     function todayISO(d) {
@@ -650,7 +671,7 @@
       if (sickToday) {
         employeeStatus.innerHTML = `<span class="out">${isKK ? "Skráður veikur" : "Skráð veik"}</span> í dag`;
       } else if (openShift) {
-        const time = new Date(openShift.fields["Inn"]).toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
+        const time = hhmm(openShift.fields["Inn"]);
         employeeStatus.innerHTML = `<span class="in">${isKK ? "Mættur" : "Mætt"}</span> kl. ${time}`;
       } else {
         employeeStatus.textContent = isKK ? "Ekki mættur núna" : "Ekki mætt núna";
@@ -745,6 +766,15 @@
       if (!ownerShortcut) return;
       document.getElementById("shortcut-inn").value = ownerShortcut.inn;
       document.getElementById("shortcut-ut").value = ownerShortcut.ut;
+      document.querySelectorAll(".copy-url").forEach(b => {
+        b.onclick = async () => {
+          const ta = document.getElementById(b.dataset.target);
+          try { await navigator.clipboard.writeText(ta.value); }
+          catch (e) { ta.focus(); ta.select(); try { document.execCommand("copy"); } catch (e2) {} }
+          b.textContent = "Afritað";
+          setTimeout(() => { b.textContent = "Afrita"; }, 1500);
+        };
+      });
       box.classList.remove("hidden");
     });
 
@@ -824,7 +854,7 @@
         return;
       }
       if (til < fra) {
-        vacationMsg.textContent = "Til-dagsetning verður að vera eftir frá-dagsetningu";
+        vacationMsg.textContent = "Til-dagsetning má ekki vera á undan frá-dagsetningu";
         return;
       }
       btnVacationSubmit.disabled = true;
@@ -1109,8 +1139,8 @@
         : type === "Orlof" ? `Orlofsbeiðni send: ${extra.fra} – ${extra.til}`
         : `${employeeName.textContent} ${isKK ? "stimplaður" : "stimpluð"} ${type.toUpperCase()}`;
       document.getElementById("confirm-time").textContent = note
-        ? `${when.toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" })} — ${note}`
-        : when.toLocaleTimeString("is-IS", { hour: "2-digit", minute: "2-digit" });
+        ? `${hhmm(when)} — ${note}`
+        : hhmm(when);
 
       setTimeout(() => {
         currentEmployee = null;

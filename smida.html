@@ -275,7 +275,9 @@
   }
 
   function toast(t) { var el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove("show"); }, 2600); }
+  var TIL_SKRIF = '<a class="tbtn" href="/skrifstofa" style="display:inline-block;text-decoration:none">Opna skrifstofuna</a>';
   function fail(title, help, tech, extra) {
+    if (extra === TIL_SKRIF) document.querySelector(".acts").style.display = "none"; // nothing to save/write without a project
     $("main").innerHTML = '<div></div><div class="msg"><h2>' + esc(title) + "</h2><p>" + esc(help) + "</p>" + (extra || '<button type="button" onclick="location.reload()">Reyna aftur</button>') +
       (tech ? '<p style="margin-top:14px;font-size:12px;color:var(--dim)">' + esc(tech) + "</p>" : "") + "</div><div></div>";
     if (!project) $("pname").textContent = "Opnaðist ekki";
@@ -283,13 +285,14 @@
 
   // ── load ──────────────────────────────────────────────────────────────────────────────────
   async function boot() {
-    if (!KEY) { fail("Lykil vantar", "Opnaðu síðuna úr PRO eða CNC — hlekkurinn þar er með skrifstofulyklinum.", ""); return; }
+    if (!KEY) { fail("Lykil vantar", "Opnaðu síðuna úr PRO (Yfirferð) eða skrifstofunni — hlekkurinn þar er með skrifstofulyklinum.", "", TIL_SKRIF); return; }
     var data;
+    if (!REC && !WANT_T) { fail("Veldu verkefni", "Opnaðu Smíða úr PRO (Yfirferð) eða skrifstofunni — þar velurðu verkefnið.", "", TIL_SKRIF); return; }
     try {
       var p;
       if (REC) p = (await CD.fetchAll(PROXY, KEY, CD.PROJECTS, { filterByFormula: 'RECORD_ID()="' + REC + '"', "fields[]": [CD.PNAME] }))[0];
       else if (WANT_T) p = (await CD.fetchAll(PROXY, KEY, CD.PROJECTS, { filterByFormula: 'FIND("' + WANT_T.replace(/"/g, "") + ' |",{' + CD.PNAME + '})', "fields[]": [CD.PNAME] }))[0];
-      if (!p) { fail("Verkefnið fannst ekki", "Opnaðu það aftur úr PRO eða CNC.", ""); return; }
+      if (!p) { fail("Verkefnið fannst ekki", "Opnaðu það aftur úr PRO (Yfirferð) eða skrifstofunni.", "", TIL_SKRIF); return; }
       var name = String(p.fields[CD.PNAME] || p.id), pre = (name.match(/^(T-\d+)/) || [])[1];
       if (!pre) { fail("Verkefnið er ekki með T-númer", "Einingarnar finnast eftir T-númeri verkefnisins.", name); return; }
       project = { id: p.id, name: name, prefix: pre };
@@ -298,7 +301,7 @@
 
       data = await CD.load({ proxy: PROXY, key: KEY, id: p.id, prefix: pre });
     } catch (e) {
-      if (e.status === 401 || e.status === 403) fail("Lykillinn virkar ekki", "Opnaðu síðuna aftur úr PRO eða CNC.", e.message);
+      if (e.status === 401 || e.status === 403) fail("Lykillinn virkar ekki", "Opnaðu síðuna aftur úr PRO (Yfirferð) eða skrifstofunni.", e.message, TIL_SKRIF);
       else if (e.status) fail("Airtable svaraði ekki", "Bíddu augnablik og reyndu aftur.", e.message);
       else fail("Ekkert samband", "Athugaðu nettenginguna og reyndu aftur.", e.message);
       return;

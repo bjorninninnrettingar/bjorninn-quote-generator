@@ -92,9 +92,10 @@
 </head>
 <body>
 <div class="wrap">
+  <a href="/smida" style="font-size:.84rem;color:var(--muted);text-decoration:none">‹ Til baka</a>
   <div class="kicker">Björninn Innréttingar</div>
   <h1>BPP skoðari</h1>
-  <div class="sub">Slepptu <code>.bpp</code> skrám sem /cnc bjó til (Hliðar, Frontar, Hurðablað, Karmur …) inn hér til að sjá hvernig forritið lítur út — án þess að fara niður með USB-kubb. Virkar bara fyrir skrár /cnc skrifaði; handgerðar master-skrár úr búðinni nota fullt af öðrum makróum sem þessi síða þekkir ekki og fá bara hráan lista.</div>
+  <div class="sub">Slepptu <code>.bpp</code> skrám sem /smida bjó til (Hliðar, Frontar, Hurðablað, Karmur …) inn hér til að sjá hvernig forritið lítur út — án þess að fara niður með USB-kubb. Virkar bara fyrir skrár /smida skrifaði; handgerðar master-skrár úr búðinni nota fullt af öðrum makróum sem þessi síða þekkir ekki og fá bara hráan lista.</div>
 
   <div id="drop">
     <div>Slepptu <b>.bpp</b> skrám hér</div>
@@ -119,7 +120,7 @@
   }
   function addFiles(files) {
     Array.prototype.slice.call(files).forEach(function (f) {
-      if (!/\.bpp$/i.test(f.name)) return;
+      if (!/\.bpp$/i.test(f.name)) { out.insertAdjacentHTML("afterbegin", '<div class="bpp-note warn">Aðeins .bpp skrár — „' + String(f.name).replace(/[<>&"]/g, "") + '“ var sleppt.</div>'); return; }
       f.arrayBuffer().then(function (buf) {
         var text = decode(buf);
         out.appendChild(B.buildCard(f, text, out, toolbar));
