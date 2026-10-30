@@ -2099,6 +2099,7 @@
     "Sláðu inn tölu": "Enter a number",
     "Stattu þeim megin sem hurðin opnast að. Hvorum megin eru lamirnar?": "Stand on the side the door opens towards. Which side are the hinges on?",
     "Veldu rými fyrir {hu}.": "Choose a room for {hu}.",
+    "Veldu rými fyrst": "Choose a room first",
     "Viltu húna frá okkur?": "Would you like handles from us?",
     "húnar frá okkur": "handles from us",
     "veggur": "wall",

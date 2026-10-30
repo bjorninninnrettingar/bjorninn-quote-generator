@@ -15208,11 +15208,19 @@
     body.innerHTML = html;
     var nk = body.querySelector(".hd-rows"); if (nk) nk.scrollTop = top;
   }
+  function body_sel(i){ return document.querySelector("#hdBody select[data-droom=\"" + i + "\"]"); }
   document.getElementById("hdBody").addEventListener("click", function(e){
     var b = e.target.closest("button"); if (!b) return;
     var ds = b.dataset;
     if (ds.dcopy != null || ds.ddel != null || ds.dadd || ds.dhanna != null) dropToast();
-    if (ds.dhanna != null){ openDoorWiz(+ds.dhanna); return; }
+    if (ds.dhanna != null){
+      var hd = state.doorList[+ds.dhanna];
+      if (!PRO && hd && !KPDOORS.roomOk(hd)){ // customer: no room yet → the wizard header would show none; ask for it first (sweep studio2 #5)
+        var rs = body_sel(ds.dhanna); if (rs) rs.focus();
+        toast(__("Veldu rými fyrst")); return;
+      }
+      openDoorWiz(+ds.dhanna); return;
+    }
     if (ds.dadd){ var nd = newListDoor(); nd.designed = false; nd.room = ""; state.doorList.push(nd); save(); renderDoorStep(); var r = document.querySelector("#hdBody .hd-rows"); if (r) r.scrollTop = r.scrollHeight; return; }
     if (ds.dcopy != null){ var i = +ds.dcopy, c = JSON.parse(JSON.stringify(state.doorList[i])); c.id = newListDoor().id; c.hu = nextHuKey(); c.room = ""; delete c.roomOther; // the same door in another room: pick it (user, round 2)
       state.doorList.splice(i + 1, 0, c); renumberDoors(); save(); renderDoorStep(); var rs = document.querySelector('#hdBody [data-droom="' + (i + 1) + '"]'); if (rs) rs.focus(); return; }
