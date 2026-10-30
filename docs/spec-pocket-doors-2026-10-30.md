@@ -90,6 +90,21 @@ CAD, borgögn, CNC (`cnc-sides.js` heldur áfram að sleppa lömum), nákvæm br
 **Umferð 3 (ef vill) — borðplötuútgáfa og uno+uno.** Skrár sömu.
 Fyrir hverja umferð: `npm test` + `npm run test:live` grænt, ekkert Airtable-skrif.
 
+## Flæðið samkvæmt eiganda: valmöguleikar í Ný eining (mynd frá Hawa, 30.10.2026)
+Leiðin er **Ný eining → Tækjaskápur → Vasahurð**. Þar kemur eitt skref „Hvaða útgáfu?“ með **spjöldum sem sýna grunnmynd ofan frá** (eins og Hawa-stillirinn gerir). Hawa Concepta III hefur fimm útgáfur:
+1. **1 hurð** (Concepta III): ein hurð rennur inn í vasa.
+2. **2 × 1 hurð** (Concepta III): tvær stakar hurðir, ein á hvorri hlið.
+3. **2 hurðir, felli** (Folding Concepta III): tvær hurðir brotnar saman við aðra hlið.
+4. **2 × 2 hurðir, felli** (Folding Concepta III): tvö pör, eitt á hvorri hlið.
+5. **1 × 2 hurðir, felli + 1 hurð**: ein brotin tvöföld hlið og stök hurð á hinni.
+Revego fær samsvarandi spjöld (uno, uno + uno, duo, duo + uno eftir því sem Blum-taflan leyfir).
+
+**Reglur fyrir wizardinn (frá eiganda):**
+- **Teiknað í réttum hlutföllum** í wizardinum: spjaldið og forskoðunin sýna vasann, hurðina og opið í réttum mm, ekki tákn.
+- **Gera grein fyrir plássinu:** skýr texti við valið, t.d. „Vasinn tekur 100 mm af 600 mm. Innanmál: 500 mm“, og fyrir felli: hve mikið pláss fellihurðirnar þurfa þegar þær eru opnaðar. Plássið sést líka sem draugur á teikningunni (sjá kafla 3).
+- Útgáfa og hlið (vinstri/hægri) eru valin í sama skrefi; stærðartakmörk (kafli 3) birtast sem villa strax á spjaldinu ef útgáfan passar ekki við breiddina.
+- Þetta svarar spurningu 4 (Concepta „tvöfalt kerfi“): engin ágiskun lengur, fimm útgáfur að ofan.
+
 ## Ákvarðanir eiganda (30.10.2026)
 1. **Studio og PRO velja bæði** vasahurð (ekki bara PRO). Spurning 1 er því svarað: viðskiptavinur getur líka valið hana í Studio.
 2. **Vasinn innan breiddar** (100 mm uno, 150 mm duo í uppsetningarbreiddinni, eins og hjá Blum): já.
