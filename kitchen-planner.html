@@ -8684,8 +8684,13 @@
     { label:"Skúffur", type:"grunnskapur", drawers:true }, { label:"Hurð með hillum", type:"grunnskapur" },
     { label:"Vaskaskápur", type:"vaskaskapur" },
     { label:"Uppþvottavél", type:"uppthvottavel" }, { label:"Lítill kassi", type:"litillkassi", drawers:true } ];
+  // Hár skápur í eyju (2026-10-30, owner: PRO only first): the tall units, listed after the five base boxes
+  var ISLAND_TALL_OPTS = [
+    { label:"Hurðir með hillum", type:"harskapur" }, { label:"Búrskápur", type:"burskapur" }, { label:"Ofnaskápur í háum", type:"ofnaskapur" } ];
+  function islandOpts(){ return PRO ? ISLAND_BOX_OPTS.concat(ISLAND_TALL_OPTS) : ISLAND_BOX_OPTS; } // indexes of the five base boxes never move
   function islandBoxOpt(b){
-    return ISLAND_BOX_OPTS.findIndex(function(o){ return o.type === b.type && (!CATALOG[o.type].hasInterior || !!o.drawers === (b.interior && b.interior.mode === "skuffur")); });
+    var all = ISLAND_BOX_OPTS.concat(ISLAND_TALL_OPTS);
+    return all.findIndex(function(o){ return o.type === b.type && (!CATALOG[o.type].hasInterior || !!o.drawers === (b.interior && b.interior.mode === "skuffur")); });
   }
   function islandBoxesHTML(){
     var I = uw.island, rows = I.b ? [["a", "Röð A"], ["b", "Röð B (bakhlið)"]] : [["a", "Kassar"]];
@@ -8697,9 +8702,9 @@
       }).join("") + '<button type="button" class="isl-plus" data-isl-new="' + r[0] + '" title="' + __("Bæta við kassa") + '">＋</button></div>';
     }).join("") + '</div>';
     var cur = islandBoxOpt(uw.b);
-    html += '<div class="edit-field"><label>' + (uw.island.b && uw.island.b.indexOf(uw.b) >= 0 ? "B" : "A") + ((uw.island.a.indexOf(uw.b) >= 0 ? uw.island.a : uw.island.b).indexOf(uw.b) + 1) + ' — ' + __("útfærsla") + '</label><div class="uw-chips">' +
-      ISLAND_BOX_OPTS.map(function(o, i){ return '<button type="button" class="hw-btn' + (i === cur ? ' active' : '') + '" data-isl-type="' + i + '">' + __(o.label) + '</button>'; }).join("") +
-      '</div></div>'; // delete: the ✕ on each box
+    var chip = function(o, i){ return '<button type="button" class="hw-btn' + (i === cur ? ' active' : '') + '" data-isl-type="' + i + '">' + __(o.label) + '</button>'; }, boxLbl = (uw.island.b && uw.island.b.indexOf(uw.b) >= 0 ? "B" : "A") + ((uw.island.a.indexOf(uw.b) >= 0 ? uw.island.a : uw.island.b).indexOf(uw.b) + 1) + ' — ' + __("útfærsla");
+    html += '<div class="edit-field"><label>' + boxLbl + '</label><div class="uw-chips">' + ISLAND_BOX_OPTS.map(chip).join("") + '</div></div>';
+    if (PRO) html += '<div class="edit-field"><label>' + __("Háir skápar") + '</label><div class="uw-chips">' + ISLAND_TALL_OPTS.map(function(o, k){ return chip(o, ISLAND_BOX_OPTS.length + k); }).join("") + '</div></div>'; // delete: the ✕ on each box
     return html;
   }
   function wireIslandConfig(side){
@@ -8712,7 +8717,7 @@
       var nb = uwStartBlock(ISLAND_BOX_OPTS[1]); I[el.dataset.islNew].push(nb); uw.b = nb; renderUnitWizard();
     }); });
     side.querySelectorAll("[data-isl-type]").forEach(function(el){ el.addEventListener("click", function(){
-      var row = rowOf(uw.b), i = row.indexOf(uw.b), nb = uwStartBlock(ISLAND_BOX_OPTS[+el.dataset.islType]), nc = CATALOG[nb.type];
+      var row = rowOf(uw.b), i = row.indexOf(uw.b), nb = uwStartBlock(islandOpts()[+el.dataset.islType]), nc = CATALOG[nb.type];
       nb.widthMm = Math.max(nc.minW, Math.min(nc.maxW, uw.b.widthMm)); // keep its width when the new type allows it
       row[i] = nb; uw.b = nb; renderUnitWizard();
     }); });
@@ -13678,7 +13683,20 @@
     // Windows/doors are room-level, not cabinets — no Eyðublað row of their
     // own, so this note (plus the JSON blob the review page renders from)
     // is the only place Rakel sees them were drawn in at all.
-    (state.islands || []).forEach(function(x){ if (x.back && !x.two) lines.push("Bak á eyju (" + x.label + "): 19 mm úthlið í framhliðaefni, " + x.lengthMm + " mm löng"); });
+    (state.islands || []).forEach(function(x){
+      if (x.back && !x.two && !KP3D.islandHasTall(x)) lines.push("Bak á eyju (" + x.label + "): 19 mm úthlið í framhliðaefni, " + x.lengthMm + " mm löng");
+      else if (KP3D.islandHasTall(x)){ // a tall unit in an island: its own back at its own height (owner, 2026-10-30), the rest at the base height
+        (x.two ? [x.a, x.b] : [x.a]).forEach(function(row, ri){
+          if (!row || !row.length) return;
+          var segs = KP3D.islandBackSegs(row, state.roomHeightMm || DEFAULT_ROOM_HEIGHT_MM);
+          segs.forEach(function(sg){
+            if (!sg.tall && x.two) return; // back to back: the base backs meet
+            if (!sg.tall && !x.back) return;
+            lines.push((sg.tall ? "Bak á háum skáp í eyju" : "Bak á eyju") + " (" + x.label + (x.two ? ", röð " + (ri ? "B" : "A") : "") + "): 19 mm úthlið í framhliðaefni, " + Math.round(sg.to - sg.from) + " × " + Math.round(sg.h) + " mm");
+          });
+        });
+      }
+    });
     var bom = lightingBOM();
     if (bom) lines.push("Lýsing (áætlun, söluaðili staðfestir — í V3 á skápunum): " + lightingText(bom).join(", "));
     var appl = [];

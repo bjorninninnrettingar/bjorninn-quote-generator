@@ -950,6 +950,28 @@
     return { axis:axis, normal:normalFromAxis(axis) };
   }
   var ISLAND_MAX_MM = 6000;
+  // A tall unit in an island (Hár skápur í eyju, 2026-10-30): tall / oven tower / built-in fridge — the units whose back and
+  // sides show above the base height.
+  function tallUnitC(c){ return !!c && (c.cls === "tall" || c.cls === "oven" || !!c.fridge); }
+  function islandHasTall(isl){ return !!isl && [isl.a, isl.b].some(function(row){ return (row || []).some(function(b){ return tallUnitC(CATALOG[b.type]); }); }); }
+  // The back of an island row, clad in 19 mm front material, as pieces [{from, to, h, tall}] (mm along the row, height mm).
+  // Without a tall unit: ONE piece over the whole row at the height of the highest unit (exactly the old "Bak á eyju"). With
+  // tall units: each tall unit gets its own back at its own height, and the base units between keep the base height (the highest
+  // non-tall unit).
+  function islandBackSegs(row, roomHMm){
+    if (!row || !row.length) return [];
+    var starts = blockStartsMm(row, 0), last = row.length - 1;
+    var hOf = function(b){ var c = CATALOG[b.type]; return Math.min(b.heightMm || c.h, roomHMm); };
+    var tallAny = row.some(function(b){ return tallUnitC(CATALOG[b.type]); });
+    if (!tallAny) return [{ from:starts[0], to:starts[last] + row[last].widthMm, h:row.reduce(function(m, b){ return Math.max(m, hOf(b)); }, 0), tall:false }];
+    var baseH = row.reduce(function(m, b){ return tallUnitC(CATALOG[b.type]) ? m : Math.max(m, hOf(b)); }, 0), out = [];
+    row.forEach(function(b, i){
+      var tall = tallUnitC(CATALOG[b.type]), from = starts[i], to = from + b.widthMm, h = tall ? hOf(b) : baseH, prev = out[out.length - 1];
+      if (prev && prev.tall === tall && prev.h === h && Math.abs(prev.to - from) < 2){ prev.to = to; return; }
+      out.push({ from:from, to:to, h:h, tall:tall });
+    });
+    return out;
+  }
   // ---------- milliveggir (partition walls, 2026-10-15) ----------
   // A "milliveggur" is an obstacle (state.obstacles, kind:"milliveggur" — see OBSTACLES below) that also
   // works as a real surface: cabinets can stand against either of its two long faces, same as an island's
@@ -6073,20 +6095,48 @@
     // "Bak á eyju" (2026-10-05): a single-row island's open back clad with one 19 mm panel in the front
     // material over its whole length, the worktop running on over it
     function addIslandBack(g, wall, starts){
-      var last = wall.floor.length - 1, from = starts[0] / 1000, to = (starts[last] + wall.floor[last].widthMm) / 1000;
-      var hM = wall.floor.reduce(function(m, b){ var c = CATALOG[b.type]; return Math.max(m, Math.min(b.heightMm || c.h, roomHeightMm) / 1000); }, 0);
-      var len = to - from, w = 0.019, along = from + len / 2;
+      // one piece per run of the row: the whole length at the highest unit's height (no tall unit), or each tall unit's own back
+      // at its own height and the base units' back at the base height (Hár skápur í eyju, 2026-10-30)
       var q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
-      var geo = new THREE.BoxGeometry(len, hM, w - 0.002);
-      scaleFrontUV(geo, len, hM, frontMat.userData && frontMat.userData.tile);
-      var m = new THREE.Mesh(geo, frontMat);
-      m.position.set(g.origin.x + g.axis.x * along - g.normal.x * w / 2, hM / 2, g.origin.z + g.axis.z * along - g.normal.z * w / 2);
-      m.quaternion.copy(q); m.castShadow = true; m.receiveShadow = true; scene.add(m);
-      if (wall.floor.some(function(b){ return CATALOG[b.type].counter; })){
-        var tt1 = stoneMat.userData.thick || 0.03, t = new THREE.Mesh(new THREE.BoxGeometry(len + 0.001, tt1, w), stoneMat);
-        t.position.set(g.origin.x + g.axis.x * along - g.normal.x * w / 2, hM + 0.001 + tt1 / 2, g.origin.z + g.axis.z * along - g.normal.z * w / 2);
-        t.quaternion.copy(q); t.castShadow = true; scene.add(t);
-      }
+      var w = 0.019;
+      islandBackSegs(wall.floor, roomHeightMm).forEach(function(sg){
+        var from = sg.from / 1000, to = sg.to / 1000, hM = sg.h / 1000;
+        if (!(hM > 0)) return;
+        var len = to - from, along = from + len / 2;
+        var geo = new THREE.BoxGeometry(len, hM, w - 0.002);
+        scaleFrontUV(geo, len, hM, frontMat.userData && frontMat.userData.tile);
+        var m = new THREE.Mesh(geo, frontMat);
+        m.position.set(g.origin.x + g.axis.x * along - g.normal.x * w / 2, hM / 2, g.origin.z + g.axis.z * along - g.normal.z * w / 2);
+        m.quaternion.copy(q); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+        var hasCounter = wall.floor.some(function(b, i){ return CATALOG[b.type].counter && (!sg.tall && starts[i] + b.widthMm > sg.from + 1 && starts[i] < sg.to - 1); });
+        if (hasCounter && !sg.tall){
+          var tt1 = stoneMat.userData.thick || 0.03, t = new THREE.Mesh(new THREE.BoxGeometry(len + 0.001, tt1, w), stoneMat);
+          t.position.set(g.origin.x + g.axis.x * along - g.normal.x * w / 2, hM + 0.001 + tt1 / 2, g.origin.z + g.axis.z * along - g.normal.z * w / 2);
+          t.quaternion.copy(q); t.castShadow = true; scene.add(t);
+        }
+      });
+    }
+    // Back to back (two rows): a tall unit's own back shows above the OTHER row's top — one 19 mm piece from there up to its height
+    function addIslandTallBacks(g, wall, starts, sibling){
+      var q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
+      var w = 0.019, L = wall.island.lengthMm, sStarts = sibling ? blockStartsMm(sibling.floor, 0) : [], thick = (stoneMat && stoneMat.userData.thick || 0.03) + 0.001;
+      wall.floor.forEach(function(b, i){
+        var c = CATALOG[b.type]; if (!tallUnitC(c)) return;
+        var h = Math.min(b.heightMm || c.h, roomHeightMm) / 1000, a0 = starts[i], a1 = a0 + b.widthMm, oppH = 0;
+        if (sibling) sibling.floor.forEach(function(ob, j){ // the other row's units share this stretch (its along runs the other way)
+          var o0 = L - (sStarts[j] + ob.widthMm), o1 = L - sStarts[j];
+          if (Math.min(a1, o1) - Math.max(a0, o0) <= 20) return;
+          var oc = CATALOG[ob.type];
+          oppH = Math.max(oppH, Math.min(ob.heightMm || oc.h, roomHeightMm) / 1000 + (oc.counter ? thick : 0));
+        });
+        var hh = h - oppH; if (hh < 0.05) return;
+        var len = b.widthMm / 1000, along = (a0 + a1) / 2000;
+        var geo = new THREE.BoxGeometry(len, hh, w - 0.002);
+        scaleFrontUV(geo, len, hh, frontMat.userData && frontMat.userData.tile);
+        var m = new THREE.Mesh(geo, frontMat);
+        m.position.set(g.origin.x + g.axis.x * along - g.normal.x * w / 2, oppH + hh / 2, g.origin.z + g.axis.z * along - g.normal.z * w / 2);
+        m.quaternion.copy(q); m.castShadow = true; m.receiveShadow = true; scene.add(m);
+      });
     }
 
     surfaces.forEach(function(wall, wi){
@@ -6104,6 +6154,7 @@
       var plinthSrcW = wall.island || wall, plinthMmW = (plinthSrcW && typeof plinthSrcW.plinthMm === "number") ? plinthSrcW.plinthMm : 100;
       if (!opts.people && !neighborOnly) addAfellur(g, wall, wi, fStarts, wStarts);
       if (wall.island && wall.island.back && !wall.island.two && wall.floor.length && !neighborOnly) addIslandBack(g, wall, fStarts);
+      else if (wall.island && wall.island.two && wall.floor.length && !neighborOnly && !opts.people && islandHasTall(wall.island)) addIslandTallBacks(g, wall, fStarts, surfaces.find(function(x){ return x.island === wall.island && x !== wall; }));
       wall.floor.forEach(function(b, bi){
         if (neighborOnly && b.id !== neighborCabinetId) return;
         var offset = fStarts[bi];
@@ -8526,7 +8577,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, afellaEndsOf: afellaEndsOf, afellaTypedMm: afellaTypedMm, AFELLA_MM: AFELLA_MM, AFELLA_MAX_MM: AFELLA_MAX_MM, AFELLA_WARN_MM: AFELLA_WARN_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, setSpacious: setSpacious, isSpacious: function(){ return SPACIOUS; }, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, setSpacious: setSpacious, isSpacious: function(){ return SPACIOUS; }, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, islandBackSegs: islandBackSegs, islandHasTall: islandHasTall, tallUnitC: tallUnitC, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS, WALL_TILES: WALL_TILES,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
