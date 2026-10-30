@@ -20942,6 +20942,15 @@
     return pr;
   }
   // the drawing as the server sees it, minus what a save itself rewrites (proSavedAt, liSent from the response; roomMats before it)
+  // the local drawing as a .json download — before "Sækja nýrri útgáfu" throws it away
+  function proBackupLocal(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY); if (!raw) return;
+      var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([raw], { type:"application/json" }));
+      a.download = String(PRO.name || PRO.id).replace(/[^A-Za-z0-9\u00C0-\u024F-]+/g, "_") + "-afrit-" + new Date().toISOString().slice(0, 16).replace(/[:T]/g, "") + ".json";
+      document.body.appendChild(a); a.click(); a.remove();
+    }catch(e){}
+  }
   function proStateSig(){ var o = Object.assign({}, state); delete o.proSavedAt; delete o.liSent; delete o.roomMats; return JSON.stringify(o); } // roomMats: re-derived by every proSaveRun, never an edit
   async function proSaveRun(resolve, force){
     var staleDoors = []; try{ staleDoors = proStaleDoorSpecs(); }catch(e){}
@@ -20959,11 +20968,11 @@
     }catch(e){
       pc.saving = false;
       if (e.status === 409 && d.conflict){
-        var ch = await proDialog({ title:"Einhver vistaði þetta verkefni " + proClock(d.savedAt) + " í annarri tölvu",
-          html:'<p>Útgáfan hér byggir á vistun ' + (state.proSavedAt ? escapeHtmlPro(proClock(state.proSavedAt)) : "frá því áður en verkefnið var vistað í PRO") + '. Ef þú vistar núna fer það sem var vistað í hinni tölvunni.</p>' +
-            '<p><b>Sækja nýrri útgáfu</b> = breytingarnar hér hverfa og nýja útgáfan opnast. <b>Skrifa samt yfir</b> = þessi teikning gildir.</p>',
+        var ch = await proDialog({ title:"Verkefnið var vistað " + proClock(d.savedAt) + " eftir að þú opnaðir það",
+          html:'<p>Útgáfan hér byggir á vistun ' + (state.proSavedAt ? escapeHtmlPro(proClock(state.proSavedAt)) : "frá því áður en verkefnið var vistað í PRO") + '. Þetta er önnur vistun — oftast frá annarri tölvu eða öðrum flipa. Ef þú vistar núna fer það sem var vistað.</p>' +
+            '<p><b>Sækja nýrri útgáfu</b> = breytingarnar hér hverfa og nýja útgáfan opnast (afrit af þeim vistast fyrst sem skrá í niðurhölum). <b>Skrifa samt yfir</b> = þessi teikning gildir.</p>',
           cancel:"Hætta við", alt:"Sækja nýrri útgáfu", ok:"Skrifa samt yfir", focus:"cancel" });
-        if (ch === "alt"){ try{ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(STORAGE_KEY + ":dirty"); localStorage.removeItem(STORAGE_KEY + ":at"); }catch(e2){} location.reload(); return false; }
+        if (ch === "alt"){ proBackupLocal(); try{ localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(STORAGE_KEY + ":dirty"); localStorage.removeItem(STORAGE_KEY + ":at"); }catch(e2){} location.reload(); return false; }
         if (ch === true) return proSaveRun(resolve, true);
       }
       pc.saveErr = proSaveErrText(e.status || 0, d.error || "");
