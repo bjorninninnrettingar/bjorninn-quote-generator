@@ -787,6 +787,18 @@
   #closetDepthCards.sw-grid.big, #closetDoorCards.sw-grid.big, #closetHeightCards.sw-grid.big{ grid-template-columns:1fr 1fr; } /* a line of text each, not four */
   .sw-grid.big .sw-fill{ aspect-ratio:1/1; }
   .drawer-cards{ display:grid; gap:12px; }
+  /* Vasahurðir (2026-10-30): version cards — the plan symbol is drawn in true mm, the card only sets its width */
+  .pk-cards{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; }
+  .pk-card{ display:flex; flex-direction:column; gap:3px; text-align:left; background:var(--card,#fff); color:var(--ink); border:1.5px solid var(--line); border-radius:12px; padding:8px; cursor:pointer; font:inherit; }
+  .pk-card.on{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
+  .pk-card.bad{ border-color:#e3b3ae; } .pk-card.bad.on{ border-color:#b3261e; box-shadow:0 0 0 3px rgba(179,38,30,.15); }
+  .pk-card .pk-svg{ display:block; background:var(--panel); border-radius:8px; padding:4px; }
+  .pk-card .pk-svg svg{ display:block; width:100%; height:auto; max-height:96px; }
+  .pk-card b{ font-size:13px; } .pk-card small{ color:var(--muted); font-size:11px; }
+  .pk-card em{ font-style:normal; font-size:11px; line-height:1.3; color:#b3261e; }
+  .pk-space{ display:flex; flex-direction:column; gap:2px; margin:6px 0 2px; font-size:12.5px; } .pk-space span{ color:var(--muted); }
+  .pk-note{ margin:2px 0 0; font-size:12px; } .pk-note.err{ color:#b3261e; } .pk-note.warn{ color:#9a6700; }
+  .pk-open{ margin-top:6px; }
   .drawer-card{ display:flex; gap:14px; align-items:center; text-align:left; background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:16px; cursor:pointer; font:inherit; }
   .drawer-card:hover{ border-color:var(--blue); }
   .drawer-card.active{ border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-soft); }
@@ -8361,7 +8373,7 @@
     kOne("Efri skápar", "laus", "Lausar hillur", "Hillur á vegg", { type:"laushilla" }),
     // Tækjaskápar (owner, 2026-10-27): the home for the complex systems — the Revego pocket-door unit (doors slide
     // into the sides, a coffee / pantry station) and the tall appliance towers; what stands under the worktop stays in Eldhústæki
-    kOne("Tækjaskápar", "renni", "Skápur með rennihurðum", "Hurðirnar renna inn í hliðarnar", { type:"harskapur", pocket:true }),
+    kOne("Tækjaskápar", "renni", "Vasahurð", "Hurðin rennur inn í vasa í skápnum", { type:"harskapur", pocket:true }),
     kOne("Tækjaskápar", "ofn", "Ofn í háum skáp", "Ofn í háum skáp", { type:"ofnaskapur" }),
     kOne("Tækjaskápar", "ofnorb", "Ofn + örbylgja", "60 + 45 í háum skáp", { type:"ofnaskapur", preset:{ ovenH:1050 } }),
     kOne("Tækjaskápar", "isinn", "Innbyggður ísskápur", "Í háum skáp", { type:"isskapur" }),
@@ -8611,7 +8623,7 @@
     var sec = uw.sec, n = g.normal, a = g.axis, dir, lift = 0, fa = (sec === "pos" || sec === "lam") && uw.smida && uw.smFocusAbs != null ? uw.smFocusAbs : null; // Smíða: one shelf / one hinge at a time — the camera goes to it
     if (fa != null){ cy = x.y0 + (x.plinthM || 0) + fa / 1000; dist = Math.max(dist * 0.5, 0.9); }
     if (sec === "d"){ dir = { x:a.x * 0.94 + n.x * 0.34, z:a.z * 0.94 + n.z * 0.34 }; }
-    else if (sec === "w" || sec === "inn" || sec === "pos" || sec === "lam" || sec === "hw" || sec === "yfir"){ dir = { x:n.x, z:n.z }; }
+    else if (sec === "w" || sec === "ver" || sec === "inn" || sec === "pos" || sec === "lam" || sec === "hw" || sec === "yfir"){ dir = { x:n.x, z:n.z }; }
     else { dir = { x:n.x * 0.74 + a.x * 0.67, z:n.z * 0.74 + a.z * 0.67 }; lift = hM * 0.12; }
     if (fa != null && sec === "lam"){ // a hinge: close, from the hinge side, the camera on the hinge itself
       var sg = uw.smFocusSide === "r" ? 1 : -1, off = Math.max(0, wM / 2 - 0.1);
@@ -8619,7 +8631,8 @@
     }
     var to = new T.Vector3(cx + dir.x * dist, cy + lift, cz + dir.z * dist), tgt = new T.Vector3(cx, cy, cz);
     st.controls.target.copy(tgt);
-    if (sec === "inn" || sec === "pos" || sec === "lam" || sec === "hw") KP3D.setAllParts(true); else if (!uwView.open) KP3D.setAllParts(false);
+    if (sec === "ver"){ if (uw && !uw.verOpened){ uw.verOpened = true; uwView.open = true; syncUwTools(); } KP3D.setAllParts(uwView.open); } // Vasahurð: the doors start open so the pocket shows (Loka hurð closes them)
+    else if (sec === "inn" || sec === "pos" || sec === "lam" || sec === "hw") KP3D.setAllParts(true); else if (!uwView.open) KP3D.setAllParts(false);
     cancelAnimationFrame(uwAimAnim);
     if (!animate){ st.camera.position.copy(to); st.controls.update(); return; }
     var from = st.camera.position.clone(), t0 = performance.now();
@@ -8799,7 +8812,7 @@
   }
   function uwAdvance(key){ // a dimension was picked → fold it, open the next group still to do
     uw.picked = uw.picked || {}; uw.picked[key] = true;
-    var c = CATALOG[uw.b.type], bf = bathFrontsWiz(uw.b), shortWiz = uwShort(uw.b), order = [!c.panel && "w", c.minH !== c.maxH && !shortWiz && "h", c.minD !== c.maxD && !bf && !shortWiz && "d", ((isCloset() && closetTall(uw.b) && !uw.cornerUnit) || bf || frontsWiz(uw.b)) && "door", !shortWiz && "inn"].filter(Boolean);
+    var c = CATALOG[uw.b.type], bf = bathFrontsWiz(uw.b), shortWiz = uwShort(uw.b), order = [!c.panel && "w", c.minH !== c.maxH && !shortWiz && "h", c.minD !== c.maxD && !bf && !shortWiz && "d", ((isCloset() && closetTall(uw.b) && !uw.cornerUnit) || bf || frontsWiz(uw.b)) && "door", !uw.smida && pocketUnit(uw.b) && "ver", !shortWiz && "inn"].filter(Boolean);
     uw.sec = order.slice(order.indexOf(key) + 1).find(function(k){ return !uw.picked[k]; }) || (shortWiz ? null : "inn");
   }
   function renderUnitWizard(){
@@ -8930,6 +8943,10 @@
         var rr = CLOSET_RECIPES.find(function(x){ return x.key === b.closetRecipe; });
         innSum = (rr ? __(rr.label) : __("Eigin samsetning")) + " · " + (b.type === "harskapurOpinn" ? __("Opið") : opt.pocket ? __("Rennihurð í hlið") : opt.doorSys ? __(DOOR_SYSTEMS[opt.doorSys].short) : __("Með hurðum"));
       }
+      if (!uw.smida && pocketUnit(b)){ // Vasahurð (2026-10-30): the version cards, after the sizes (their limits depend on them)
+        var pkRes = pocketResOf(b, c), pkErr = pkRes && KPPOCKET.firstError(pkRes);
+        secHtml.push(uwSec("ver", __("Hvaða útgáfu?"), pkRes ? escapeHtmlPro(KPPOCKET.summary(pkRes)) + (pkErr ? " ⚠" : (uw.picked.ver ? " ✓" : "")) : "", pocketCardsHtml(b, c)));
+      }
       var hasInn = !shortWiz && !machineOnly && !!innHtml.replace(/<div class="edit-field"><\/div>/g, "").trim();
       if (uw.smida) uw.smHasInn = hasInn;
       if (hasInn) secHtml.push(uwSec("inn", c.hasInterior || c.shelfRange || c.railRange ? __("Innvols") : __("Útfærsla"), uw.smida ? (smInnOk(b) ? (innSum || "") + " ✓" : "—") : innSum, uw.smida ? innHtml + smAckBtn("inn", "Innvols er rétt", smInnOk(b)) : innHtml));
@@ -9034,6 +9051,7 @@
     if (uw.step !== 3) return;
     var b = uw.b, c = CATALOG[b.type];
     if (uw.smida) smWire(side, b, c);
+    else if (pocketUnit(b)) wirePocketCards(side, b, function(picked){ if (picked) uwAdvance("ver"); renderUnitWizard(); });
     side.querySelectorAll("[data-uw-sec]").forEach(function(el){ el.addEventListener("click", function(){ uw.sec = uw.sec === el.dataset.uwSec ? null : el.dataset.uwSec; renderUnitWizard(); }); });
     side.querySelectorAll("[data-uw-w]").forEach(function(el){ el.addEventListener("click", function(){ uw.hoverDim = null; b.widthMm = +el.dataset.uwW; uwAdvance("w"); renderUnitWizard(); }); });
     // pointing at a size shows it on the cabinet before it's picked (user, 2026-10-26)
@@ -12210,7 +12228,7 @@
     ds2.forEach(function(d, i){
       var sp = proSpec(b, ds2, i);
       if (kind === "pocket"){ sp.type = "pocket"; sp.pocketSys = sp.pocketSys || "revego"; }
-      else { sp.type = "hinged"; delete sp.pocketSys; if (!(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, ds2, i); }
+      else { sp.type = "hinged"; delete sp.pocketSys; delete sp.pocketVer; delete sp.pocketSide; delete sp.toeKick; delete sp.onWorktop; if (!(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, ds2, i); }
       proSetSpec(b, ds2, i, sp);
     });
   }
@@ -12379,6 +12397,7 @@
             pocketHtml = '<div class="edit-field"><label title="' + __("Hurðin rennur inn í hlið skápsins þegar hún er opin (Blum Revego). Dýrari lausn, söluaðili staðfestir verð.") + '">' + __("Hurð") + '</label><div class="hw-toggle">' +
               '<button type="button" class="hw-btn' + (!isPocket ? ' active' : '') + '" data-pocket="0">' + __("Á lömum") + '</button>' +
               '<button type="button" class="hw-btn' + (isPocket ? ' active' : '') + '" data-pocket="1">' + __("Rennur inn í hlið") + '</button></div></div>';
+            if (isPocket && pocketUnit(b)) pocketHtml += pocketCardsHtml(b, c); // version cards + the space it takes (2026-10-30)
           }
           if (c.cls === "tall" && !c.fridge && !c.oven && !c.appliance && (c.railRange || c.shelfRange)){
             var cl = b.closetLed || "";
@@ -12538,13 +12557,14 @@
     host.querySelectorAll("[data-ledside]").forEach(function(btn){
       btn.addEventListener("click", function(){ b.ledSide = btn.dataset.ledside; save(); refreshAfterEdit(); });
     });
+    if (pocketUnit(b)) wirePocketCards(host, b, function(){ save(); refreshAfterEdit(); });
     host.querySelectorAll("[data-pocket]").forEach(function(btn){
       btn.addEventListener("click", function(){
         var fb = findBlock(b.id), ds = proDoorsOf(b, c, fb ? fb.zone : "floor"), on = btn.dataset.pocket === "1";
         ds.forEach(function(d, i){
           var sp = proSpec(b, ds, i);
           if (on){ sp.type = "pocket"; sp.pocketSys = sp.pocketSys || "revego"; }
-          else { sp.type = "hinged"; delete sp.pocketSys; if (!(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, ds, i); }
+          else { sp.type = "hinged"; delete sp.pocketSys; delete sp.pocketVer; delete sp.pocketSide; delete sp.toeKick; delete sp.onWorktop; if (!(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, ds, i); }
           proSetSpec(b, ds, i, sp);
         });
         refreshAfterEdit();
@@ -13976,6 +13996,50 @@
     var r = pocketResOf(b, c);
     if (r) return KPPOCKET.leafOf(r);
     return b.widthMm > 900 ? "duo" : "uno"; // no spec yet (wizard preview): Blum's own limit — uno reaches 900
+  }
+  function pocketDimsOf(b, c){ var fb = findBlock(b.id), zone = fb ? fb.zone : (c.zone || "floor"); return { widthMm:b.widthMm, bodyMm:proBodyMm(b, c, zone), depthMm:b.depthMm || c.d }; }
+  function pocketUnit(b){ var c = b && CATALOG[b.type]; return !!(c && window.KPPOCKET && pocketSpecOf(b, c)); }
+  // write optional pocket fields (pocketSys / pocketVer / pocketSide / toeKick / onWorktop; null = unset) on every pocket door of the unit
+  function pocketPatch(b, patch){
+    var c = CATALOG[b.type], fb = findBlock(b.id), ds = proDoorsOf(b, c, fb ? fb.zone : (c.zone || "floor"));
+    ds.forEach(function(d, i){
+      var sp = proSpec(b, ds, i); if (sp.type !== "pocket") return;
+      Object.keys(patch).forEach(function(k){ if (patch[k] === null) delete sp[k]; else sp[k] = patch[k]; });
+      if (patch.pocketSys && sp.pocketVer) sp.pocketVer = KPPOCKET.closestVer(patch.pocketSys, sp.pocketVer) || undefined; // the other system's nearest version
+      if (sp.pocketVer === undefined) delete sp.pocketVer;
+      proSetSpec(b, ds, i, sp);
+    });
+  }
+  // "Hvaða útgáfu?" (2026-10-30): picture cards, top view in true mm; the limits show on the card at once, the space in words below
+  function pocketCardsHtml(b, c){
+    var sp = pocketSpecOf(b, c), K = KPPOCKET, dims = pocketDimsOf(b, c), def = b.swing === "haegri" ? "right" : "left", sys = K.sysOf(sp), cur = pocketResOf(b, c, sp);
+    if (!cur) return "";
+    var sysBtns = '<div class="hw-toggle pk-sys">' + ["revego", "concepta"].map(function(k){ return '<button type="button" class="hw-btn' + (sys === k ? ' active' : '') + '" data-pk-sys="' + k + '">' + K.SYSTEMS[k].label + '</button>'; }).join("") + '</div>';
+    var cards = '<div class="pk-cards">' + K.versionsOf(sys).map(function(v){
+      var r = K.resolve(Object.assign({}, sp, { pocketVer:v.key }), dims, def), err = K.firstError(r);
+      return '<button type="button" class="pk-card' + (v.key === cur.ver ? ' on' : '') + (err ? ' bad' : '') + '" data-pk-ver="' + v.key + '"><span class="pk-svg">' + K.planSvg(r) + '</span><b>' + __(v.label) + '</b><small>' + __(v.sub) + '</small>' +
+        (err ? '<em>' + escapeHtmlPro(err) + '</em>' : '') + '</button>';
+    }).join("") + '</div>';
+    var asym = cur.units.length === 1 || cur.units[0].kind !== cur.units[1].kind;
+    var sideBtns = asym ? '<div class="edit-field"><label>' + __("Vasinn") + '</label><div class="hw-toggle">' + [["left", "Vinstra megin"], ["right", "Hægra megin"]].map(function(o){
+      return '<button type="button" class="hw-btn' + (cur.side === o[0] ? ' active' : '') + '" data-pk-side="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div></div>' : '';
+    var toe = '<div class="edit-field"><label>' + __("Sökkull") + '</label><div class="hw-toggle">' + [["1", "Já"], ["0", "Nei"]].map(function(o){
+      return '<button type="button" class="hw-btn' + ((o[0] === "1") === cur.toeKick ? ' active' : '') + '" data-pk-toe="' + o[0] + '"' + (cur.onWorktop ? ' disabled' : '') + '>' + __(o[1]) + '</button>'; }).join("") + '</div></div>' +
+      '<div class="edit-field"><label title="' + __("Standa á borðplötu: framhliðin getur verið allt niður í 1130 mm (Blum).") + '">' + __("Á borðplötu") + '</label><div class="hw-toggle">' + [["0", "Nei"], ["1", "Já"]].map(function(o){
+      return '<button type="button" class="hw-btn' + ((o[0] === "1") === cur.onWorktop ? ' active' : '') + '" data-pk-wt="' + o[0] + '">' + __(o[1]) + '</button>'; }).join("") + '</div></div>';
+    var lines = K.spaceText(cur), notes = K.validate(cur).map(function(v){ return '<p class="pk-note ' + v.level + '">' + escapeHtmlPro(v.text) + '</p>'; }).join("");
+    return '<div class="edit-field">' + sysBtns + '</div>' + cards + sideBtns + toe +
+      '<div class="pk-space"><b>' + escapeHtmlPro(lines[0]) + '</b><span>' + escapeHtmlPro(lines[1]) + '</span></div>' + notes +
+      '<div class="uw-actions pk-open"><button type="button" class="btn btn-secondary btn-small" data-pk-open>' + __(uwView.open ? "Loka hurð" : "Opna hurð") + '</button></div>';
+  }
+  function wirePocketCards(side, b, done){
+    function on(sel, fn){ side.querySelectorAll(sel).forEach(function(el){ el.addEventListener("click", function(){ fn(el); }); }); }
+    on("[data-pk-sys]", function(el){ pocketPatch(b, { pocketSys:el.dataset.pkSys }); done(); });
+    on("[data-pk-ver]", function(el){ pocketPatch(b, { pocketVer:el.dataset.pkVer }); done(true); });
+    on("[data-pk-side]", function(el){ pocketPatch(b, { pocketSide:el.dataset.pkSide }); done(); });
+    on("[data-pk-toe]", function(el){ pocketPatch(b, { toeKick:el.dataset.pkToe === "1" ? null : false }); done(); });
+    on("[data-pk-wt]", function(el){ pocketPatch(b, el.dataset.pkWt === "1" ? { onWorktop:true } : { onWorktop:null }); done(); });
+    on("[data-pk-open]", function(){ uwView.open = !uwView.open; KP3D.setAllParts(uwView.open); done(); });
   }
   // V3 = accessories with an Aukahlutategund route: the bin insert (+ the LED, added in collectLineItems)
   function v3RecordsFor(b, c){
@@ -18987,7 +19051,14 @@
         bottom -= d.box; var sp = proSpec(b, doors, i), grpName = d.label + " — " + d.box + " mm", dbot = bottom;
         ch("dt" + i, "Gerð", sp.type, [{ v:"hinged", t:"Á lömum" }, { v:"lift", t:"Lyftihurð" }, { v:"pocket", t:"Rennihurð" }], function(v){
           var s2 = proSpec(b, doors, i); s2.type = v; if (v === "hinged" && !(s2.hinges && s2.hinges.length)) s2.hinges = proDefaultHinges(b, doors, i); if (v === "pocket" && !s2.pocketSys) s2.pocketSys = "revego"; proSetSpec(b, doors, i, s2); }, grpName);
-        if (sp.type === "pocket") ch("dp" + i, "Kerfi", sp.pocketSys || "revego", [{ v:"revego", t:"Blum Revego" }, { v:"concepta", t:"Hawa Concepta III" }], function(v){ var s2 = proSpec(b, doors, i); s2.pocketSys = v; proSetSpec(b, doors, i, s2); }, grpName);
+        if (sp.type === "pocket"){
+          ch("dp" + i, "Kerfi", sp.pocketSys || "revego", [{ v:"revego", t:"Blum Revego" }, { v:"concepta", t:"Hawa Concepta III" }], function(v){ pocketPatch(b, { pocketSys:v }); }, grpName);
+          var pkR = pocketResOf(b, c, sp);
+          if (pkR){ // the same version / side the Ný eining cards write (round 1, 2026-10-30)
+            ch("dv" + i, "Útgáfa", pkR.ver, KPPOCKET.versionsOf(pkR.sys).map(function(v){ return { v:v.key, t:v.label }; }), function(v){ pocketPatch(b, { pocketVer:v }); }, grpName);
+            if (pkR.units.length === 1 || pkR.units[0].kind !== pkR.units[1].kind) ch("ds" + i, "Hlið vasans", pkR.side, [{ v:"left", t:"Vinstri" }, { v:"right", t:"Hægri" }], function(v){ pocketPatch(b, { pocketSide:v }); }, grpName);
+          }
+        }
         if (sp.type === "hinged") CNCSIDES.specToPositions(sp.hinges, d.box).map(Math.round).sort(function(a, z){ return a - z; }).forEach(function(p, j, arr){
           mm("hg" + i + "_" + j, "Löm " + (j + 1) + " · frá botni hurðar", p, dbot + p, function(v){
             var s2 = proSpec(b, doors, i), pos = CNCSIDES.specToPositions(s2.hinges, d.box).map(Math.round).sort(function(a, z){ return a - z; });
@@ -19705,12 +19776,12 @@
         '<button type="button" class="pe-btn' + (sp.type === "pocket" ? " on" : "") + '" data-pe="type" data-door="' + i + '" data-v="pocket">Rennihurð</button></div>';
       if (sp.type === "lift") right += '<div class="pe-note">Lyftihurð: engar lamir í hliðum — lamirnar fara í toppborðið.</div>';
       else if (sp.type === "pocket"){
-        var pSys = sp.pocketSys || "revego", pLeaf = pocketLeafOf(b, c);
+        var pSys = sp.pocketSys || "revego", pLeaf = pocketLeafOf(b, c), pRes = pocketResOf(b, c, sp);
         right += '<div class="pe-row">Vélbúnaður:' +
           '<button type="button" class="pe-btn' + (pSys === "revego" ? " on" : "") + '" data-pe="pocketsys" data-door="' + i + '" data-v="revego">Blum Revego</button>' +
           '<button type="button" class="pe-btn' + (pSys === "concepta" ? " on" : "") + '" data-pe="pocketsys" data-door="' + i + '" data-v="concepta">Hawa Concepta III</button></div>' +
-          '<div class="pe-note">Rennihurð í hlið: engar lamir — ' + (pLeaf === "duo" ? "tvöfalt kerfi (tvö blöð)" : "einfalt kerfi (eitt blað)") +
-          ', fer sjálfkrafa eftir breidd/klofningi sem fyrir Lamir. Verð frá birgi (' + (pSys === "revego" ? "INNVAL" : "Járn og gler") + ') er ~9-10 mánaða gamalt — athuga hjá birgi áður en tilboð fer út.</div>';
+          '<div class="pe-note">Rennihurð í hlið: engar lamir — ' + (pRes ? KPPOCKET.summary(pRes) : pLeaf === "duo" ? "tvöfalt kerfi (tvö blöð)" : "einfalt kerfi (eitt blað)") +
+          '. ' + (pRes ? KPPOCKET.spaceText(pRes)[0] + '. ' : '') + 'Útgáfa og hlið eru valin í Smíða. Verð frá birgi (' + (pSys === "revego" ? "INNVAL" : "Járn og gler") + ') er ~9-10 mánaða gamalt — athuga hjá birgi áður en tilboð fer út.</div>';
       }
       else {
         sp.hinges.forEach(function(hg, j){
@@ -20132,7 +20203,7 @@
     });
     act('[data-pe="oshreset"]', function(){ if (c.oven) delete b.ovenShelves; else delete b.shelfPos; ovenDone(); });
     act('[data-pe="type"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.type = n.dataset.v; if (sp.type === "hinged" && !(sp.hinges && sp.hinges.length)) sp.hinges = proDefaultHinges(b, doors, i); if (sp.type === "pocket" && !sp.pocketSys) sp.pocketSys = "revego"; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
-    act('[data-pe="pocketsys"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i); sp.pocketSys = n.dataset.v; proSetSpec(b, doors, i, sp); renderBoxEditor(); });
+    act('[data-pe="pocketsys"]', function(n){ pocketPatch(b, { pocketSys:n.dataset.v }); renderBoxEditor(); });
     act('[data-pe="mm"]', function(n){ var i = +n.dataset.door, sp = proSpec(b, doors, i), v = Math.round(+n.value);
       if (!(v >= 30 && v <= doors[i].box - 30)) toast("Löm er nær enda hurðar en 30 mm — lagaðu áður en skápurinn er merktur yfirfarinn.");
       sp.hinges[+n.dataset.h].mm = Math.max(1, v); proSetSpec(b, doors, i, sp); renderBoxEditor(); });

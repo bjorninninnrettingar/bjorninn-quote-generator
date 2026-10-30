@@ -22,6 +22,8 @@
     concepta: { leafW:[350, 750], doorH:[600, 2700], foldDoorH:[1200, 2700], baseSetMaxH:2200, depthMin:414 }
   };
 
+  // installation width (EB) of a whole version, from Blum's overview tables (p.12–16)
+  var TOTAL_EB = { uno:[450, 900], unouno:[900, 1800], duo:[900, 1500], unoduo:[1350, 2400], duoduo:[1800, 3000] };
   // Units: the pocket's own width and how many leaves go into it.
   var UNIT = {
     uno:   { leaves:1, pocketMm:BLUM_POCKET_MM.uno, name:"uno" },
@@ -121,12 +123,10 @@
     var out = [], L = LIMITS[res.sys], W = res.widthMm, H = res.bodyMm, D = res.depthMm;
     function add(level, text){ out.push({ level:level, text:text }); }
     if (res.sys === "revego"){
-      res.units.forEach(function(u){
-        var eb = u.widthMm, rng = u.kind === "duo" ? L.duoEB : L.unoEB, fbMax = u.kind === "duo" ? L.duoLeafFB[1] : L.leafFB[1], name = "REVEGO " + u.kind;
-        if (eb > rng[1] + 0.5 || (u.leafMm > fbMax + 0.05 && eb <= rng[1])) add("err", "Hurðin er of breið fyrir " + name + " (hámark " + fbMax + " mm)");
-        else if (eb < rng[0] - 0.5) add("err", "Skápurinn er of mjór fyrir " + name + " (lágmark " + rng[0] + " mm)");
-        else if (u.leafMm < L.leafFB[0] - 0.05) add("err", "Hurðin er of mjó fyrir REVEGO (lágmark " + L.leafFB[0] + " mm)");
-      });
+      var tot = TOTAL_EB[res.ver], single = res.units.length === 1, u0 = res.units[0], fbMax = u0.kind === "duo" ? L.duoLeafFB[1] : L.leafFB[1];
+      if (W < tot[0] - 0.5) add("err", "Skápurinn er of mjór fyrir " + res.label + " (lágmark " + tot[0] + " mm)");
+      else if (W > tot[1] + 0.5) add("err", single ? "Hurðin er of breið fyrir " + res.label + " (hámark " + fbMax + " mm)" : "Skápurinn er of breiður fyrir " + res.label + " (hámark " + tot[1] + " mm)");
+      else if (res.units.some(function(u){ var r = u.kind === "duo" ? L.duoEB : L.unoEB; return u.widthMm < r[0] - 0.5 || u.widthMm > r[1] + 0.5; })) add("err", "Breiddin skiptist ekki rétt milli hurðanna í " + res.label + " — breyttu breiddinni");
       var minH = res.onWorktop ? L.doorH[0] : L.bodyH[0];
       if (H && H < minH) add("err", res.onWorktop ? "Framhliðin er of lág fyrir REVEGO (lágmark " + L.doorH[0] + " mm)" : "Skápurinn er of lágur fyrir REVEGO (lágmark " + L.bodyH[0] + " mm)");
       else if (H && H > L.bodyH[1]) add("err", "Skápurinn er of hár fyrir REVEGO (hámark " + L.bodyH[1] + " mm)");
