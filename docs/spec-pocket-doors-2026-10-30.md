@@ -90,6 +90,15 @@ CAD, borgögn, CNC (`cnc-sides.js` heldur áfram að sleppa lömum), nákvæm br
 **Umferð 3 (ef vill) — borðplötuútgáfa og uno+uno.** Skrár sömu.
 Fyrir hverja umferð: `npm test` + `npm run test:live` grænt, ekkert Airtable-skrif.
 
+## Hawa-gögn úr vörulista (síður 154–260 í CAT_EN_Hawa_On_furniture_789.0525.001, 30.10.2026)
+Lesið úr vörulista eiganda (PDF í Downloads, ekki í repo). Nægir fyrir útlit og pláss; borunarmál eru í teikningum vörulistans og Hawa-stillinum og bíða.
+- **Hawa Concepta III** (15/25/35 Push og Pull): hurð allt að **15, 25 eða 35 kg**, hurðarhæð **600–2700 mm**, hurðarbreidd **350–750 mm**, þykkt **18–26 mm**. Settin fyrir 1200–2200 mm hurðir eru grunnsett; 15 kg með 600–1400 mm stoð.
+- **Pláss til hliðar:** tengisett (connector) **55 mm** fyrir eina hurð og **110 mm** fyrir tvær hurðir, efst og neðst. Þetta er líklega plássið sem vasinn tekur við hlið opsins (staðfesta í Hawa-stillinum). Dýptarreglur í vörulistanum: T1 ≥ 414 mm (skápdýpt) og M max ≤ TB − 320.
+- **Hawa Folding Concepta III** (20/25 kg, Push og Pull): hurðarhæð **1200–2700 mm** (20 Push: 1200–2200), breidd **350–750 mm** á hurð, 2 eða 4 hurðir (2 pör) eða 3 hurðir í bland við stak Concepta III. Framhlið allt að **3000 mm breið × 2700 mm há** með tveimur pörum.
+- **Útgáfur sem passa við myndina frá eiganda:** 1 hurð (Concepta III), 2 × 1 hurð, 2 hurðir felli, 2 × 2 hurðir felli, 1 × 2 hurðir felli + 1 hurð (3-hurða skápur: felli + stök Concepta III 25).
+- Rekkar: gólftenging eða samsettur skápur; rennibraut með dýptarstillingu fyrir 4 hurðir með hurðarbreidd > 550 mm; styrkingarprófíll 2765 mm (4 hurðir) og 2085 mm (3 hurðir).
+- Ekki enn: nákvæm borun, rennibrautarlengdir í teikningu og pláss sem fellihurðir þurfa fyrir framan opið (kemur úr Hawa-stillinum, ekki úr vörulistatextanum).
+
 ## Flæðið samkvæmt eiganda: valmöguleikar í Ný eining (mynd frá Hawa, 30.10.2026)
 Leiðin er **Ný eining → Tækjaskápur → Vasahurð**. Þar kemur eitt skref „Hvaða útgáfu?“ með **spjöldum sem sýna grunnmynd ofan frá** (eins og Hawa-stillirinn gerir). Hawa Concepta III hefur fimm útgáfur:
 1. **1 hurð** (Concepta III): ein hurð rennur inn í vasa.
