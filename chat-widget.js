@@ -53,19 +53,19 @@
     direct: "", contact: "", email: "", emailLabel: "", thanks: "", retry: ""
   } : !STUDIO ? {
     greeting: "Hæ! Ég get svarað spurningum um sérsmíði, verð, ferlið og fleira hjá Birninum. Hvað viltu vita?",
-    error: "Því miður get ég ekki svarað núna. Hafðu samband við okkur beint og við hjálpum þér.",
+    error: "Því miður get ég ekki svarað núna. Hringdu í okkur í 779-5777 eða sendu póst á bjorninn@bjorninninnrettingar.is og við hjálpum þér.",
     title: "BJÖRNINN", placeholder: "Skrifaðu spurningu...", send: "Senda", close: "Loka", open: "Opna spjall", question: "Spurning",
     direct: "Vilt þú fá svar frá okkur beint?", contact: "Hafðu samband", email: "netfangið þitt", emailLabel: "Netfang",
     thanks: "Takk! Við sendum þér svar á ", retry: "Náði ekki að senda — reyndu aftur."
   } : EN ? {
     greeting: "Hi! Ask me anything about the designer — measuring, adding units, materials or sending your design in.",
-    error: "Sorry, I can't answer right now. Please email us at " + STUDIO_EMAIL + " and we'll help you.",
+    error: "Sorry, I can't answer right now. Please call us on 779-5777 or email " + STUDIO_EMAIL + " and we'll help you.",
     title: "Ask a question", placeholder: "Type your question…", send: "Send", close: "Close", open: "Ask a question", question: "Question",
     direct: "Want an answer from our team?", contact: "Email " + STUDIO_EMAIL, email: "your email", emailLabel: "Email",
     thanks: "Thanks! We'll reply to ", retry: "Couldn't send — please try again."
   } : {
     greeting: "Hæ! Spurðu mig um hönnunartólið — mælingar, að bæta við skáp, efni eða að senda inn.",
-    error: "Því miður get ég ekki svarað núna. Sendu okkur tölvupóst á " + STUDIO_EMAIL + " og við hjálpum þér.",
+    error: "Því miður get ég ekki svarað núna. Hringdu í okkur í 779-5777 eða sendu póst á " + STUDIO_EMAIL + " og við hjálpum þér.",
     title: "Spyrja", placeholder: "Skrifaðu spurningu…", send: "Senda", close: "Loka", open: "Spyrja", question: "Spurning",
     direct: "Viltu fá svar frá söluaðila?", contact: "Senda póst á " + STUDIO_EMAIL, email: "netfangið þitt", emailLabel: "Netfang",
     thanks: "Takk! Við svörum þér á ", retry: "Náði ekki að senda — reyndu aftur."

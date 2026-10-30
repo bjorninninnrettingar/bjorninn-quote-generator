@@ -89,7 +89,7 @@ function judge(c, r) {
     if (!(r.links || []).some((l) => l.url === url)) problems.push(`link "${c.links}" not offered`);
   }
   for (const re of c.forbid || []) if (re.test(a)) problems.push(`forbidden: ${re}`);
-  for (const re of [...LEAK.all, ...(c.bot === "staff" ? LEAK.staff : [])]) if (re.test(a)) problems.push(`LEAK ${re}`);
+  for (const re of [...LEAK.all, ...(c.bot === "staff" ? LEAK.staff : [])]) if (re.test(a.replaceAll("779-5777", ""))) problems.push(`LEAK ${re}`); // 779-5777 is the owner-approved public phone
   return problems;
 }
 
@@ -104,7 +104,7 @@ if (flag("static") || (!process.env.ANTHROPIC_API_KEY && !URL_ARG)) {
 }
 
 const { default: handler, _resetChatLimiter } = await import("../api/chat.js");
-const want = CASES.filter((c) => (!opt("app") || c.app === opt("app")) && (!opt("bot") || c.bot === opt("bot")) && (DRAFTS || !c.needsDrafts));
+const want = CASES.filter((c) => (!opt("app") || c.app === opt("app")) && (!opt("bot") || c.bot === opt("bot")) && (DRAFTS || !c.needsDrafts) && (!opt("only") || new RegExp(opt("only"), "i").test(c.q)));
 console.log(`Live: ${want.length} questions via ${URL_ARG ? URL_ARG : "in-process handler"}${DRAFTS ? " (drafts ON)" : ""}\n`);
 let fail = 0, n = 0;
 const queue = [...want];

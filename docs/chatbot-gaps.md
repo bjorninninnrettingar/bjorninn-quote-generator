@@ -14,18 +14,23 @@ enough), then the text goes into `faq.html` DATA + `FAQ_CORPUS` (same wording, `
   all of these facts through its own guide, so Studio users lose nothing meanwhile.
 - `npm run eval:chat -- --drafts` checks the draft answers through the public bot.
 
+## Svarað af eiganda 2026-10-30 (komið í faq.html, FAQ_CORPUS, Studio-bot og fallback-texta)
+- Mæling á staðnum: innifalin í tilboði; við gerum hana ekki ef þú ert ekki í verkefni hjá okkur.
+- Biðtími frá staðfestingu til afhendingar: 8–12 vikur, mögulega fyrr; fer eftir flækjustigi.
+- Tilboð gildir í 15 daga.
+- Ábyrgð: 2 ár.
+- Sími 779-5777 og netfang bjorninn@bjorninninnrettingar.is — botinn má gefa upp bæði (Studio-reglan „netfang eingöngu“ afnumin).
+- Enn óvitað: verð á uppsetningu/heimsendingu/niðurrifi/geymslu/hönnunarpakka — vörðurinn „veit ekki“ gildir áfram um það.
+
 ## Spurning → hvað vantar frá Ísak
 
 ### Verð og greiðslur
-- Hvað kostar mæling á staðnum? (bot invented "ókeypis/innifalið" until a guard rule was added — it now says "veit ekki") → er hún ókeypis, hvað kostar hún, utan höfuðborgarsvæðis?
 - Hvað kostar hönnunarpakkinn? → verð eða bil; FAQ segir bara að hann sé greidd þjónusta sem gengur upp í innréttinguna.
 - Hvað kostar uppsetning / heimsending / niðurrif og förgun? → eru til föst verð eða bil, eða alltaf sér tilboð?
 - Geymslugjald: hversu mörg dagar/vikur eru ókeypis og hvað kostar eftir það?
 - Má sýna "Áætlað verð" í Studio (parkað frá 2026-10-26)? → nei sem stendur; bot nefnir aldrei verð.
 
 ### Tími
-- Hver er raunverulegur biðtími (vikur) frá staðfestingu til afhendingar fyrir eldhús / fataskáp / bað? Bot má ekki segja tölu fyrr en þú gefur hana.
-- Hversu lengi er tilboð í gildi?
 - Hversu langur tími líður frá "Senda inn" í Studio þar til tilboð kemur? (Núna: söluaðili hefur samband innan 3 virkra daga — er tilboðið komið þá, eða bara fyrsta samband?)
 
 ### Efni, höldur, borðplötur, frontar
@@ -34,7 +39,6 @@ enough), then the text goes into `faq.html` DATA + `FAQ_CORPUS` (same wording, `
 - Hvaða höldur eru í boði og eru allar sýndar í Studio? Hvað kosta höldur umfram það sem er innifalið?
 - Steinborðplötur: FAQ segir "við vinnum með fyrirtækjum sem framleiða steinborðplötur", Studio segir "Björninn selur ekki steinplötur". Hvort er rétt orðað fyrir viðskiptavini (milliganga, eða viðskiptavinur kaupir sjálfur)?
 - Þykkt borðplatna (harðplast, compact, límtré) og hámarkslengd án samskeyta?
-- Hver er ábyrgðartíminn í árum (FAQ vísar bara á "ábyrgð eða kvörtunarrétt")?
 
 ### Hönnun og hvað er hægt að breyta
 - Hámarks-/lágmarksmál skápa og skúffa (breidd, hæð, dýpt) sem bot má nefna?
@@ -50,7 +54,6 @@ enough), then the text goes into `faq.html` DATA + `FAQ_CORPUS` (same wording, `
 
 ### Fyrirtækið
 - Opnunartími sýningarsalar fyrir utan "eftir bókun": eru einhverjir fastir opnir dagar? (FAQ: símatími mán–fös 9–17.)
-- Er síminn til birtingar á vefnum og í spjalli, eða á spjallið að beina eingöngu á netfang? (Studio-reglan núna: netfang eingöngu.)
 
 ### Studio (/skipuleggja)
 - Hversu lengi geymast innsend gögn og hver sér þau (persónuvernd)? Þarf Studio-síðan persónuverndartexta sem bot getur vitnað í?

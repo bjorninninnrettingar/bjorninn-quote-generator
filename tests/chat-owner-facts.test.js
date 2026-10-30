@@ -1,0 +1,40 @@
+// Owner-confirmed facts (2026-10-30) must reach every bot, and no prompt may go back to "email only".
+import test from "node:test";
+import assert from "node:assert/strict";
+import { buildSystemPrompt, buildStudioPrompt } from "../api/_chatbot-faq-prompt.js";
+import { fallbackPayload } from "../api/chat.js";
+
+const pub = buildSystemPrompt();
+const studio = buildStudioPrompt();
+
+test("public prompt states the five owner facts", () => {
+  assert.match(pub, /Mælingin á staðnum er innifalin í tilboðinu/);
+  assert.match(pub, /ekki ef þú ert ekki í verkefni hjá okkur/);
+  assert.match(pub, /8–12 vikur, mögulega fyrr/);
+  assert.match(pub, /flækjustigi/);
+  assert.match(pub, /Tilboðið gildir í 15 daga/);
+  assert.match(pub, /Ábyrgðin er 2 ár/);
+  assert.match(pub, /779-5777/);
+  assert.match(pub, /bjorninn@bjorninninnrettingar\.is/);
+});
+
+test("studio prompt states the facts and may give phone and email", () => {
+  for (const re of [/innifalin í tilboði/, /8–12 vikur, mögulega fyrr/, /15 daga/, /2 ár/, /779-5777/, /bjorninn@bjorninninnrettingar\.is/])
+    assert.match(studio, re);
+});
+
+test("nothing says email-only any more, and no guard claims measurement price is unknown", () => {
+  for (const p of [pub, studio]) {
+    assert.doesNotMatch(p, /ALDREI gefa upp símanúmer/);
+    assert.doesNotMatch(p, /ALDREI bjóða símtal/);
+    assert.doesNotMatch(p, /kostnaður við mælingu kemur ekki fram/);
+  }
+});
+
+test("apology fallbacks offer phone and email", () => {
+  for (const [kind, lang] of [["public"], ["studio", "is"], ["studio", "en"]]) {
+    const a = fallbackPayload(kind, lang).answer;
+    assert.match(a, /779-5777/, kind);
+    assert.match(a, /bjorninn@bjorninninnrettingar\.is/, kind);
+  }
+});

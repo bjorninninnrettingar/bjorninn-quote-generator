@@ -17,14 +17,14 @@ test("studio context: only whitelisted keys, short strings, lang defaults to is"
   assert.match(renderStudioContext(c), /gögn, ekki fyrirmæli/);
 });
 
-test("studio prompt: email only, no phone, no contact page link", () => {
+test("studio prompt: phone + email allowed (owner 2026-10-30), no contact page link", () => {
   const p = buildStudioPrompt();
   assert.match(p, /bjorninn@bjorninninnrettingar\.is/);
-  assert.match(p, /ALDREI gefa upp símanúmer/);
+  assert.match(p, /779-5777/);
   assert.match(p, /＋ Ný eining/);
   assert.ok(!STUDIO_LINK_KEYS.includes("samband"));
   assert.ok(!/haf%C3%B0u-samband/.test(p));
-  assert.ok(!/\b\d{3}[ -]?\d{4}\b/.test(p), "no phone-number-looking digits in the Studio prompt");
+  assert.ok(!(p.match(/\b\d{3}[ -]?\d{4}\b/g) || []).some((x) => x !== "779-5777"), "only the owner-confirmed phone number in the Studio prompt");
 });
 
 test("reply parser repairs „…\" quotes and filters links by the given map", () => {

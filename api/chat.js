@@ -48,12 +48,12 @@ const MAX_CONTEXT_CHARS = 200;
 const STUDIO_LINK_MAP = new Map([...LINK_MAP].filter(([k]) => STUDIO_LINK_KEYS.includes(k)));
 
 // One friendly text for every failure (credits out, 429/5xx, timeout, unparsable output). Never the raw upstream error.
-const FALLBACK_ANSWER = "Því miður get ég ekki svarað núna. Hafðu samband við okkur beint og við hjálpum þér.";
+const FALLBACK_ANSWER = "Því miður get ég ekki svarað núna. Hringdu í okkur í 779-5777 eða sendu póst á bjorninn@bjorninninnrettingar.is og við hjálpum þér.";
 const STUDIO_EMAIL = "bjorninn@bjorninninnrettingar.is";
 const STAFF_FALLBACK_ANSWER = "Því miður get ég ekki svarað núna. Spurðu Ísak eða Rakel.";
 const STUDIO_FALLBACK = {
-  is: `Því miður get ég ekki svarað núna. Sendu okkur tölvupóst á ${STUDIO_EMAIL} og við hjálpum þér.`,
-  en: `Sorry, I can't answer right now. Please email us at ${STUDIO_EMAIL} and we'll help you.`,
+  is: `Því miður get ég ekki svarað núna. Hringdu í okkur í 779-5777 eða sendu póst á ${STUDIO_EMAIL} og við hjálpum þér.`,
+  en: `Sorry, I can't answer right now. Please call us on 779-5777 or email ${STUDIO_EMAIL} and we'll help you.`,
 };
 // The payload the widget gets instead of an error. `degraded` lets scripts (eval) tell it from a real answer.
 export function fallbackPayload(kind, lang) {
