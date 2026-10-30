@@ -112,7 +112,15 @@
   function setTheme(v) { try { localStorage.setItem(THEME_KEY, v); } catch (e) {} applyTheme(v); }
   function setDensity(v) { try { localStorage.setItem(DENSITY_KEY, v); } catch (e) {} applyDensity(v); }
 
-  function getCollapsed() { try { return localStorage.getItem(COLLAPSED_KEY) === "1"; } catch (e) { return false; } }
+  // Phones (<760px): the 224 px sidebar left ~150 px for the page, so it starts folded to the icon rail unless the
+  // person has explicitly unfolded it (a stored "0") — the fold button still works.
+  function getCollapsed() {
+    var v = null;
+    try { v = localStorage.getItem(COLLAPSED_KEY); } catch (e) {}
+    if (v === "1") return true;
+    if (v === "0") return false;
+    try { return !!(window.matchMedia && window.matchMedia("(max-width:760px)").matches); } catch (e) { return false; }
+  }
   function applyCollapsed(v) { try { document.documentElement.setAttribute("data-os-collapsed", v ? "1" : "0"); } catch (e) {} }
   function setCollapsed(v) { try { localStorage.setItem(COLLAPSED_KEY, v ? "1" : "0"); } catch (e) {} applyCollapsed(v); }
 
@@ -219,7 +227,7 @@
       '.osBadge{font-size:.7rem;font-weight:700;padding:3px 9px;border-radius:999px;background:#eef1f5;color:#5d6670;}' +
       '.osSeg{display:flex;border:1px solid #e1e4e8;border-radius:9px;overflow:hidden;}' +
       '.osSegBtn{all:unset;box-sizing:border-box;flex:1;text-align:center;padding:8px 10px;font-size:.82rem;cursor:pointer;color:#5d6670;}' +
-      '.osSegBtn.active{background:#0f6cbd;color:#fff;font-weight:700;}' +
+      '.osSegBtn.active{background:var(--bj-blue,#3d61c1);color:#fff;font-weight:700;}' +
       '.osMuted{font-size:.82rem;color:#9aa3ad;}' +
       // Dark theme (2026-10-18) — this shared chrome CSS doesn't go through a page's own `:root`
       // variables, so it gets its own override block here instead.

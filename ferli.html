@@ -13,6 +13,7 @@
   try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
 })();
 </script>
+<link rel="stylesheet" href="/bjorninn-tokens.css" />
 <style>
   /* ferli.html — the unified skipulag-process workspace (2026-10-17), replacing
      /yfirferd, /skipulag and PRO mode's "Keyra skipulag" button as three
@@ -32,9 +33,9 @@
   :root {
     --bg:#f5f5f7; --surface:#ffffff; --line:#e6e6ea; --sidebar:#1b2430;
     --text:#1d1d1f; --muted:#6e6e73; --dim:#a1a1a6;
-    --accent:#0f6cbd; --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
+    --accent:var(--bj-blue); --warn:#9a6700; --bad:#c4291c; --good:#1a7d36;
     --warn-bg:#fdf2d9; --good-bg:#e5f6ea; --bad-bg:#fbe4e1; --good-soft:#e5f6ea;
-    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font:var(--bj-font);
   }
   :root[data-theme="dark"] {
     --bg:#101216; --surface:#1a1d23; --line:#2a2e37;
@@ -588,7 +589,7 @@
         var d = daysTo(f[DATE]);
         bits.push(d < 0 ? '<span class="late">' + (-d) + " d. of seint</span>" : "afhending " + dateIs(f[DATE]) + " · " + d + " d.");
       }
-      return '<a class="prow" style="--sc:' + look.c + '" href="/ferli?recordId=' + p.id + (k ? "&k=" + encodeURIComponent(k) : "") + '">' +
+      return '<a class="prow" style="--sc:' + look.c + '" href="/ferli?recordId=' + p.id + '">' +
         '<div class="pn"><div class="t">' + esc(name) + (p._open && g.id !== "pontun" ? '<span class="tag pt">Pöntun opin</span>' : "") + "</div>" +
         (bits.length ? '<div class="s">' + bits.join(" · ") + "</div>" : "") + "</div>" + CHEV + "</a>";
     }
@@ -739,7 +740,7 @@
       if (orders === null) s4.missing.push("Gat ekki lesið pantanir — endurhlaðið síðuna");
       else if (!orders.length) s4.missing.push("Pöntunarlisti hefur ekki verið búinn til");
       else {
-        var prep = orders.filter(function (o) { var x = (o.fields || {})["Staða"]; return x !== "Sent" && x !== "Komið í hús 🐻"; });
+        var prep = orders.filter(function (o) { return !/^(Sent|Komið)/.test((o.fields || {})["Staða"] || ""); }); // same test as the order cards
         if (prep.length) s4.missing.push(prep.length + " af " + orders.length + " pöntunum ekki sendar: " + prep.slice(0, 5).map(function (o) { return (o.fields || {})["Stöðu kenni"] || "pöntun"; }).join(", "));
       }
       s4.done = !s4.missing.length;
@@ -1172,9 +1173,8 @@
   // ---- Stage 4: Pöntunarlisti (summary + link) ----
   function fillPontun(proj) {
     var el = document.getElementById("content-pontun");
-    var k2 = k ? "&k=" + encodeURIComponent(k) : "";
     el.innerHTML = '<p class="stepIntro">Pöntunarlistinn er búinn til úr öllu skipulaginu. Búðu hann til, yfirfarðu hverja pöntun og sendu á birgja — ekki fyrr en allar pantanir eru sendar opnast „Klárt“.</p>' +
-      '<div class="orderActions"><button type="button" class="runBtn" id="recomputeBtn">Búa til / endurreikna pöntunarlista</button><a class="proLink" href="/pontun?recordId=' + proj.id + k2 + '">Opna fulla pöntunarsíðu (senda á birgja, aukapöntun) →</a></div>' +
+      '<div class="orderActions"><button type="button" class="runBtn" id="recomputeBtn">Búa til / endurreikna pöntunarlista</button><a class="proLink" href="/pontun?recordId=' + proj.id + '">Opna fulla pöntunarsíðu (senda á birgja, aukapöntun) →</a></div>' +
       '<div class="gateMsg" id="recomputeMsg" style="text-align:left">Athugaðu: endurreikningur býr línurnar til upp á nýtt og yfirskrifar magn og vöruskipti sem þú gerðir hér.</div><div id="orderList"></div>';
     document.getElementById("recomputeBtn").addEventListener("click", function () {
       var btn = this, msg = document.getElementById("recomputeMsg");
@@ -1309,7 +1309,7 @@
         apiPatch(PANTADIR + "/" + id, f1).then(function () { var f2 = {}; f2["📧 Senda á birgja"] = true; return apiPatch(PANTADIR + "/" + id, f2); })
           .then(function (r) { if (r && r.error) throw new Error("patch"); ordersBusy = false;
             pollSignals("send" + id, 90, function () { var x = (SIG.orders || []).filter(function (y) { return y.id === id; })[0]; return !!(x && /^Sent/.test((x.fields || {})["Staða"] || "")); },
-              function () { renderOrderList(true); toast(nm + " send ✓", false); },
+              function () { renderOrderList(true); toast(nm + " var send ✓", false); },
               function () { holdSend(id); renderOrderList(true); toast(nm + ": ekkert gerðist enn — athugaðu Airtable (Skipulag · Senda pöntun á birgja) áður en þú reynir aftur.", true); });
           }).catch(function () { ordersBusy = false; toast("Tókst ekki að senda — reyndu aftur.", true); renderOrderList(true); });
       };
@@ -1386,13 +1386,13 @@
   }
   function renderKlartSummary() {
     var el = document.getElementById("klartSum"); if (!el) return;
-    var f = SIG.proj.fields, klart = f["Staða í skipulagi"] === "Klárt til framleiðslu", k2 = k ? "&k=" + encodeURIComponent(k) : "";
+    var f = SIG.proj.fields, klart = f["Staða í skipulagi"] === "Klárt til framleiðslu";
     var units = SIG.units || [], orders = SIG.orders || [], arrived = orders.filter(function (o) { return /Komið/.test((o.fields || {})["Staða"] || ""); }).length;
     var uDone = units.filter(function (r) { return (r.fields || {})["Yfirfarin"]; }).length, oSent = orders.filter(function (o) { return /^(Sent|Komið)/.test((o.fields || {})["Staða"] || ""); }).length;
     var rows = [["Einingar", uDone + " af " + units.length + " yfirfarnar"], ["Afhending", (f["Áætlaður afhendingardagur Björninn (internal)"] ? dateIs(f["Áætlaður afhendingardagur Björninn (internal)"]) : "ekki skráð")],
       ["Pantanir", oSent + " af " + orders.length + " sendar" + (arrived ? " · " + arrived + " komnar í hús" : "")]];
     if (!setHtml(el, '<div class="list">' + rows.map(function (r) { return '<div class="prow" style="cursor:default"><div class="pn"><div class="t">' + r[0] + '</div></div><span class="stat">' + esc(r[1]) + '</span></div>'; }).join("") + '</div>' +
-      (klart ? '<p class="stepIntro" style="margin-top:14px">Verkið er klárt til framleiðslu. <a class="proLink" href="/framleidsla?recordId=' + SIG.proj.id + k2 + '">Opna á Framleiðslu →</a></p>' : ""))) return;
+      (klart ? '<p class="stepIntro" style="margin-top:14px">Verkið er klárt til framleiðslu. <a class="proLink" href="/framleidsla?recordId=' + SIG.proj.id + '">Opna á Framleiðslu →</a></p>' : ""))) return;
     var b = document.getElementById("klartBtn"); if (b) { b.hidden = klart; var bx = document.querySelector(".klartBox"); if (bx && klart) bx.hidden = true; }
   }
 

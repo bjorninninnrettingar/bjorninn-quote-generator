@@ -9,14 +9,23 @@
      so old bookmarks/automation links with ?recordId= still land somewhere
      useful, instead of deleting the file outright. -->
 <script>
-  // yfirferd.html's own ?recordId= was always an Eyðublað UNIT id (it opened
-  // straight into the per-unit wizard, skipping the picker) — never a
-  // project id, so it maps onto /ferli's ?unit= param, not ?recordId=.
+  // yfirferd.html's own ?recordId= was always an Eyðublað UNIT id. /ferli only reads ?unit= together with the
+  // PROJECT's ?recordId=, so look the unit's project up first and send both (2026-10-30; the old redirect
+  // dead-ended on the board). Falls back to the board if the lookup fails.
   var params = new URLSearchParams(location.search);
   var unitId = params.get("recordId");
   var k = params.get("k");
-  var dest = "/ferli?" + (unitId ? "unit=" + encodeURIComponent(unitId) : "") + (k ? "&k=" + encodeURIComponent(k) : "");
-  location.replace(dest);
+  if (!k) { try { k = localStorage.getItem("bjorninn:skrifstofa:k"); } catch (e) {} }
+  function go(proj) {
+    location.replace("/ferli" + (proj ? "?recordId=" + encodeURIComponent(proj) + "&unit=" + encodeURIComponent(unitId) : ""));
+  }
+  if (!unitId || !/^rec[A-Za-z0-9]{14}$/.test(unitId) || !k) go(null);
+  else {
+    fetch("/api/airtable?path=" + encodeURIComponent("tbl0WcyHhz63pSzZX/" + unitId) + "&k=" + encodeURIComponent(k))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { var l = d && d.fields && d.fields["Tækifæri 📣"]; go(Array.isArray(l) && l[0] ? (l[0].id || l[0]) : null); })
+      .catch(function () { go(null); });
+  }
 </script>
 </head>
 <body></body>

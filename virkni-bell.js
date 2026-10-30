@@ -57,8 +57,21 @@
     document.head.appendChild(st);
   }
 
+  // one bell per host element, and one /api/virkni request per (key, role) at a time: the shell's chrome can be
+  // rendered more than once per page load, which used to mount (and poll) three bells
+  var mountedHosts = [], inflight = {};
+  function sharedFetch(url) {
+    if (inflight[url]) return inflight[url];
+    var p = fetch(url, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : { items: [] }; });
+    inflight[url] = p;
+    var clear = function () { setTimeout(function () { if (inflight[url] === p) delete inflight[url]; }, 3000); };
+    p.then(clear, clear);
+    return p;
+  }
+
   function mount(host, opts) {
     if (!host || !opts || !opts.k) return null;
+    for (var i = 0; i < mountedHosts.length; i++) if (mountedHosts[i].host === host) return mountedHosts[i].api;
     injectCss();
     var role = opts.role === "Verkstæði" ? "Verkstæði" : "Skrifstofa";
     var wrap = document.createElement("div");
@@ -103,8 +116,7 @@
       panel.style.top = (below + h > window.innerHeight - 12 ? Math.max(12, r.top - h - 6) : below) + "px";
     }
     function load() {
-      return fetch("/api/virkni?k=" + encodeURIComponent(opts.k) + "&til=" + encodeURIComponent(role), { cache: "no-store" })
-        .then(function (r) { return r.ok ? r.json() : { items: [] }; })
+      return sharedFetch("/api/virkni?k=" + encodeURIComponent(opts.k) + "&til=" + encodeURIComponent(role))
         .then(function (d) { items = d.items || []; loaded = true; paintBadge(); if (!panel.hidden) paintPanel(panel.dataset.seen); })
         .catch(function () {});
     }
@@ -125,7 +137,9 @@
     document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") load(); });
     setInterval(function () { if (document.visibilityState === "visible") load(); }, POLL_MS);
     load();
-    return { reload: load };
+    var api = { reload: load };
+    mountedHosts.push({ host: host, api: api });
+    return api;
   }
 
   function post(payload) {

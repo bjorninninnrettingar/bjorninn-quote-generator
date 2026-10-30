@@ -26,7 +26,7 @@ since GitHub push protection blocks committing an Airtable PAT directly).
 | `/aedar` | [grain.html](grain.html) | Æðaskipulag (office) — build & **confirm** a grain-matched front sheet layout |
 | `/saga` | [grain.html](grain.html) | Same file in `FLOOR_MODE` — the floor opens a **confirmed** plan and runs the guided sawing steps (can nudge locally, no write-back) |
 | `/labels` | [labels.html](labels.html) | Merkingar (Sögun) — label printing for cut pieces |
-| `/skipulag` | [skipulag.html](skipulag.html) | **Saga — Skipulag** — office-side hub: Cutty → Æðar → CNC as one pipeline (not alternatives), each a real link with a status chip where one honestly exists, project (`?recordId=`) forwarded into whichever step you pick |
+| `/skipulag` | [skipulag.html](skipulag.html) | Redirect stub to `/ferli` (retired 2026-10-17); Cutty `/cutlist`, Æðar `/aedar` and CNC `/smida` are opened directly (cards on /bjorninn) |
 | `/verkstaedi` | [verkstaedi.html](verkstaedi.html) | **Saga — Verkstæði** — floor-side hub: pick Merkingar or Saga, project (`?recordId=`) forwarded into whichever you pick |
 | `/leidbeiningar` | [leidbeiningar.html](leidbeiningar.html) | Leiðbeiningar — instructions for the cutlist + labels workflow |
 | `/klukka` | [stimpilklukka.html](stimpilklukka.html) | Stimpilklukka — PIN-pad time clock (Inn/Út) for starfsmenn, kiosk-style; on ÚT, split the shift's hours across projects (→ `Verktímar 🕒`) |
@@ -40,7 +40,7 @@ since GitHub push protection blocks committing an Airtable PAT directly).
 | `/bpp` | [bpp-viewer.html](bpp-viewer.html) | **BPP skoðari** — drag in a `.bpp` file `/cnc` wrote and see a 2D elevation of drawers/hinges/shelves/door hardware, without walking to the machine. `/cnc` itself now shows the same cards automatically right after export (shared `cnc-bpp.js`) — this page is for an older file or a second opinion. See docs/cnc.md. |
 
 Rewrites live in [vercel.json](vercel.json) (`source` = short path, `destination` = the `.html` file); push to
-`main` redeploys. Hub pages `/skipulag` and `/verkstaedi` just forward `?recordId=` into the tool picked.
+`main` redeploys. Hub page `/verkstaedi` (and the `/skipulag` stub → /ferli) just forward `?recordId=` into the tool picked.
 
 ## Kitchen planner — essentials (details: docs/kitchen-planner.md)
 

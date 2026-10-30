@@ -13,6 +13,7 @@
   try { if (localStorage.getItem("bjorninn:skrifstofa:theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
 })();
 </script>
+<link rel="stylesheet" href="/bjorninn-tokens.css" />
 <style>
   /* skrifstofa.html — the office hub, redesigned 2026-10-17 into a "Business
      Central"-style dashboard per the user's explicit direction: dense,
@@ -24,9 +25,9 @@
   :root {
     --bg:#f3f4f6; --surface:#ffffff; --line:#e1e4e8; --sidebar:#1b2430;
     --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
-    --accent:#0f6cbd; --accent-soft:#e8f1fb;
+    --accent:var(--bj-blue); --accent-soft:var(--bj-blue-soft);
     --good:#1a7d36; --good-soft:#e5f6ea; --warn:#9a6700; --warn-soft:#fdf2d9; --bad:#c4291c; --bad-soft:#fbe9e7;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font:var(--bj-font);
   }
   :root[data-theme="dark"] {
     --bg:#11151c; --surface:#1a1f28; --line:#2a3140;
@@ -447,7 +448,9 @@
   // 5.) — a bank-holiday-aware "next business day" rule, which can't be reliably derived from
   // only 6 examples. So this is the literal due-date list from that table; extend it by hand
   // once a year (RSK publishes the year's dates) rather than trying to re-derive the rule.
-  var VAT_DUE_DATES = ["2026-04-07", "2026-06-05", "2026-08-05", "2026-10-05", "2026-12-07", "2027-02-05"];
+  var VAT_DUE_DATES = ["2026-04-07", "2026-06-05", "2026-08-05", "2026-10-05", "2026-12-07", "2027-02-05",
+    // 2027 added 2026-10-30: the 5th, moved to the next working day (Jun 5 and Dec 5 fall on a weekend) — owner to confirm
+    "2027-04-05", "2027-06-07", "2027-08-05", "2027-10-05", "2027-12-06"];
   var PAYDAY_SCHEDULE = { lastDayOfMonth: true };
 
   function loadSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch (e) { return null; } }
@@ -673,18 +676,18 @@
           if (d.error) { document.getElementById("cashVat").textContent = "Villa"; return; }
           document.getElementById("cashVat").textContent = kr(d.vatOwed);
           document.getElementById("cashVatSub").textContent =
-            fmtCountdown(vat) + " · " + vat.toLocaleDateString("is-IS") + " · " + d.invoiceCount + " greiddir Konto-reikningar (greiðslugrunnur)";
+            fmtCountdown(vat) + " · " + vat.toLocaleDateString("is-IS") + (d.invoiceCount != null ? " · " + d.invoiceCount + " greiddir Konto-reikningar (greiðslugrunnur)" : "");
         })
         .catch(function () { document.getElementById("cashVat").textContent = "Villa"; });
     } else {
       document.getElementById("cashVat").textContent = "Ekki stillt";
-      document.getElementById("cashVatSub").textContent = "Spyrðu Claude um VSK-tímabil Björnsins";
+      document.getElementById("cashVatSub").textContent = "Næsta VSK-tímabil er ekki skráð enn";
     }
 
     var payday = nextPayday(PAYDAY_SCHEDULE);
     document.getElementById("cashPaydayTile").classList.toggle("placeholder2", !payday);
     document.getElementById("cashPayday").textContent = fmtCountdown(payday) || "Ekki stillt";
-    document.getElementById("cashPaydaySub").textContent = payday ? payday.toLocaleDateString("is-IS") : "Spyrðu Claude um útborgunardag";
+    document.getElementById("cashPaydaySub").textContent = payday ? payday.toLocaleDateString("is-IS") : "Útborgunardagur er ekki skráður enn";
     // Real amount, once loadStarfsmenn() (Eigandi-only) has it — see its own paySum. Non-eigandi
     // users keep just the countdown above; no new privileged data is fetched for them.
     updatePaydayAmount();
@@ -876,12 +879,13 @@
   // Every confirmed ("🏆 Tækifæri unnið") project that isn't delivered yet and matches one of
   // these stages lands in exactly one column: the 3 "Staða í skipulagi" stages while Staða í
   // framleiðslu is still blank, then the 3 remaining "Staða í framleiðslu" stages.
+  // planning-stage colours are the same as /ferli (STAGES there); production stages use their own, non-clashing hues
   var VERK_STAGES = [
-    { field: "skipulagi", value: "For-skipulag", label: "For-skipulag", color: "#9aa3ad" },
-    { field: "skipulagi", value: "Í skipulagningu", label: "Í skipulagningu", color: "#e9b000" },
-    { field: "skipulagi", value: "Yfirfara", label: "Yfirfara", color: "#c4291c" },
-    { field: "framleidslu", value: "Tilbúið til framleiðslu 📋", label: "Tilbúið til framleiðslu", color: "#0f6cbd" },
-    { field: "framleidslu", value: "Verk í vinnslu 🔨", label: "Í vinnslu", color: "#e9b000" },
+    { field: "skipulagi", value: "For-skipulag", label: "For-skipulag", color: "#e9b000" },
+    { field: "skipulagi", value: "Í skipulagningu", label: "Í skipulagningu", color: "#d6473c" },
+    { field: "skipulagi", value: "Yfirfara", label: "Yfirfara", color: "#0f6cbd" },
+    { field: "framleidslu", value: "Tilbúið til framleiðslu 📋", label: "Tilbúið til framleiðslu", color: "#6b7280" },
+    { field: "framleidslu", value: "Verk í vinnslu 🔨", label: "Í vinnslu", color: "#0e7c86" },
     { field: "framleidslu", value: "Má Afhenda 🚚", label: "Má afhenda", color: "#1a9e6b" },
   ];
   // Drag-and-drop (2026-10-18): the 3 "skipulagi" columns aren't drag sources or targets at all —
@@ -959,14 +963,15 @@
               // still the real authority and would 400 a disallowed pair regardless, but there's no
               // reason to even send a request a real drag could never have produced.
               if (!v || v.from === stage.value || !verkDragAllowed(v.from, stage.value)) return;
+              if (/^Má Afhenda/.test(stage.value) && !confirm("Færa verkið í „Má afhenda“?\n\nÞetta sendir skilaboð til Skrifstofu og býr til drög að lokagreiðslu í Konto.")) return;
               fetch("/api/verk-status", {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ k: getK(), t: v.id, action: "status", from: v.from, to: stage.value }),
               }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
                 .then(function (res) {
-                  if (!res.ok) { alert(res.d.error || "Tókst ekki að færa."); return; }
+                  if (!res.ok) { errToast((res.d && res.d.error) || "Tókst ekki að færa."); return; }
                   loadVerkBoard();
-                });
+                }).catch(function () { errToast("Tókst ekki að færa — engin tenging."); });
             });
           }
           board.appendChild(col);
