@@ -29,7 +29,7 @@ test("the ack is a per-dimension record of mm — a drawing change makes it diff
 
 test("Smíða is the Ný eining wizard (uw*) on the real block, never a parallel panel", () => {
   assert.ok(!/id="proWiz"/.test(html));
-  assert.ok(/uw\.b = fb\.block/.test(fnBody("openSmidaWizard")), "edits the cabinet in the room, not a copy");
+  assert.ok(/uw\.b = fb\.block/.test(fnBody("smSetOn")) && /smSetOn\(fb\)/.test(fnBody("openSmidaWizard")), "edits the cabinet in the room, not a copy");
   assert.ok(!/refreshAfterEdit\(/.test(fnBody("smCommit")), "the room scene must not be rebuilt over the preview");
 });
 

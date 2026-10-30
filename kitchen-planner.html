@@ -8813,7 +8813,7 @@
       var target = walls.find(function(w){ return w.id === uw.wallId; }), ok = !!(target && uwFits(target, b));
       html += (ok || !target ? '' : '<p class="sec-note">' + __("Passar ekki á þessum vegg í þessari breidd — „Setja inn“ býður mjórri skáp sem passar.") + '</p>') +
         '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-uw-back>' + __("← Til baka") + '</button>' +
-        '<button type="button" class="btn btn-primary" data-uw-add' + (target ? '' : ' disabled') + '>' + __("Setja inn") + '</button></div>';
+        '<button type="button" class="btn btn-primary" data-uw-add' + (target ? '' : ' disabled') + '>' + (PRO ? "Áfram" : __("Setja inn")) + '</button></div>'; // PRO: the same wizard goes on into Smíða
     }
     side.innerHTML = html;
     wireUnitWizard(side);
@@ -9081,19 +9081,19 @@
         else toast(PRO ? __("Ekki nóg pláss á {wall} fyrir {name}.", { wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall), name:__(c.label).toLowerCase() }) : __("Veggurinn er fullur — Setja inn býður mjórri skáp, eða færðu annan til.")); // (owner, 2026-10-27)
         return;
       }
+      var smPre = PRO ? Object.assign({}, uw) : null, smGaps = PRO ? (wall[c.zone] || []).map(function(x){ return [x, x.gapMm]; }) : null, smHad = !!b.smida; // PRO: the same wizard goes on into Smíða — Til baka can take the cabinet out again
       insertBlockAt(wall, c.zone, b, pl.offsetMm);
-      if (pairW){ var b2 = newBlock(b.type); insertBlockAt(wall, c.zone, b2, pl.offsetMm + b.widthMm); }
+      var b2 = null; if (pairW){ b2 = newBlock(b.type); insertBlockAt(wall, c.zone, b2, pl.offsetMm + b.widthMm); }
       matchPanelToNeighbour(wall, c.zone, b, true);
       landedBlockId = b.id; selectedBlockId = b.id; selectedWallId = null;
       save();
+      if (PRO){ smEnterNew(wall, c.zone, b, { pre:smPre, gaps:smGaps, hadSmida:smHad, pairId:b2 && b2.id, pocket:pocketNew }); return; } // no leave / refresh: the room is rebuilt when the wizard closes
       leaveUnitWizard();
       refreshAfterEdit();
       restoreEditorCam();
       // the new unit can't open (a door into the neighbour, a corner in front of it): say so right here, not only in the warning list (owner, 2026-10-29)
       var openWarn = KP3D.openingIssues(state).warn.filter(function(w){ return w.ids.indexOf(b.id) >= 0; });
       if (openWarn.length) setTimeout(function(){ toast("⚠ " + openWarn[0].msg); }, 60);
-      if (pocketNew){ applyClosetDoorKind(b, "pocket"); save(); refreshAfterEdit(); } // Rennihurð í hlið picked in the wizard: the same door spec the panel writes
-      if (PRO) openSmidaWizard(b.id); // new unit in PRO: step 2 is Smíða (user, 2026-10-14) — the wizard since 2026-10-28
     });
   }
   // The spinning preview: a one-wall scene holding just the cabinet being configured (isolated like the
@@ -18499,7 +18499,7 @@
     var x = smCtx(), ord = smOrder(), cur = uw.sec && ord.indexOf(uw.sec) >= 0 ? uw.sec : (ord.find(function(k){ return !smSecDone(x, k); }) || "yfir"), i = ord.indexOf(cur);
     var can = cur === "yfir" ? smMissing(x).length === 0 : smSecDone(x, cur);
     // never dead: when something is missing the button still answers — it takes her to what is missing and says so
-    return '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-sm-back' + (i <= 0 ? ' disabled' : '') + '>← Til baka</button>' +
+    return '<div class="uw-actions"><button type="button" class="btn btn-secondary btn-small" data-sm-back' + (i <= 0 && !smUndoOk() ? ' disabled' : '') + '>← Til baka</button>' +
       '<button type="button" class="btn btn-primary' + (can ? '' : ' uw-wait') + '" data-sm-next>' + (cur === "yfir" ? "Klár" : "Áfram") + '</button></div>';
   }
   function smAdvanceFrom(k){ var x = smCtx(), ord = smOrder(); uw.sec = ord.slice(ord.indexOf(k) + 1).find(function(kk){ return !smSecDone(x, kk); }) || "yfir"; uw.smFocus = true; }
@@ -18821,7 +18821,7 @@
     }); });
     var un = side.querySelector("[data-sm-unready]"); if (un) un.addEventListener("click", function(){ proSetReadyQuiet(b, false); renderUnitWizard(); });
     var ed = side.querySelector("[data-sm-editor]"); if (ed) ed.addEventListener("click", function(){ smOldEditor(b.id); });
-    var bk = side.querySelector("[data-sm-back]"); if (bk) bk.addEventListener("click", function(){ var ord = smOrder(), i = ord.indexOf(uw.sec); if (i > 0){ uw.sec = ord[i - 1]; renderUnitWizard(); } });
+    var bk = side.querySelector("[data-sm-back]"); if (bk) bk.addEventListener("click", function(){ if (smUndoOk()){ smUndoNew(); return; } var ord = smOrder(), i = ord.indexOf(uw.sec); if (i > 0){ uw.sec = ord[i - 1]; renderUnitWizard(); } });
     function smGoMissing(m){
       toast((m.sec === "yfir" ? "Lagaðu: " : "Vantar: ") + m.text);
       if (m.sec === "yfir") return;
@@ -18877,14 +18877,46 @@
     var fb = findBlock(id); if (!fb) return;
     if (fb.block.locked){ toast("Skápurinn er læstur — opnaðu hann fyrst."); return; }
     if (!(uw && uw.smida)){ proSoloPanel("wiz"); openUnitWizard(); }
-    uw.smida = true; uw.step = 3; uw.cat = null; uw.opt = null; uw.island = null; uw.smDone = false; uw.smFocus = true;
+    smSetOn(fb); renderUnitWizard();
+  }
+  // Ný eining and Smíða are ONE wizard in PRO (2026-10-30): the same modal switches meaning in place
+  function smSetOn(fb){
+    uw.smida = true; uw.step = 3; uw.cat = null; uw.opt = null; uw.island = null; uw.smDone = false; uw.smFocus = true; uw.smNew = null;
     uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uwPrevKey = ""; selectedBlockId = fb.block.id; closetInnTab = ""; // Tilbúnar lausnir / Stakir hlutir stay folded until she opens one
+  }
+  // "Áfram" in Ný eining (PRO), the cabinet is in the room: carry on in Smíða without closing. A width she picked herself
+  // is already her confirmation; Til baka on this first screen takes the cabinet out again (smUndoNew) while nothing else is confirmed.
+  function smEnterNew(wall, zone, b, o){
+    uwPreferWallId = null; uwPreferSpan = null; uwPlaceAfter = null; closeFitAsk();
+    if (o.pocket){ applyClosetDoorKind(b, "pocket"); save(); }
+    if (o.pre && o.pre.picked && o.pre.picked.w){ b.smidaAck = { mal:{ w:b.widthMm }, at:new Date().toISOString() }; save(); }
+    var fb = findBlock(b.id); if (!fb) return;
+    smSetOn(fb);
+    uw.smNew = { pre:o.pre, gaps:o.gaps, hadSmida:o.hadSmida, pairId:o.pairId, ack0:JSON.stringify(b.smidaAck || null), firstSec:smFirstSec(b, CATALOG[b.type]) };
+    var openWarn = KP3D.openingIssues(state).warn.filter(function(w){ return w.ids.indexOf(b.id) >= 0; });
+    if (openWarn.length) setTimeout(function(){ toast("⚠ " + openWarn[0].msg); }, 60);
+    renderUnitWizard();
+  }
+  function smUndoOk(){
+    var n = uw && uw.smNew, b = uw && uw.b; if (!n || !b || !findBlock(b.id)) return false;
+    var ord = smOrder(), i = ord.indexOf(uw.sec);
+    return (i <= 0 || uw.sec === n.firstSec) && JSON.stringify(b.smidaAck || null) === n.ack0 && !b.smidaReady;
+  }
+  function smUndoNew(){
+    var n = uw.smNew, fb = findBlock(uw.b.id); if (!n || !fb) return;
+    var b = fb.block;
+    detachBlock(fb.wall, fb.zone, b.id);
+    if (n.pairId){ var f2 = findBlock(n.pairId); if (f2) detachBlock(f2.wall, f2.zone, n.pairId); }
+    n.gaps.forEach(function(g){ if (g[1] == null) delete g[0].gapMm; else g[0].gapMm = g[1]; }); // the neighbours' gaps as they were
+    delete b.smidaAck; if (!n.hadSmida) delete b.smida;
+    landedBlockId = null; selectedBlockId = null; selectedWallId = null;
+    uw = n.pre; uw.smida = false; uwPrevKey = ""; save();
     renderUnitWizard();
   }
   function smClose(){ if (uw && uw.smida) closeUnitWizard(); }
   // the old editor was opened from the wizard's Yfirlit and closed again: back into the wizard on the cabinet it ended on
   function smBack(last){ smReturn = null; if (last && findBlock(last)) openSmidaWizard(last); }
-  window.__sm = { open:function(id){ openSmidaWizard(id); }, uw:function(){ return uw; }, ctx:smCtx, go:smGo, queue:smQueue, chips:function(){ return smChips(smCtx()); } }; // devtools / tests
+  window.__sm = { open:function(id){ openSmidaWizard(id); }, uw:function(){ return uw; }, ctx:smCtx, go:smGo, queue:smQueue, chips:function(){ return smChips(smCtx()); }, nextRight:proNextRight, undoOk:smUndoOk }; // devtools / tests
 
   function renderBoxEditor(){
     var fb = proEdId ? findBlock(proEdId) : null;

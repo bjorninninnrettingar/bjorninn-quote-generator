@@ -26,3 +26,27 @@ test("(a) the customer's wizard keeps what it had: Studio-only things stay Studi
   assert.ok(/!PRO && c\.zone === "floor" && c\.counter/.test(r), "'Toppurinn verður í … cm hæð' stays customer-only");
   assert.ok(/suggest/.test(r) && /Algengast/.test(r));
 });
+
+test("(b) one flow: Áfram in PRO's Ný eining goes on into Smíða in the same modal, never leaving it", () => {
+  const add = html.slice(html.indexOf('var add = side.querySelector("[data-uw-add]")'));
+  const tail = add.slice(0, add.indexOf("leaveUnitWizard();\n      refreshAfterEdit();"));
+  assert.ok(/if \(PRO\)\{ smEnterNew\(/.test(tail), "PRO branches into the Smíða mode before the customer's leave/refresh");
+  assert.ok(!/openSmidaWizard\(b\.id\)/.test(add.slice(0, 6000)), "no second modal is opened after placement");
+  const body = fnBody("smEnterNew");
+  assert.ok(!/leaveUnitWizard|closeUnitWizard|refreshAfterEdit/.test(body), "the modal stays; the room is rebuilt when it closes");
+});
+
+test("(b) the flow code paths never touch Smíðagögn: only a freshly placed cabinet gets an ack (its own picked width), Klár state is untouched", () => {
+  ["smSetOn", "smEnterNew", "smUndoNew", "smUndoOk"].forEach((n) => {
+    assert.ok(!/smidaReady\s*=|delete [a-z.]*smidaReady|smidaHash|smidaFor|proSetReady/.test(fnBody(n)), n + " must not touch the ready hash / Smíðagögn");
+  });
+  assert.ok(/pre\.picked && o\.pre\.picked\.w/.test(fnBody("smEnterNew")), "the width ack only carries over a width she picked herself");
+  assert.ok(/smUndoOk\(\)/.test(html) && /!b\.smidaReady/.test(fnBody("smUndoOk")), "Til baka never removes a cabinet that is confirmed or Klár");
+  assert.ok(/JSON\.stringify\(b\.smidaAck \|\| null\) === n\.ack0/.test(fnBody("smUndoOk")), "…or one with anything confirmed beyond the carried width");
+});
+
+test("(b) every entry (panel button, /smida Laga í PRO, new unit) lands in the same wizard, on the first unconfirmed section", () => {
+  assert.ok(/smSetOn\(fb\); renderUnitWizard\(\)/.test(fnBody("openSmidaWizard")));
+  assert.ok(/smFirstSec\(b, c\)/.test(html.slice(html.indexOf("uw.sec = uw.smida ? smFirstSec"), html.indexOf("uw.sec = uw.smida ? smFirstSec") + 80)));
+  assert.ok(/smFirstSec/.test(fnBody("smEnterNew")));
+});
