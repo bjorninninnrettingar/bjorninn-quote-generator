@@ -6510,6 +6510,7 @@
       [[x0, y0], [x1, y1]].forEach(function(p){
         s += '<line x1="' + (p[0] - (vertical ? t : 0)) + '" y1="' + (p[1] - (vertical ? 0 : t)) + '" x2="' + (p[0] + (vertical ? t : 0)) + '" y2="' + (p[1] + (vertical ? 0 : t)) + '" stroke="' + color + '" stroke-width="1.4"/>';
       });
+      if (vertical && Math.abs(y1 - y0) < Math.max(12, String(text).length * 7 + 6)) return s; // plinth / ceiling-gap tick pairs a few px apart: ticks only, the number would just crowd them (sweep studio2 #8)
       var mx = (x0 + x1) / 2, my = (y0 + y1) / 2, narrow = !vertical && Math.abs(x1 - x0) < String(text).length * 8.5 + 8; // an úthlið's 19: above the chain, clear of its neighbours
       s += '<text x="' + mx + '" y="' + (my - (narrow ? 17 : 5)) + '" font-size="14.5" font-weight="700" fill="' + color + '" text-anchor="middle"' +
         (vertical ? ' transform="rotate(-90 ' + mx + ' ' + my + ')"' : '') + '>' + text + '</text>';
