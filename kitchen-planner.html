@@ -2652,10 +2652,10 @@
             <!-- Studio mynd: off the toolbar (user, 2026-10-24) — to be offered at the end of the flow instead -->
             <button type="button" id="studioBtn" hidden title="Studio mynd: raunveruleg ljósmynd af þessari sýn, tekur 20–90 sek" data-i18n="attrs">Studio</button>
           </div>
-          <div class="view-toggle" id="xrayToggle"><button type="button" id="inspectBtn" title="X-Ray: framhliðar af — smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">X-Ray</button></div>
+          <div class="view-toggle" id="xrayToggle"><button type="button" id="inspectBtn" title="Innvols: framhliðar af — smelltu á skúffu eða hurð til að opna hana" data-i18n="attrs">Innvols</button></div>
           <button type="button" class="warn-chip" id="warnChip" hidden></button>
           <div class="view-toggle" id="moodToggle" hidden title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n="attrs"><button type="button" id="moodBtn" title="Kvöldstemning: dimmir herbergið svo lýsingin sjáist" data-i18n>Kvöld</button></div>
-          <!-- "Skoða" (user, 2026-10-26): Málband, X-Ray and Málsetning in one dropdown like Rými / Efni — fewer controls on
+          <!-- "Skoða" (user, 2026-10-26): Málband, Innvols and Málsetning in one dropdown like Rými / Efni — fewer controls on
                the bar, and the bar never changes width when one is switched on (the dot on the button says something is on) -->
           <div class="ed-menus ed-viewmenu"><details class="cat-sec" id="viewMenu" data-sec="skoda"><summary><span data-i18n>Skoða</span><i class="vm-dot" aria-hidden="true"></i></summary><div class="sec-body vm-body">
             <div class="vm-units" id="unitRow"><b data-i18n>Mælieining</b><span class="vm-seg"><button type="button" data-unit="cm">cm</button><button type="button" data-unit="mm">mm</button></span></div>
@@ -11652,11 +11652,11 @@
     }, 8000);
   }
 
-  // ---------- X-Ray mode (2026-09-30, simplified 2026-10-17) ----------
-  // "X-Ray" rebuilds the room with every cabinet in parts (like a locked one: tap a drawer or door to
+  // ---------- Innvols mode (2026-09-30, simplified 2026-10-17) ----------
+  // "Innvols" rebuilds the room with every cabinet in parts (like a locked one: tap a drawer or door to
   // open/close it, tap the body to select; nothing can be dragged while it's on) and strips the fronts in the
   // same click — used to be two separate buttons (turn inspect mode on, then separately take the fronts off),
-  // plus a third "open everything at once" button; fronts-off is now just what X-Ray means, and batch-open is
+  // plus a third "open everything at once" button; fronts-off is now just what Innvols means, and batch-open is
   // gone (tapping a drawer/door open one at a time is still there). View-only state, never saved.
   var inspect = { on:false };
   function applyInspect(){ if (inspect.on) KP3D.setXrayFronts(true); }
@@ -11665,7 +11665,7 @@
     ib.classList.toggle("active", inspect.on); // the switch in the Skoða menu says it's on
     syncViewMenuDot();
   }
-  // "Málsetning" (user, 2026-10-26): the wardrobe units' dimensions on or off — next to X-Ray, remembered
+  // "Málsetning" (user, 2026-10-26): the wardrobe units' dimensions on or off — next to Innvols, remembered
   function syncDimsUI(){ var t = document.getElementById("dimsBtn"); t.hidden = !(isCloset() || isWallRoom()); /* bath + laundry too (owner, 2026-10-27) */ t.classList.toggle("active", KP3D.showDimsOn()); syncSkTagsUI(); syncViewMenuDot(); }
   // "Sk-númer" (PRO, 2026-10-26): Rakel thinks in Sk numbers — label every ordered cabinet with it in 3D. Remembered.
   var skTagsOn = (function(){ try{ return localStorage.getItem("bjorninn:kitchenPlanner:skTags") === "1"; }catch(e){ return false; } })();
@@ -11678,7 +11678,7 @@
     skTagsOn = !skTagsOn; try{ localStorage.setItem("bjorninn:kitchenPlanner:skTags", skTagsOn ? "1" : "0"); }catch(e){}
     syncSkTagsUI(); syncViewMenuDot();
   });
-  // the "Skoða" button shows a small dot while Málband or X-Ray is on (Málsetning is on by default, so it doesn't count)
+  // the "Skoða" button shows a small dot while Málband or Innvols is on (Málsetning is on by default, so it doesn't count)
   function syncViewMenuDot(){
     var on = ["measureBtn", "inspectBtn", "skTagsBtn"].some(function(id){ var b = document.getElementById(id); return b && b.classList.contains("active"); });
     var vm = document.getElementById("viewMenu"); if (vm) vm.classList.toggle("has-on", on);
@@ -11714,8 +11714,8 @@
   document.getElementById("inspectBtn").addEventListener("click", function(){
     inspect.on = !inspect.on;
     if (!inspect.on) KP3D.setAllParts(false);
-    else toast(__("X-Ray: smelltu á skúffu eða hurð til að opna hana. Skápar hreyfast ekki á meðan."));
-    syncInspectUI(); // (owner 2026-10-28: X-Ray only takes the fronts off — it never changes 3D / 2D)
+    else toast(__("Innvols: smelltu á skúffu eða hurð til að opna hana. Skápar hreyfast ekki á meðan."));
+    syncInspectUI(); // (owner 2026-10-28: Innvols only takes the fronts off — it never changes 3D / 2D)
     renderView();
   });
 
@@ -14243,7 +14243,7 @@
     { el:function(){ return tourVisible(document.getElementById("viewToggle")); }, next:__("Næsta →"),
       title:function(){ return __("Sýnin og málin"); },
       html:function(){ var dims = !!tourVisible(document.getElementById("dimsBtn")) || isCloset() || isWallRoom();
-        return __("<b>3D</b>, <b>2D</b> (einn veggur með málum) eða <b>Ofanmynd</b>. Undir <b>Skoða</b> er Málband og X-Ray.") + (dims ? " " + __("Þar kveikir þú og slekkur á <b>Málsetningu</b> í 3D.") : ""); } },
+        return __("<b>3D</b>, <b>2D</b> (einn veggur með málum) eða <b>Ofanmynd</b>. Undir <b>Skoða</b> er Málband og Innvols.") + (dims ? " " + __("Þar kveikir þú og slekkur á <b>Málsetningu</b> í 3D.") : ""); } },
     { el:function(){ return tourVisible(document.getElementById("walkBtn")) || tourVisible(document.querySelector("#viewMenu > summary")); }, next:__("Næsta →"),
       title:function(){ return __("Ganga um"); },
       html:function(){ var inMenu = !tourVisible(document.getElementById("walkBtn"));
@@ -17261,7 +17261,7 @@
     pop.querySelectorAll("[data-warnp]").forEach(function(b){ b.addEventListener("click", function(){ pop.hidden = true; var w = warnings[+b.dataset.warnp]; if (w && w.ids[0]) onCabinetSelect({ blockId:w.ids[0] }); }); });
     pop.hidden = false;
   });
-  // Sökkulhæð (PRO, 2026-10-19, user — "make it more obvious where Sökkul is, just next to X-Ray"): every
+  // Sökkulhæð (PRO, 2026-10-19, user — "make it more obvious where Sökkul is, just next to Innvols"): every
   // wall + island listed at once, so there's no need to hunt for a wall by clicking it in 3D first.
   function plinthRow(label, obj){
     return '<div class="dim-f" style="display:flex;align-items:center;gap:8px;margin:4px 0;">' +
@@ -17700,7 +17700,7 @@
   }); });
   document.getElementById("walkBtn").addEventListener("click", function(){
     if (viewMode !== "3d"){ toast(__("Ganga um virkar í 3D-sýninni.")); return; }
-    if (inspect.on){ toast(__("Slökktu á X-Ray fyrst.")); return; }
+    if (inspect.on){ toast(__("Slökktu á Innvols fyrst.")); return; }
     var on = KP3D.setWalkMode(!KP3D.isWalking());
     if (on && !walkParts){ walkParts = true; renderView(); } // rebuilt in parts — the walk carries on from the same spot
     syncWalkBtn();
@@ -21079,7 +21079,7 @@
       { id:"snapBtn", t:"Vista mynd af hönnuninni í tölvuna", svg:svgOf("snapBtn") },
       { id:"walkBtn", on:"vmWalk", t:"Ganga um — sjáðu rýmið í augnhæð", svg:svgOf("walkBtn") },
       { id:"measureBtn", t:"Málband — smelltu á tvo punkta til að mæla á milli þeirra", svg:S('<path d="M3 15.5L15.5 3 21 8.5 8.5 21z"/><path d="M7 11l2.2 2.2M10 8l1.6 1.6M13 5l2.2 2.2"/>') },
-      { id:"inspectBtn", t:"X-Ray — framhliðar af, smelltu á skúffu eða hurð til að opna hana", svg:S('<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>') },
+      { id:"inspectBtn", t:"Innvols — framhliðar af, smelltu á skúffu eða hurð til að opna hana", svg:S('<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>') },
       { id:"skTagsBtn", t:"Sk-númer — númer skápanna á framhliðunum í 3D", svg:S('<path d="M5 9h14M5 15h14M10 4L8 20M16 4l-2 20"/>') },
       { id:"dimsBtn", t:"Málsetning — sýna málin á skápunum", svg:S('<path d="M3 6v12M21 6v12M3 12h18M7 8.5L3 12l4 3.5M17 8.5L21 12l-4 3.5"/>') },
       { id:"fsBtn", t:"Fullskjár — fela vafrastikuna, meira pláss fyrir teikninguna", svg:S('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>') },
