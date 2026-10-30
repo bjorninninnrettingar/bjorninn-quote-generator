@@ -1184,6 +1184,8 @@
       apiPatch(TAEKIFAERI + "/" + proj.id, { "🔄 Keyra Pöntunarlista 4.0": false })
         .then(function () { return apiPatch(TAEKIFAERI + "/" + proj.id, { "🔄 Keyra Pöntunarlista 4.0": true }); })
         .then(function () {
+          // a recompute rebuilds the lines: every printed PDF is now stale until reprinted
+          (SIG.orders || []).forEach(function (o) { if (!/^(Sent|Komið)/.test((o.fields || {})["Staða"] || "")) markDirty(o.id); });
           msg.textContent = "Keyri pöntunarlista… (nokkrar sekúndur)";
           if (before === 0) { // first run: wait until the orders appear
             pollSignals("pontun", 180, function () { return SIG.orders && SIG.orders.length > 0; },
@@ -1213,7 +1215,16 @@
     if (window.pageYOffset !== y) window.scrollTo(0, y);
     return true;
   }
-  var openPdf = {}, dirtyOrders = {}, ordersBusy = false;
+  // "Lines changed after the PDF was printed" survives a reload (localStorage, per order id); cleared on a successful reprint.
+  var DIRTY_KEY = "bjorninn:ferli:dirtyOrders:v1", SENT_HOLD_KEY = "bjorninn:ferli:sendHold:v1";
+  function lsGet(key) { try { return JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch (e) { return {}; } }
+  function lsSet(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+  var openPdf = {}, dirtyOrders = lsGet(DIRTY_KEY), ordersBusy = false;
+  function markDirty(id) { dirtyOrders[id] = true; lsSet(DIRTY_KEY, dirtyOrders); }
+  function clearDirty(id) { delete dirtyOrders[id]; lsSet(DIRTY_KEY, dirtyOrders); }
+  // after the 90 s poll gives up, Send stays blocked for 10 min so a second false->true toggle cannot e-mail the supplier twice
+  function sendHeldMin(id) { var t = lsGet(SENT_HOLD_KEY)[id]; return t && Date.now() - t < 600000 ? Math.ceil((600000 - (Date.now() - t)) / 60000) : 0; }
+  function holdSend(id) { var h = lsGet(SENT_HOLD_KEY); h[id] = Date.now(); lsSet(SENT_HOLD_KEY, h); }
   function lineOrderIds(l) { return ((l.fields || {})["Pantaðir listar"] || []).map(function (ol) { return typeof ol === "string" ? ol : ol.id; }); }
   function reloadOrderData() { return Promise.all([loadLines(SIG.proj), loadOrders(SIG.proj)]).then(function () { ordersBusy = false; renderOrderList(true); }); }
   function renderOrderList(force) {
@@ -1235,7 +1246,7 @@
     var cards = [["Innkaup samtals", isk(total), total ? "" : "ekkert verð komið"], ["Tilboð (án vsk)", quote ? isk(exVat) : "—", ""],
       ["Innkaup af tilboði", quote && total ? Math.round(total / exVat * 100) + " %" : "—", "áætlaður kostnaður ÷ tilboð án vsk"], ["Pantanir sendar", sent + " af " + recs.length, ""],
       ["Línur án verðs", lines == null ? "?" : String(noPrice), noPrice ? "skoðaðu þær fyrst" : ""]];
-    var dirtyAny = Object.keys(dirtyOrders).length;
+    var dirtyAny = recs.filter(function (r) { return dirtyOrders[r.id]; }).length;
     var html = '<div class="costStrip">' + cards.map(function (c) { return '<div class="costCard' + (c[0] === "Línur án verðs" && noPrice ? " bad" : "") + '"><div class="cl">' + c[0] + '</div><div class="cv">' + esc(c[1]) + '</div><div class="cs">' + esc(c[2]) + '</div></div>'; }).join("") + '</div>' +
       (dirtyAny ? '<div class="note warnNote">Þú breyttir línum — endurprentaðu PDF á pöntuninni áður en hún fer til birgja.</div>' : "") +
       recs.map(function (r) {
@@ -1278,7 +1289,7 @@
         var id = b.dataset.reprint; b.disabled = true; b.textContent = "Prenta…";
         fetch("/api/pontun-print", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recordId: id, kind: "order", k: k }) })
           .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || "villa"); }); })
-          .then(function () { delete dirtyOrders[id]; return loadOrders(SIG.proj); })
+          .then(function () { clearDirty(id); return loadOrders(SIG.proj); })
           .then(function () { openPdf[id] = true; renderOrderList(true); toast("PDF endurprentað", false); })
           .catch(function () { toast("Tókst ekki að prenta PDF — reyndu aftur.", true); renderOrderList(true); });
       };
@@ -1287,6 +1298,8 @@
       b.onclick = function () {
         var id = b.dataset.send, o = (SIG.orders || []).filter(function (x) { return x.id === id; })[0]; if (!o) return;
         var f = o.fields || {}, who = tx(f["Netfang birgis 🔍"]), nm = String(f["Stöðu kenni"] || "Pöntun");
+        var held = sendHeldMin(id);
+        if (held) { toast("Þessi pöntun var send áðan og Airtable hefur ekki svarað enn — athugaðu Airtable (Skipulag · Senda pöntun á birgja). Hægt aftur eftir ~" + held + " mín.", true); return; }
         if (dirtyOrders[id]) { toast("Þú breyttir línum — endurprentaðu PDF áður en pöntunin er send.", true); return; }
         if (!who) { toast("Birgirinn hefur ekkert netfang skráð í Airtable — pöntunin gæti ekki farið.", true); return; }
         var n = (SIG.lines || []).filter(function (l) { return lineOrderIds(l).indexOf(id) >= 0; }).length;
@@ -1297,7 +1310,7 @@
           .then(function (r) { if (r && r.error) throw new Error("patch"); ordersBusy = false;
             pollSignals("send" + id, 90, function () { var x = (SIG.orders || []).filter(function (y) { return y.id === id; })[0]; return !!(x && /^Sent/.test((x.fields || {})["Staða"] || "")); },
               function () { renderOrderList(true); toast(nm + " send ✓", false); },
-              function () { renderOrderList(true); toast(nm + ": ekkert gerðist enn — athugaðu Airtable (Skipulag · Senda pöntun á birgja) áður en þú reynir aftur.", true); });
+              function () { holdSend(id); renderOrderList(true); toast(nm + ": ekkert gerðist enn — athugaðu Airtable (Skipulag · Senda pöntun á birgja) áður en þú reynir aftur.", true); });
           }).catch(function () { ordersBusy = false; toast("Tókst ekki að senda — reyndu aftur.", true); renderOrderList(true); });
       };
     });
@@ -1318,7 +1331,7 @@
         ordersBusy = true; inp.disabled = true;
         apiPatch(PONTUN_TBL + "/" + id, { "Magn": v }).then(function (r) {
           if (r && r.error) throw new Error("patch");
-          if (line) lineOrderIds(line).forEach(function (o) { dirtyOrders[o] = true; });
+          if (line) lineOrderIds(line).forEach(markDirty);
           toast("Magn vistað", false); return reloadOrderData();
         }).catch(function () { toast("Tókst ekki að vista magn.", true); inp.value = orig; inp.disabled = false; ordersBusy = false; });
       });
@@ -1338,7 +1351,7 @@
                 var id = inp.dataset.sw, line = (SIG.lines || []).filter(function (l) { return l.id === id; })[0]; ordersBusy = true;
                 apiPatch(PONTUN_TBL + "/" + id, { "Vörulisti 🚪": [pb.dataset.p] }).then(function (r2) {
                   if (r2 && r2.error) throw new Error("patch");
-                  if (line) lineOrderIds(line).forEach(function (o) { dirtyOrders[o] = true; });
+                  if (line) lineOrderIds(line).forEach(markDirty);
                   toast("Vöru skipt", false); return reloadOrderData();
                 }).catch(function () { toast("Tókst ekki að skipta um vöru.", true); ordersBusy = false; });
               };

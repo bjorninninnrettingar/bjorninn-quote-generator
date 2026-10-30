@@ -75,6 +75,7 @@
 
   .actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
   .actBtn { flex:1; min-width:120px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:9px 10px; font-size:.82rem; font-weight:500; font-family:inherit; color:var(--text); }
+  a.actBtn { text-decoration:none; text-align:center; display:inline-block; }
   .actBtn.good { background:var(--good); color:#fff; border-color:var(--good); }
   .actBtn:disabled { opacity:.45; }
   .efniBar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; font-size:.85rem; color:var(--muted); }
@@ -143,7 +144,6 @@
   var PONTUN = "tbloXR7f9Q943O9el";
   var AUKA = "tblHGYgrvvDqyKOAe";
   var RUN_FIELD = "🔄 Keyra Pöntunarlista 4.0";
-  var SEND_FIELD = "📧 Senda á birgja";
 
   var shellInfo = window.OfficeShell.boot("pontun");
   if (!shellInfo) return;
@@ -409,7 +409,7 @@
         '<div class="actions">' +
           (pdf ? '<a class="actBtn" href="' + pdf.url + '" target="_blank" rel="noopener">📄 Skoða PDF</a>' : '') +
           '<button class="actBtn" data-reprint="' + o.id + '">↻ Endurprenta PDF</button>' +
-          (canSend ? '<button class="actBtn good" data-send="' + o.id + '">📧 Senda á birgja</button>' : '') +
+          (canSend ? '<a class="actBtn good" href="/ferli?recordId=' + encodeURIComponent(recordId) + '" onclick="event.stopPropagation()" title="Pöntunin er send úr Skipulagsleiðinni — þar sést viðtakandi, upphæð og hvort PDF er nýtt">Senda í Skipulagsleið →</a>' : '') +
           (canSend ? '<button class="actBtn" data-offline="' + o.id + '" title="Pantað í síma eða tölvupósti — enginn póstur sendur héðan">☎️ Pantað utan kerfis</button>' : '') +
           '<select class="statusSel" data-status="' + o.id + '">' +
             ["Í undirbúningi", "Sent", "Komið í hús 🐻"].map(function (s) {
@@ -434,23 +434,6 @@
         reprintBtn.textContent = "✓ Prentað — endurhlaða til að sjá";
       }).catch(function () { reprintBtn.textContent = "Tókst ekki"; reprintBtn.disabled = false; });
     });
-    var sendBtn = el.querySelector("[data-send]");
-    if (sendBtn) {
-      sendBtn.addEventListener("click", function (ev) {
-        ev.stopPropagation();
-        if (!confirm("Senda pöntun á birgja núna? Þetta sendir alvöru tölvupóst.")) return;
-        sendBtn.disabled = true;
-        sendBtn.textContent = "Sendi…";
-        var f1 = {}; f1[SEND_FIELD] = false;
-        apiPatch(PANTADIR + "/" + o.id, f1)
-          .then(function () {
-            var f2 = {}; f2[SEND_FIELD] = true;
-            return apiPatch(PANTADIR + "/" + o.id, f2);
-          })
-          .then(function () { sendBtn.textContent = "✓ Sent — endurhlaða til að sjá"; })
-          .catch(function () { sendBtn.textContent = "Tókst ekki"; sendBtn.disabled = false; });
-      });
-    }
     el.querySelector("[data-status]").addEventListener("change", function (ev) {
       ev.stopPropagation();
       var sel = ev.target, st = sel.value;
@@ -487,7 +470,7 @@
         apiPatch(PANTADIR + "/" + o.id, { "Staða": "Sent" }).then(function () {
           setOrderStatus(o.id, "Sent");
           offBtn.remove();
-          var sb = el.querySelector("[data-send]"); if (sb) sb.remove();
+          var sb = el.querySelector("a[href^='/ferli']"); if (sb) sb.remove();
           paintEfniBar();
         }).catch(function () { offBtn.disabled = false; errToast("Tókst ekki að vista — reyndu aftur."); });
       });
