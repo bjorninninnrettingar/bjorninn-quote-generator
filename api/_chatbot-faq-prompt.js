@@ -89,7 +89,7 @@ const FAQ_CORPUS = [
     ["Er hönnunartólið til á ensku?",
       "Já. Undir Hjálp efst til hægri velurðu „In English“ eða „Á íslensku“.", "draft"],
     ["Hvað get ég valið í eldhúsinnréttingu í hönnunartólinu?",
-      "Skrokk (litinn innan í skápum), skúffukerfi, framhlið, höldur og borðplötu. Borðplatan getur verið harðplast, compact, límtré, steinn eða engin borðplata. Steinn sýnir aðeins útlitið því Björninn selur ekki steinplötur.", "draft"],
+      "Skrokk (litinn innan í skápum), skúffukerfi, framhlið, höldur og borðplötu. Borðplatan getur verið harðplast, compact, límtré, steinn eða engin borðplata. Steinn sýnir aðeins útlitið. Við erum í samstarfi við HQ (hq.is) og þú færð 15% afslátt ef þú verslar í gegnum okkur.", "draft"],
     ["Hvað get ég valið í fataskáp í hönnunartólinu?",
       "Dýpt, hæð (upp í loft eða lægri skápa), lit, skúffur, hurðir (með eða án hurða, efni og spegil á einni hurð eða öllum) og höldur.", "draft"],
     ["Er hægt að fá rennihurðir á fataskáp?",
@@ -97,7 +97,7 @@ const FAQ_CORPUS = [
     ["Getur eldhús verið með rennihurðaskáp eða lyftihurðum?",
       "Já. Undir „Tækjaskápar“ er skápur með rennihurðum sem renna inn í hliðar skápsins (Blum Revego). Efri skápar geta opnast upp með lyftu (Blum AVENTOS). Söluaðili velur rétta lyftu og staðfestir verð.", "draft"],
     ["Hvað get ég valið í baðinnréttingu í hönnunartólinu?",
-      "Lit, skúffur, framhlið, höldur og topp (harðplast, compact, steinn eða engan topp). Vaskaskápurinn hangir á veggnum og handlaugin situr ofan á toppnum. Spegilskápur er meðal efri skápa; söluaðili staðfestir spegilinn og verð. Steinn sýnir aðeins útlitið því Björninn selur ekki steinplötur.", "draft"],
+      "Lit, skúffur, framhlið, höldur og topp (harðplast, compact, steinn eða engan topp). Vaskaskápurinn hangir á veggnum og handlaugin situr ofan á toppnum. Spegilskápur er meðal efri skápa; söluaðili staðfestir spegilinn og verð. Steinn sýnir aðeins útlitið. Við erum í samstarfi við HQ (hq.is) og þú færð 15% afslátt ef þú verslar í gegnum okkur.", "draft"],
     ["Hvað get ég valið í þvottahús í hönnunartólinu?",
       "Þú segir hvar vélin er (í stæðu, undir borðplötu eða engin vél) og velur lit, skúffur, framhlið, höldur og borðplötu.", "draft"],
     ["Get ég hannað innihurðir í hönnunartólinu?",
@@ -106,6 +106,10 @@ const FAQ_CORPUS = [
   { title: "Verð og greiðslur", questions: [
     ["Hvað kostar innrétting hjá ykkur?",
       "Verðið fer eftir stærð, efni, skúffukerfi, innvolsi og útfærslu. Þess vegna er ekki hægt að gefa raunhæfa verðhugmynd, hvorki fyrir eldhús né fataskáp, fyrr en helstu ákvarðanir liggja fyrir.\n\nBesta leiðin er að bóka tíma í hönnun og ráðgjöf eða senda okkur mál, myndir og efnisval."],
+    ["Hvað kostar hönnunarpakkinn?",
+      "Heilt hús kostar 380.000 kr. og allt gengur upp í tilboð. Eldhús kostar 240.000 kr. og allt gengur upp í tilboð. Skápa-teikningar kosta 100.000 kr. og 50% ganga upp í tilboð. Baðinnrétting kostar 100.000 kr. og 50% ganga upp í tilboð. Hurðir kosta 100.000 kr. og 50% ganga upp í tilboð. Sérpælingar eru tilboð og mismunandi eftir verki."],
+    ["Hvaða frontategundir eru í boði?",
+      "Allt úrvalið er á Efnisúrval síðunni á vefsíðunni okkar."],
     ["Er ráðgjafarfundurinn ókeypis?",
       "Já. Hönnun og ráðgjöf er ókeypis."],
     ["Hvað er staðfestingargjaldið hátt?",
@@ -121,7 +125,7 @@ const FAQ_CORPUS = [
     ["Hversu lengi gildir tilboðið?",
       "Tilboðið gildir í 15 daga."],
     ["Kostar eitthvað að fá tilboð?",
-      "Nei, tilboð kostar ekkert. Hönnunarpakki, þ.e. fullkláruð hönnun og vinnuteikningar, er þó greidd þjónusta. Sú upphæð gengur upp í innréttinguna ef þú pantar hjá okkur."],
+      "Nei, tilboð kostar ekkert. Hönnunarpakki, þ.e. fullkláruð hönnun og vinnuteikningar, er þó greidd þjónusta. Hluti upphæðarinnar eða öll gengur upp í tilboðið, eftir pakka."],
     ["Getið þið gefið mér grófa verðhugmynd út frá málum?",
       "Það er hægt, en við mælum ekki með því. Án ákvarðana um efni, skúffukerfi og innvols verður verðhugmyndin svo ónákvæm að hún gefur litla mynd af raunverulegu verði.\n\nBetra er að senda okkur mál ásamt efnisvali eða bóka tíma hjá okkur."],
     ["Er til verð á fermetra eða lengdarmetra?",
@@ -161,7 +165,7 @@ const FAQ_CORPUS = [
     ["Úr hvaða efnum eru innréttingarnar?",
       "Við notum meðal annars melamín, spón, MDF og stundum gegnheilan við."],
     ["Hvaða borðplötur bjóðið þið upp á?",
-      "Við bjóðum meðal annars límtré, harðplast og harðkjarna. Við vinnum líka með fyrirtækjum sem framleiða steinborðplötur."],
+      "Við bjóðum meðal annars límtré, harðplast og harðkjarna. Steinborðplötur: við erum í samstarfi við HQ (hq.is). Gott er að fara til þeirra og fá 15% afslátt ef verslað er í gegnum okkur."],
     ["Hvar framleiðið þið innréttingarnar?",
       "Við framleiðum innréttingarnar frá grunni hér á Íslandi, á verkstæðinu okkar í Álfhellu 5 í Hafnarfirði. Kíktu endilega í kaffi og sjáðu hvar og hvernig þær verða til."],
     ["Hvaða vörumerki notið þið í skúffum og lömum?",
@@ -183,13 +187,13 @@ const FAQ_CORPUS = [
     ["Hvað gerist ef afhending seinkar?",
       "Við látum þig vita eins fljótt og við getum og gefum þér nýtt mat á afhendingu."],
     ["Er heimsending innifalin?",
-      "Nei, nema það komi fram í tilboðinu. Hægt er að bæta heimsendingu við."],
+      "Heimsending er alltaf sérstakt tilboð. Verðið kemur fram í tilboðinu fyrir hvert verkefni."],
     ["Getið þið geymt innréttinguna fyrir mig?",
-      "Aðeins í takmarkaðan tíma. Ef innrétting er tilbúin og ekki hægt að afhenda hana geta geymslugjöld bæst við."],
+      "Nei, við bjóðum ekki upp á geymslu."],
   ]},
   { title: "Uppsetning", questions: [
     ["Sjáið þið um uppsetningu?",
-      "Já. Hægt er að fá sérstakt tilboð í uppsetningu. Uppsetning er ekki sjálfkrafa innifalin."],
+      "Já, við sjáum um uppsetningu en höfum ekki alltaf tök á því. Þá getum við tengt þig við aðra uppsetningarmenn. Uppsetning er alltaf sérstakt tilboð og verðið kemur fram í tilboðinu fyrir hvert verkefni."],
     ["Þarf ég að vera heima á meðan uppsetning fer fram?",
       "Ekki allan tímann. Það þarf þó að vera gott aðgengi að húsnæðinu og gott að einhver sé tiltækur ef spurningar koma upp."],
     ["Hvað ef eitthvað þarf að laga eftir uppsetningu?",
@@ -197,7 +201,7 @@ const FAQ_CORPUS = [
     ["Get ég haldið núverandi gólfefni?",
       "Oft já. Það fer þó eftir því hvernig gamla og nýja innréttingin liggja í rýminu."],
     ["Sjáið þið um að fjarlægja gömlu innréttinguna?",
-      "Það er ekki sjálfkrafa innifalið. Ef þú vilt fá niðurrif eða förgun þarf það að koma fram í tilboðinu."],
+      "Niðurrif og förgun er alltaf sérstakt tilboð. Verðið kemur fram í tilboðinu fyrir hvert verkefni."],
     ["Sjáið þið um rafmagn og pípulagnir?",
       "Ekki nema það sé sérstaklega tekið fram. Rafvirki og pípulagningamaður sjá yfirleitt um slíka vinnu."],
   ]},
@@ -289,7 +293,7 @@ export function buildSystemPrompt() {
 - Ef spurning gests passar greinilega við eitthvert svar (eða má rökrétt leiða af nokkrum svörum) hér að neðan — svaraðu með því efni, umorðuðu eðlilega ef þarf svo það passi við spurninguna.
 - Ef spurningin er ekki svarað af neinu hér að neðan — EKKI giska, EKKI reikna út frá öðrum upplýsingum, EKKI nota almenna þekkingu um innréttingar eða verð. Segðu einfaldlega að þú vitir það ekki með vissu og settu "escalate": true.
 - Þetta á sérstaklega við um allar TÖLUR (verð, prósentur, tímalengdir, dagsetningar) sem ekki standa orðrétt eða nálægt orðrétt í gögnunum — að finna upp á tölu sem hljómar sennileg er verra en að segja "veit ekki."
-- Ef spurt er hvað tiltekin þjónusta kostar eða hvort hún sé ókeypis (t.d. uppsetning, heimsending, geymsla, hönnunarpakki) og gögnin segja það ekki orðrétt — EKKI giska og ekki álykta: segðu að þú vitir það ekki með vissu og settu "escalate": true.
+- Ef spurt er hvað tiltekin þjónusta kostar eða hvort hún sé ókeypis (t.d. annað en það sem stendur í gögnunum) og gögnin segja það ekki orðrétt — EKKI giska og ekki álykta: segðu að þú vitir það ekki með vissu og settu "escalate": true.
 - Aldrei taka afstöðu til einstakra tilboða, ekki reyna að meta verð á tilteknu verkefni gestsins, ekki bóka neitt, ekki búa til nein "leads" eða staðfesta neitt fyrir hönd Björnsins — þú svarar spurningum, ekkert annað.
 - Ef gestur spyr um eitthvað algjörlega óskylt (t.d. veðrið, önnur fyrirtæki, persónuleg mál) — vinsamlega bentu á að þú getir aðeins hjálpað með spurningar um Björninn Innréttingar, og settu "escalate": false (þetta er ekki spurning sem þarf að fara í eftirfylgni, bara utan sviðs).
 
@@ -305,9 +309,9 @@ ${renderLinks()}
 
 ## Dæmi um rétt svör þegar gögnin segja ekkert um kostnað
 
-Sp: Hvað kostar uppsetningin hjá ykkur?
-{"answer": "Því get ég ekki svarað með vissu — verð á uppsetningu kemur ekki fram hjá mér. Ég sendi spurninguna áfram á rétta fólkið hjá Birninum.", "escalate": true, "links": []}
-(Ekki segja að uppsetning sé ókeypis eða innifalin — gögnin segja bara að hún sé ekki sjálfkrafa innifalin. Mæling á staðnum er hins vegar innifalin í tilboði — það stendur í gögnunum.)
+Sp: Er hægt að fá bogadregna fronta?
+{"answer": "Því get ég ekki svarað með vissu — það kemur ekki fram hjá mér. Ég sendi spurninguna áfram á rétta fólkið hjá Birninum.", "escalate": true, "links": []}
+(Ekki giska á hvað er hægt eða ekki hægt að smíða, né á hámarks- og lágmarksmál. Verð á uppsetningu, heimsendingu og niðurrifi er alltaf sér tilboð — það stendur í gögnunum.)
 
 Sp: Hversu lengi þarf ég að bíða?
 {"answer": "Biðtíminn frá staðfestingu til afhendingar er 8–12 vikur, mögulega fyrr. Það fer eftir flækjustigi.", "escalate": false, "links": []}
@@ -402,7 +406,7 @@ const STUDIO_GUIDE = `
 ### Baðherbergi og þvottahús — orðin
 - Vaskaskápur: skápurinn undir handlauginni, hangir á veggnum (sjálfgefið 20 cm frá gólfi, má breyta). Á baðinu er hann alltaf fyrsta einingin undir „＋ Ný eining“.
 - Handlaug: vaskurinn sjálfur, situr ofan á toppnum. Gatið í toppnum er aðeins stærra en skálin.
-- Toppur: platan ofan á vaskaskápnum. Sömu val og borðplata í eldhúsi: Harðplast, Compact, Steinn (Björninn selur ekki steinplötur — aðeins til að sjá útlitið) eða „Enginn toppur“.
+- Toppur: platan ofan á vaskaskápnum. Sömu val og borðplata í eldhúsi: Harðplast, Compact, Steinn (Steinn sýnir aðeins útlitið; við erum í samstarfi við HQ (hq.is), 15% afsláttur ef verslað er í gegnum okkur) eða „Enginn toppur“.
 - Spegilskápur: efri skápur með spegli á framhliðinni (undir „＋ Ný eining“ → Efri skápar). Söluaðili staðfestir spegilinn og verð.
 - Flísar: veggflísar, valdar undir „Útlit rýmisins“ í Rými-skrefinu (bara fyrir útlitið, ekki í pöntun).
 - Hindranir: sturta, klósett, handklæðaofn o.fl. eru settar inn undir „Gluggar og hindranir“ svo skáparnir lendi ekki á þeim.
@@ -437,8 +441,8 @@ export function buildStudioPrompt() {
 - Undirsíður í samhenginu: Rými — pick = lögun, machine = vélin, size = veggjamál, height = lofthæð og útlit, openings = gluggar og hurðir, water = vatn. Efni — carcass = skrokkur/litur, drawers = skúffur, fronts = framhlið, handle = höldur, top = borðplata/toppur, size = stærð og litur, doors = hurðir.
 - Ef þú veist ekki svarið eða ert ekki viss: segðu það hreinskilnislega, bentu á símann 779-5777 eða að senda söluaðila tölvupóst á ${STUDIO_EMAIL}, og settu "escalate": true.
 - Þú mátt gefa upp símanúmerið 779-5777 og netfangið ${STUDIO_EMAIL}. Ef spurt er um síma eða hvernig á að ná í okkur: „Síminn er 779-5777 og netfangið er ${STUDIO_EMAIL}.“
-- Ef spurt er um kostnað eða hvort þjónusta (uppsetning, heimsending o.fl.) sé ókeypis og það stendur ekki orðrétt í gögnunum: segðu að þú vitir það ekki með vissu, "escalate": true — ekki giska.
-- Staðfestar staðreyndir (notaðu þær orðrétt, bættu engu við): mæling á staðnum er innifalin í tilboði og við gerum hana ekki fyrir þá sem eru ekki í verkefni hjá okkur; biðtími frá staðfestingu til afhendingar er 8–12 vikur, mögulega fyrr, fer eftir flækjustigi; tilboð gildir í 15 daga; ábyrgðin er 2 ár; sími 779-5777, netfang bjorninn@bjorninninnrettingar.is.
+- Ef spurt er um kostnað eða hvort þjónusta sé ókeypis og það stendur ekki orðrétt í gögnunum: segðu að þú vitir það ekki með vissu, "escalate": true — ekki giska.
+- Staðfestar staðreyndir (notaðu þær orðrétt, bættu engu við): mæling á staðnum er innifalin í tilboði og við gerum hana ekki fyrir þá sem eru ekki í verkefni hjá okkur; biðtími frá staðfestingu til afhendingar er 8–12 vikur, mögulega fyrr, fer eftir flækjustigi; tilboð gildir í 15 daga; ábyrgðin er 2 ár; uppsetning, heimsending og niðurrif/förgun eru alltaf sér tilboð (verðið kemur í tilboðinu); við sjáum um uppsetningu en höfum ekki alltaf tök á því og getum þá tengt aðra uppsetningarmenn; engin geymsla er í boði; sýningarsalur er aðeins opinn eftir bókun; við erum í samstarfi við HQ (hq.is) um steinborðplötur og 15% afsláttur ef verslað er í gegnum okkur; heildarlista yfir frontategundir hefur þú ekki — vísaðu á Efnisúrval (tengill „efni“); hönnunarpakkar: heilt hús 380.000 kr, og allt gengur upp í tilboð, Eldhús kostar 240.000 kr, og allt gengur upp í tilboð, Skápa-teikningar kosta 100.000 kr, og 50% ganga upp í tilboð, Baðinnrétting kostar 100.000 kr, og 50% ganga upp í tilboð, Hurðir kosta 100.000 kr, og 50% ganga upp í tilboð, Sérpælingar eru tilboð og mismunandi eftir verki.; sími 779-5777, netfang bjorninn@bjorninninnrettingar.is.
 - ALDREI nefna verð, verðbil eða áætlanir um kostnað, og ekki lofa neinu um afhendingartíma umfram biðtímann 8–12 vikur hér að ofan, né hvað sé hægt að smíða. Verð kemur í tilboði frá söluaðila eftir að hönnun er send inn.
 - Ekki lofa neinu fyrir hönd söluaðila umfram það sem stendur hér (hann fer yfir hönnunina, sendir tilboð, hefur samband innan 3 virkra daga). Ef spurningin er utan þess sem tólið gerir: segðu það stutt og bentu á tölvupóstinn, "escalate": true.
 - Ekki biðja um persónuupplýsingar (nafn, síma, heimilisfang) í spjallinu.

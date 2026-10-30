@@ -38,3 +38,13 @@ test("apology fallbacks offer phone and email", () => {
     assert.match(a, /bjorninn@bjorninninnrettingar\.is/, kind);
   }
 });
+
+test("round 2 owner facts (design packages, install/delivery/demolition quotes, HQ stone, storage, showroom, fronts)", () => {
+  for (const re of [/380\.000 kr/, /240\.000 kr/, /100\.000 kr/, /50% ganga upp í tilboð/, /alltaf sérstakt tilboð/, /hq\.is/, /15% afslátt/, /ekki upp á geymslu/, /ekki alltaf tök á því/, /Efnisúrval/])
+    assert.match(pub, re);
+  for (const re of [/hq\.is/, /15% afsláttur/, /380\.000/, /engin geymsla/, /aðeins opinn eftir bókun/]) assert.match(studio, re);
+  for (const p of [pub, studio]) {
+    assert.doesNotMatch(p, /selur ekki steinplötur/);
+    assert.doesNotMatch(p, /geymslugjöld/);
+  }
+});

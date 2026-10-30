@@ -20,24 +20,23 @@ enough), then the text goes into `faq.html` DATA + `FAQ_CORPUS` (same wording, `
 - Tilboð gildir í 15 daga.
 - Ábyrgð: 2 ár.
 - Sími 779-5777 og netfang bjorninn@bjorninninnrettingar.is — botinn má gefa upp bæði (Studio-reglan „netfang eingöngu“ afnumin).
-- Enn óvitað: verð á uppsetningu/heimsendingu/niðurrifi/geymslu/hönnunarpakka — vörðurinn „veit ekki“ gildir áfram um það.
+- Hönnunarpakki: heilt hús 380.000 kr (100% upp í tilboð), eldhús 240.000 (100%), skápa-teikningar 100.000 (50%), baðinnrétting 100.000 (50%), hurðir 100.000 (50%), sérpælingar tilboð.
+- Uppsetning, heimsending, niðurrif/förgun: alltaf sér tilboð. Uppsetning: við sjáum um hana en höfum ekki alltaf tök á því, þá tengjum við aðra uppsetningarmenn.
+- Steinborðplötur: samstarf við HQ (hq.is), 15% afsláttur ef verslað er í gegnum okkur (gamla „selur ekki stein“-textinn fjarlægður).
+- Sýningarsalur aðeins eftir bókun; engin geymsla í boði; frontategundir: engin full upptalning, vísað á Efnisúrval.
+- Enn óvitað: hvað er EKKI hægt að smíða (skáþak, bogadregnir frontar, litir utan EGGER), nákvæm lágmarks-/hámarksmál, og afgangur þessa skjals.
 
 ## Spurning → hvað vantar frá Ísak
 
 ### Verð og greiðslur
-- Hvað kostar hönnunarpakkinn? → verð eða bil; FAQ segir bara að hann sé greidd þjónusta sem gengur upp í innréttinguna.
-- Hvað kostar uppsetning / heimsending / niðurrif og förgun? → eru til föst verð eða bil, eða alltaf sér tilboð?
-- Geymslugjald: hversu mörg dagar/vikur eru ókeypis og hvað kostar eftir það?
 - Má sýna "Áætlað verð" í Studio (parkað frá 2026-10-26)? → nei sem stendur; bot nefnir aldrei verð.
 
 ### Tími
 - Hversu langur tími líður frá "Senda inn" í Studio þar til tilboð kemur? (Núna: söluaðili hefur samband innan 3 virkra daga — er tilboðið komið þá, eða bara fyrsta samband?)
 
 ### Efni, höldur, borðplötur, frontar
-- Hvaða frontategundir eru í boði í heild (melamín, spónn, MDF, lakk, gegnheilt, harðplast)? FAQ nefnir "meðal annars" — fullur listi vantar.
 - Er til skrá yfir EGGER-liti sem hægt er að vísa í, eða á alltaf að vísa á Efnisúrval síðuna?
 - Hvaða höldur eru í boði og eru allar sýndar í Studio? Hvað kosta höldur umfram það sem er innifalið?
-- Steinborðplötur: FAQ segir "við vinnum með fyrirtækjum sem framleiða steinborðplötur", Studio segir "Björninn selur ekki steinplötur". Hvort er rétt orðað fyrir viðskiptavini (milliganga, eða viðskiptavinur kaupir sjálfur)?
 - Þykkt borðplatna (harðplast, compact, límtré) og hámarkslengd án samskeyta?
 
 ### Hönnun og hvað er hægt að breyta
@@ -50,10 +49,9 @@ enough), then the text goes into `faq.html` DATA + `FAQ_CORPUS` (same wording, `
 ### Mælingar, afhending, uppsetning
 - Hvernig bóka ég mælingu í reynd (hlekkur) og hvað þarf að vera tilbúið (FAQ: aðgangur að veggjum, gólfi og lofti)? Er dagsetning bókuð eða kemur mælingamaður á tímabili?
 - Afhending: hvar er afhent, hver ber upp, hvað gerist ef enginn er heima?
-- Uppsetning: hvað tekur hún langan tíma fyrir dæmigert eldhús; vinnið þið með eigin iðnaðarmönnum eða bara ykkar?
+- Uppsetning: hvað tekur hún langan tíma fyrir dæmigert eldhús? (hvort við séum með eigin iðnaðarmenn er svarað: stundum, annars aðrir uppsetningarmenn)
 
 ### Fyrirtækið
-- Opnunartími sýningarsalar fyrir utan "eftir bókun": eru einhverjir fastir opnir dagar? (FAQ: símatími mán–fös 9–17.)
 
 ### Studio (/skipuleggja)
 - Hversu lengi geymast innsend gögn og hver sér þau (persónuvernd)? Þarf Studio-síðan persónuverndartexta sem bot getur vitnað í?

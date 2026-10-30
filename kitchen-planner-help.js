@@ -48,7 +48,7 @@
           en:"Yes — once another room is designed we ask “Same materials as in …?”. “Yes, the same” takes them, “Choose new” lets you pick." } },
     { cat:{ is:"Efni", en:"Materials" },
       q:{ is:"Hvaða borðplötur eða topp get ég valið?", en:"Which worktops or tops can I choose?" },
-      a:{ is:"Eldhús: Harðplast, Compact, Límtré, Steinn eða engin borðplata. Bað: Harðplast, Compact, Steinn eða enginn toppur (handlaugin situr ofan á). Þvottahús: Harðplast. Björninn selur ekki steinplötur — Steinn sýnir bara útlitið.",
+      a:{ is:"Eldhús: Harðplast, Compact, Límtré, Steinn eða engin borðplata. Bað: Harðplast, Compact, Steinn eða enginn toppur (handlaugin situr ofan á). Þvottahús: Harðplast. Steinn sýnir bara útlitið. Við erum í samstarfi við HQ (hq.is) — 15% afsláttur ef verslað er í gegnum okkur.",
           en:"Kitchen: Laminate, Compact, Solid wood, Stone or no worktop. Bathroom: Laminate, Compact, Stone or no top (the basin sits on top). Laundry: Laminate. Björninn doesn’t sell stone tops — Stone only shows the look." } },
     { cat:{ is:"Efni", en:"Materials" },
       q:{ is:"Hvernig set ég spegil á hurð fataskáps?", en:"How do I put a mirror on a wardrobe door?" },
