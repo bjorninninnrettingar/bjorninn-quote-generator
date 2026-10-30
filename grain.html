@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Æðaskipulag — Björninn</title>
+<link rel="stylesheet" href="/bjorninn-tokens.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -27,20 +28,21 @@
      backgrounds) were NOT deriving from these variables, so those got a
      matching find/replace on their RGB triples at the same time. */
   :root {
-    --bg:#f3f4f6; --surface:#ffffff; --surface2:#eef1f4; --line:#e1e4e8;
-    --text:#1a1d21; --muted:#5d6670; --dim:#9aa3ad;
-    --blue:#0f6cbd; --amber:#9a6700; --green:#1a7d36; --red:#c4291c;
-    --warn-bg:#fdf2d9; --warn-line:#f0d78c; --blue-bg:#e4f0fa; --blue-line:#b7d8f0;
-    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:var(--bj-panel); --surface:var(--bj-surface); --surface2:var(--bj-panel); --line:var(--bj-line);
+    --text:var(--bj-ink); --muted:var(--bj-muted); --dim:var(--bj-dim);
+    --blue:var(--bj-blue); --amber:var(--bj-warn); --green:var(--bj-good); --red:var(--bj-bad);
+    --warn-bg:var(--bj-warn-soft); --warn-line:#f0d78c; --blue-bg:var(--bj-blue-soft); --blue-line:#c5d0f1;
+    --font:var(--bj-font);
   }
   /* /saga (FLOOR_MODE): same dark Kumbh Sans theme as the other floor pages. Class set in script below. */
   body.floor {
     --bg:#0b0b0c; --surface:#161618; --surface2:#1e1e21; --line:#2a2a2e;
     --text:#f2f2f3; --muted:#c9c9ce; --dim:#8a8a90;
-    --blue:#0a84ff; --amber:#ffd60a; --green:#4caf50; --red:#ff5a5a;
-    --warn-bg:#2b2410; --warn-line:#6b5a1a; --blue-bg:#0f2236; --blue-line:#1d4a78;
-    --font:"Kumbh Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --blue:#6b8ae0; --amber:#f5c542; --green:#4caf50; --red:#ff6b5b;
+    --warn-bg:#2b2410; --warn-line:#6b5a1a; --blue-bg:#1b2744; --blue-line:#2c478e;
+    --font:var(--bj-font);
   }
+  body.floor button.primary, body.floor .toolnav-item.active, body.floor .banner { background:#3d61c1; border-color:#3d61c1; color:#fff; }
   body.floor .hdr-row .project-name { white-space: normal; overflow: visible; text-overflow: clip; max-width: 100%; overflow-wrap: anywhere; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -169,7 +171,7 @@
     margin-bottom: 8px; cursor: pointer;
   }
   .mat-item:hover { border-color: var(--blue); }
-  .mat-item.active { border-color: var(--blue); background: rgba(15,108,189,.1); }
+  .mat-item.active { border-color: var(--blue); background: rgba(61,97,193,.1); }
   .mat-item .mname { font-weight: 600; }
   .mat-item .mmeta { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
   .badge {
@@ -309,7 +311,7 @@
      instead of an abrupt appear/disappear */
   #dragGhost {
     position: fixed; z-index: 200; pointer-events: none;
-    border: 2px solid var(--blue); background: rgba(15,108,189,0.28);
+    border: 2px solid var(--blue); background: rgba(61,97,193,0.28);
     border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
     color: var(--text); font: 600 12px/1.2 "SF Mono", Consolas, monospace;
     padding: 3px 5px; overflow: hidden; white-space: pre;
@@ -331,7 +333,7 @@
   .grp-panel .grp {
     border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
   }
-  .grp-panel .grp.sel { border-color: var(--blue); background: rgba(15,108,189,.1); }
+  .grp-panel .grp.sel { border-color: var(--blue); background: rgba(61,97,193,.1); }
   .grp-panel .grp.locked { border-color: rgba(154,103,0,.4); }
   .grp-panel .grp.locked.sel { border-color: var(--amber); background: rgba(154,103,0,.1); }
   .piece-search { margin: 8px 0 6px; max-width: none; }
@@ -347,7 +349,7 @@
   .front-row .drag-grip { cursor: grab; color: var(--dim); font-size: 0.9rem; }
   .front-row.dragging { opacity: 0.4; }
   .front-row.manual .fn { color: var(--green); }
-  .front-row.search-hit { background: rgba(15,108,189,.14); border-radius: 6px; padding-left: 5px; padding-right: 5px; }
+  .front-row.search-hit { background: rgba(61,97,193,.14); border-radius: 6px; padding-left: 5px; padding-right: 5px; }
   .front-row.selected-piece { background: rgba(154,103,0,.14); outline: 2px solid var(--amber); border-radius: 6px; padding-left: 5px; padding-right: 5px; }
   input.mf-h {
     width: 48px; padding: 3px 4px; font-size: 0.78rem; text-align: right; flex: none;
@@ -378,7 +380,7 @@
   .hint { color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
 
   .msg-drop {
-    border: 1px solid rgba(15,108,189,.35); background: rgba(15,108,189,.08); border-radius: 12px;
+    border: 1px solid rgba(61,97,193,.35); background: rgba(61,97,193,.08); border-radius: 12px;
     padding: 10px 14px; margin-bottom: 18px;
   }
   .msg-drop summary {
@@ -396,7 +398,7 @@
   }
   .plan-bar.confirmed { border-color: rgba(26,125,54,.4); background: rgba(26,125,54,.08); }
   .plan-bar.draft     { border-color: rgba(154,103,0,.4); background: rgba(154,103,0,.1); }
-  .plan-bar.floor     { border-color: rgba(15,108,189,.4); background: rgba(15,108,189,.08); }
+  .plan-bar.floor     { border-color: rgba(61,97,193,.4); background: rgba(61,97,193,.08); }
   .plan-bar b { color: var(--text); }
   .plan-bar .spacer { flex: 1; }
   .plan-bar .muted { color: var(--muted); }
@@ -435,7 +437,7 @@
     padding: 4px 10px; font-size: 0.8rem; border-radius: 8px;
     background: var(--surface2); border: 1px solid var(--line); color: var(--muted);
   }
-  #guideOverlay .gboard-nav button.cur { border-color: var(--blue); color: var(--text); background: rgba(15,108,189,.18); }
+  #guideOverlay .gboard-nav button.cur { border-color: var(--blue); color: var(--text); background: rgba(61,97,193,.18); }
   #guideOverlay .gboard-nav button.done { color: var(--green); border-color: rgba(26,125,54,.4); }
   #guideOverlay .gprog { height: 4px; background: var(--surface2); position: relative; }
   #guideOverlay .gprog > div { height: 100%; background: var(--blue); transition: width 0.2s; }
@@ -460,8 +462,8 @@
   #guideOverlay .gkind.trim, #guideOverlay .gkind.scrap { color: var(--muted); }
   #guideOverlay .gtitle { font-size: 1.9rem; font-weight: 700; line-height: 1.15; }
   #guideOverlay .gmeasure {
-    display: flex; align-items: baseline; gap: 12px; background: rgba(15,108,189,.08);
-    border: 1px solid rgba(15,108,189,.3); border-radius: 16px; padding: 16px 20px;
+    display: flex; align-items: baseline; gap: 12px; background: rgba(61,97,193,.08);
+    border: 1px solid rgba(61,97,193,.3); border-radius: 16px; padding: 16px 20px;
   }
   #guideOverlay .gmeasure .num { font-size: 3.4rem; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1; }
   #guideOverlay .gmeasure .unit { font-size: 1.3rem; color: var(--blue); }
@@ -489,13 +491,13 @@
     display: block; font-size: 0.8rem; font-weight: 600; color: var(--amber); opacity: 0.85; margin-top: 3px;
   }
   #guideOverlay .gwincut {
-    background: rgba(15,108,189,.08); border: 1px solid rgba(15,108,189,.3); border-radius: 14px; padding: 14px 16px;
+    background: rgba(61,97,193,.08); border: 1px solid rgba(61,97,193,.3); border-radius: 14px; padding: 14px 16px;
   }
   #guideOverlay .gwincut-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 1rem; color: var(--text); }
   #guideOverlay .gwincut-feed { color: var(--text); font-size: 0.95rem; }
   #guideOverlay .gwincut-table { width: 100%; border-collapse: collapse; font-size: 1.3rem; font-variant-numeric: tabular-nums; color: var(--text); }
   #guideOverlay .gwincut-table th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 10px; }
-  #guideOverlay .gwincut-table td { padding: 8px 10px; border-top: 1px solid rgba(15,108,189,.3); color: var(--text); font-weight: 600; }
+  #guideOverlay .gwincut-table td { padding: 8px 10px; border-top: 1px solid rgba(61,97,193,.3); color: var(--text); font-weight: 600; }
   #guideOverlay .gwincut-table tr.cur td { background: rgba(26,125,54,.18); color: var(--text); font-weight: 800; font-size: 1.5rem; }
 
   #guideOverlay .gbottom {

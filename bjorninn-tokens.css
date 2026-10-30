@@ -1,0 +1,102 @@
+/* Björninn Innréttingar — shared design tokens (2026-10-30).
+   Reference look = Studio (kitchen-planner.html). Light by default (customer + office pages);
+   floor pages opt in with <body class="bj-dark"> or <html data-theme="dark">.
+   Link:  <link rel="stylesheet" href="/bjorninn-tokens.css">  (before the page's own <style>)
+   Pages keep their own variable NAMES where they have them and just point them at --bj-* values. */
+
+:root {
+  /* brand */
+  --bj-blue: #3d61c1;
+  --bj-blue-deep: #2c478e;
+  --bj-blue-soft: #eaeefb;
+  --bj-blue-text: #3d61c1;          /* blue used as text/link on the page background */
+  --bj-gold: #a29c72;
+  --bj-gold-soft: #f5f3ea;
+  --bj-gold-line: #d9d3b3;
+
+  /* neutrals */
+  --bj-bg: #ffffff;
+  --bj-panel: #faf9f6;
+  --bj-surface: #ffffff;
+  --bj-ink: #191919;
+  --bj-muted: #6f6d66;
+  --bj-dim: #8f8c84;
+  --bj-line: #e6e3da;
+
+  /* status: green = done, amber = partial, red = problem, blue = action */
+  --bj-good: #1f7a3d;  --bj-good-soft: #e6f4ea;
+  --bj-warn: #9a6700;  --bj-warn-soft: #fdf2d9;
+  --bj-bad:  #b3432f;  --bj-bad-soft:  #fbebe7;
+
+  /* shape */
+  --bj-r-sm: 6px;
+  --bj-r-md: 10px;
+  --bj-r-lg: 14px;
+  --bj-r-pill: 999px;
+
+  /* type: 5 steps */
+  --bj-font: "Kumbh Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --bj-fs-xs: 0.75rem;   /* 12 */
+  --bj-fs-sm: 0.875rem;  /* 14 */
+  --bj-fs-md: 1rem;      /* 16 */
+  --bj-fs-lg: 1.25rem;   /* 20 */
+  --bj-fs-xl: 1.75rem;   /* 28 */
+
+  /* 8px grid + touch size */
+  --bj-s1: 8px; --bj-s2: 16px; --bj-s3: 24px; --bj-s4: 32px; --bj-s5: 48px;
+  --bj-control: 44px;
+}
+
+/* Floor variant: same tokens, dark. Blue text uses a lighter blue (5.9:1 on --bj-bg); fills keep #3d61c1. */
+:root[data-theme="dark"], .bj-dark {
+  --bj-blue-text: #6b8ae0;
+  --bj-blue-soft: #1b2744;
+  --bj-gold-soft: #2a2819;
+  --bj-gold-line: #4a452c;
+  --bj-bg: #0b0b0c;
+  --bj-panel: #161618;
+  --bj-surface: #161618;
+  --bj-ink: #f2f2f3;
+  --bj-muted: #c9c9ce;
+  --bj-dim: #8a8a90;
+  --bj-line: #2a2a2e;
+  --bj-good: #4caf50;  --bj-good-soft: #12261a;
+  --bj-warn: #f5c542;  --bj-warn-soft: #2b2410;
+  --bj-bad:  #ff6b5b;  --bj-bad-soft:  #331a16;
+}
+
+/* ---- reusable pieces ---- */
+.bj-kicker { font: 700 var(--bj-fs-xs)/1.2 var(--bj-font); letter-spacing: .14em; text-transform: uppercase; color: var(--bj-gold); }
+.bj-title { font: 600 var(--bj-fs-lg)/1.2 var(--bj-font); color: var(--bj-ink); letter-spacing: -.01em; margin: 4px 0 0; }
+.bj-header { margin-bottom: var(--bj-s3); }
+
+.bj-btn, .bj-btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--bj-s1);
+  min-height: var(--bj-control); padding: 0 22px; border-radius: var(--bj-r-md);
+  font: 600 var(--bj-fs-sm)/1 var(--bj-font); text-decoration: none; cursor: pointer;
+  border: 1px solid transparent;
+}
+.bj-btn { background: var(--bj-blue); color: #fff; }
+.bj-btn:hover { background: var(--bj-blue-deep); }
+.bj-btn-secondary { background: var(--bj-surface); color: var(--bj-ink); border-color: var(--bj-line); }
+.bj-btn-secondary:hover { border-color: var(--bj-blue); color: var(--bj-blue-text); }
+.bj-btn:disabled, .bj-btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
+.bj-btn:focus-visible, .bj-btn-secondary:focus-visible, .bj-input:focus-visible { outline: 2px solid var(--bj-blue-text); outline-offset: 2px; }
+
+.bj-chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 12px;
+  border-radius: var(--bj-r-pill); border: 1px solid var(--bj-line); background: var(--bj-panel);
+  color: var(--bj-muted); font: 600 var(--bj-fs-xs)/1 var(--bj-font);
+}
+.bj-chip.good { color: var(--bj-good); background: var(--bj-good-soft); border-color: transparent; }
+.bj-chip.warn { color: var(--bj-warn); background: var(--bj-warn-soft); border-color: transparent; }
+.bj-chip.bad  { color: var(--bj-bad);  background: var(--bj-bad-soft);  border-color: transparent; }
+.bj-chip.action { color: var(--bj-blue-text); background: var(--bj-blue-soft); border-color: transparent; }
+
+.bj-card { background: var(--bj-surface); border: 1px solid var(--bj-line); border-radius: var(--bj-r-lg); padding: var(--bj-s2); }
+
+.bj-input {
+  min-height: var(--bj-control); padding: 0 12px; border-radius: var(--bj-r-md);
+  border: 1px solid var(--bj-line); background: var(--bj-surface); color: var(--bj-ink);
+  font: 400 var(--bj-fs-md)/1.2 var(--bj-font);
+}
