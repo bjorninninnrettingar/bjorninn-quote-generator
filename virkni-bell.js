@@ -33,7 +33,7 @@
 
   var CSS =
     ".vbWrap{position:relative;display:inline-flex;}" +
-    ".vbBtn{all:unset;box-sizing:border-box;position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;border-radius:8px;padding:8px 10px;font:inherit;font-size:.82rem;color:inherit;}" +
+    ".vbBtn{all:unset;box-sizing:border-box;position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;border-radius:8px;padding:8px 10px;min-height:44px;min-width:44px;font:inherit;font-size:.82rem;color:inherit;}" +
     ".vbBtn:hover{background:rgba(127,127,127,.18);}" +
     ".vbIc{display:inline-flex;line-height:1;}" +
     ".vbBadge{position:absolute;top:2px;left:20px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#d93025;color:#fff;font-size:.66rem;font-weight:700;line-height:16px;text-align:center;box-sizing:border-box;}" +

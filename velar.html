@@ -35,7 +35,7 @@
   .wrap { max-width:680px; margin:0 auto; padding:0 16px 60px; }
 
   .hd { position:sticky; top:0; z-index:10; background:var(--bg); padding:16px 0 12px; border-bottom:1px solid var(--line); }
-  .back { display:inline-flex; align-items:center; gap:6px; color:var(--muted); text-decoration:none; font-size:.85rem; font-weight:700; background:none; border:none; cursor:pointer; padding:0; font-family:var(--font); }
+  .back { min-height:44px; padding-right:12px !important; display:inline-flex; align-items:center; gap:6px; color:var(--muted); text-decoration:none; font-size:.85rem; font-weight:700; background:none; border:none; cursor:pointer; padding:0; font-family:var(--font); }
   h1 { font-size:1.6rem; font-weight:800; letter-spacing:-.01em; margin-top:8px; }
   .lede { color:var(--muted); font-size:.9rem; margin-top:4px; }
 
@@ -328,6 +328,10 @@
     showOnly(machineView);
     $("mName").textContent = name;
     renderChipsAndItems();
+    // own history entry so the Android back button goes machine -> list instead of leaving /velar
+    if (!(history.state && history.state.vel)) {
+      try { history.pushState({ vel: name }, "", "?vel=" + encodeURIComponent(name) + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
+    }
   }
 
   function renderChipsAndItems() {
@@ -343,7 +347,7 @@
     $("mChips").querySelectorAll(".chip").forEach(function (btn) {
       btn.addEventListener("click", function () {
         activeCat = btn.dataset.key || null;
-        try { history.replaceState(null, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
+        try { history.replaceState(history.state, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
         renderChipsAndItems();
       });
     });
@@ -381,14 +385,14 @@
     $("iBody").innerHTML = hasText(it.fields[L_SVAR]) ? renderSteps(it.fields[L_SVAR]) : (photos.length ? "" : '<div class="empty-sec">Ekkert skráð hér enn.</div>');
     overlay.classList.remove("hidden");
     if (current) {
-      try { history.replaceState(null, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "") + "&lid=" + id); } catch (e) {}
+      try { history.replaceState(history.state, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "") + "&lid=" + id); } catch (e) {}
     }
   }
 
   function closeItem() {
     overlay.classList.add("hidden");
     if (current) {
-      try { history.replaceState(null, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
+      try { history.replaceState(history.state, "", "?vel=" + encodeURIComponent(current) + (activeCat ? "&kafli=" + activeCat : "")); } catch (e) {}
     }
   }
 
@@ -396,7 +400,17 @@
   overlay.addEventListener("click", function (e) { if (e.target === overlay) closeItem(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !overlay.classList.contains("hidden")) closeItem(); });
 
+  window.addEventListener("popstate", function (e) {
+    overlay.classList.add("hidden");
+    var vel = e.state && e.state.vel;
+    if (vel && itemsByMachine[vel]) { openMachine(vel, null); return; }
+    current = null;
+    try { history.replaceState(null, "", location.pathname); } catch (err) {}
+    showOnly(homeView);
+  });
+
   $("backBtn").addEventListener("click", function () {
+    if (history.state && history.state.vel) { history.back(); return; }
     current = null;
     try { history.replaceState(null, "", location.pathname); } catch (e) {}
     showOnly(homeView);

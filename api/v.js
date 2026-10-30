@@ -15,10 +15,16 @@ const AIRTABLE_BASE = "app91U15z9K704Okd";
 import { signPieceToken, PIECE_TTL_SEC } from "./_auth.js";
 const SOGUNARLISTI_TABLE = "tblhdgyvTcBfP8kov";
 
+// Bad / stale QR: small Icelandic dark page instead of a bare English line.
+function badLink(res, status, msg) {
+  res.status(status).setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(`<!doctype html><html lang="is"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fann ekki miða — Björninn</title></head><body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b0b0c;color:#f2f2f3;font-family:'Kumbh Sans',-apple-system,system-ui,sans-serif;text-align:center;padding:24px"><div><h1 style="font-size:1.4rem;margin:0 0 8px">Fann ekki miðann</h1><p style="color:#c9c9ce;margin:0 0 20px">${msg}</p><a href="/app" style="display:inline-block;padding:14px 22px;background:#0a84ff;color:#fff;border-radius:12px;font-weight:700;text-decoration:none">Opna verkstæðisappið</a></div></body></html>`);
+}
+
 export default async function handler(req, res) {
   const id = req.query.id;
   if (!id || !/^rec[A-Za-z0-9]{14}$/.test(String(id))) {
-    return res.status(400).send("Invalid link");
+    return badLink(res, 400, "QR-kóðinn er ógildur.");
   }
 
   const secret = process.env.FLOOR_TOKEN_SECRET;
@@ -34,11 +40,11 @@ export default async function handler(req, res) {
   const airtableRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const data = await airtableRes.json();
   const record = airtableRes.ok ? (data.records || [])[0] : null;
-  if (!record) return res.status(404).send("Piece not found");
+  if (!record) return badLink(res, 404, "Stykkið finnst ekki — miðinn gæti verið úreltur.");
 
   const unitId = (record.fields["Eyðublað ✏️"] || [])[0];
   const projectId = (record.fields["Tækifæri 📣 (projects)"] || [])[0];
-  if (!unitId) return res.status(404).send("Piece has no unit linked");
+  if (!unitId) return badLink(res, 404, "Stykkið er ekki tengt einingu.");
 
   const dest = new URL("/velja", `https://${req.headers.host}`);
   dest.searchParams.set("u", unitId);
