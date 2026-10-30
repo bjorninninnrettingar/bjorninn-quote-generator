@@ -22,14 +22,14 @@ test("A: a confirmation can be taken back — only the ack key is removed, same 
 
 test("A: the current value is IN the field (never empty + ghost), Enter confirms what the field shows", () => {
   assert.ok(/data-sm-in="' \+ d\.k \+ '" value="' \+ d\.mm \+ '"/.test(fnBody("smDimSecs")));
-  assert.ok(/data-sm-pin="' \+ key \+ '" value="' \+ it\.mm \+ '"/.test(fnBody("smItemSecs")));
+  assert.ok(/data-sm-pin="' \+ key \+ '" value="' \+ it\.mm \+ '"/.test(fnBody("smRowsHtml")));
   const w = fnBody("smWire");
   assert.ok(/e\.key === "Enter"\)\{ e\.preventDefault\(\); inp\.__sent = true; smCommit/.test(w));
   assert.ok(/e\.key === "Enter"\)\{ e\.preventDefault\(\); inp\.__sent = true; smItemDone/.test(w));
 });
 
 test("A: the chosen option is solid blue, never a dashed 'suggest'; Yfirlit rows use the dark panel tokens", () => {
-  assert.ok(!/' suggest'/.test(fnBody("smItemSecs")));
+  assert.ok(!/' suggest'/.test(fnBody("smRowsHtml")));
   assert.ok(/body\.pro \.uw-side \.sm-secs :is\(\.hw-btn\.active/.test(html));
   assert.ok(/\.uw-sm-missbtn\{[^}]*background:var\(--card/.test(html));
   assert.ok(/\.uw-sm-issues\{[^}]*var\(--danger-soft/.test(html));
@@ -49,4 +49,16 @@ test("B: in PRO/Smíða items drag through each other — only the zone limits t
   assert.ok(/proClashes/.test(fnBody("smMissing")), "Yfirlit lists a clash");
   assert.ok(!/proClashes/.test(fnBody("proIssues")) && !/proClashes/.test(fnBody("proReady")), "proReady is untouched: a cabinet already Klár stays Klár");
   assert.ok(/return "sh" \+ list\.indexOf\(me\)/.test(fnBody("smItems")), "typing a shelf past another confirms the shelf, not its old slot");
+});
+
+test("C: Staðsetning shows one shelf per screen; one Rétt confirms exactly what the fields show; holes only for a Laus shelf", () => {
+  const h = fnBody("smScreenHtml");
+  assert.ok(/af ' \+ shelves/.test(h), "'Hilla 2 af 4'");
+  assert.ok(/shp && shg \?/.test(h), "fjöldi gata + bil milli gata only exist for a Laus shelf (smItems adds shp/shg only when !fixed)");
+  assert.ok(/data-sm-pin="pos:' \+ it\.id \+ '" value="' \+ it\.mm/.test(h), "fields hold the current value");
+  const ok = fnBody("smScreenOk");
+  assert.ok(/smAckItem\("pos", it\.id\)/.test(ok) && /delete a\.pos\[it\.id\]/.test(ok), "acks stay per item under smidaAck.pos; the same button takes them back");
+  assert.ok(/!\/\^sh\\d\+\$\/\.test\(it\.id\)/.test(ok), "hole values are applied before the position (which may re-sort)");
+  assert.ok(/smFocusAbs/.test(fnBody("uwAimCamera")) && /m\.cur/.test(fnBody("drawUwDims")), "camera lifts to the shelf, a blue band marks it");
+  assert.ok(/pos:sh/.test(fnBody("smItems") + "pos:sh") && /grp === "pos"\) smPosAfter\(\)/.test(fnBody("smItemDone")));
 });

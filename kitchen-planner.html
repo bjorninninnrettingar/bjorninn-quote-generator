@@ -2150,6 +2150,9 @@
   .uw-smrow input{ width:76px; }
   .uw-smrow .uw-sm-ok{ width:auto; margin:0; min-width:56px; }
   .uw-smtyp{ display:inline-flex; gap:4px; }
+  .uw-scrname{ margin:2px 0 10px; font-size:15px; font-weight:700; color:var(--ink); }
+  .uw-scr .uw-smrow > label{ flex:0 0 130px; }
+  .uw-scr .uw-scr-ok{ min-width:96px; }
   .uw-smrow.hit input{ border-color:#d70015; }
   .uw-smhit{ margin:-2px 0 8px; font-size:12.5px; color:#d70015; }
   .uw-sm-missbtn{ display:block; width:100%; text-align:left; border:1px solid var(--line); background:var(--card, #fff); border-radius:9px; padding:8px 10px; margin:0 0 6px; font:600 13px/1.3 inherit; font-family:inherit; cursor:pointer; color:var(--ink); }
@@ -8447,9 +8450,10 @@
       });
       uw.smMarks[uw.sec].forEach(function(m){
         if (m.abs == null) return;
-        var abs = uw.smDrag && uw.smDrag.id === m.id ? uw.smDrag.abs : m.abs, mmTxt = m.hinge ? Math.round(abs - m.hinge.dbot) : m.mm;
+        var abs = uw.smDrag && uw.smDrag.id === m.id ? uw.smDrag.abs : m.abs, mmTxt = m.hinge ? Math.round(abs - m.hinge.dbot) : (uw.smDrag && uw.smDrag.id === m.id ? Math.round(abs) : m.mm);
         var y = x.y0 + (x.plinthM || 0) + abs / 1000, a = P(x.a0, y, x.d), z = P(x.a1, y, x.d), on = uw.smItem === uw.sec + ":" + m.id || (uw.smDrag && uw.smDrag.id === m.id);
         var hit = m.hinge && (uw.smZones || []).some(function(zn){ return abs > zn.lo && abs < zn.hi; });
+        if (m.cur){ var by = [y - 0.011, y + 0.011], bq = [P(x.a0, by[0], x.d), P(x.a1, by[0], x.d), P(x.a1, by[1], x.d), P(x.a0, by[1], x.d)]; marks += '<polygon points="' + bq.map(function(pt){ return pt.x + "," + pt.y; }).join(" ") + '" fill="#0071e3" fill-opacity=".30" stroke="#0071e3" stroke-opacity=".6"/>'; on = true; } // the shelf being set: a blue band
         var col = hit ? "#d70015" : on ? "#0058a3" : m.ok ? "#2b2b2e" : "#8e8e93", txt = (m.ok && !hit ? "✓ " : "") + mmTxt, tw = String(txt).length * 7.4 + 14;
         marks += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + z.x + '" y2="' + z.y + '" stroke="' + col + '" stroke-width="' + (on ? 2.6 : 1.4) + '"' + (on || m.ok ? '' : ' stroke-dasharray="5 4"') + '/>' +
           '<rect x="' + (z.x + 6) + '" y="' + (z.y - 11) + '" width="' + tw + '" height="22" rx="11" fill="' + (on ? col : "#fff") + '" fill-opacity="' + (on || m.ok ? 1 : .85) + '" stroke="' + col + '"/><text x="' + (z.x + 6 + tw / 2) + '" y="' + (z.y + 4.5) + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="' + (on ? "#fff" : col) + '">' + txt + '</text>';
@@ -8487,7 +8491,8 @@
     // a low unit gets more room round it (user, 2026-10-26: a bath vanity was cut off, the tap out of the frame) — the
     // drawers slide ~45 cm toward the camera in Innvols, and the dimension pills sit outside the box
     var small = hM < 1.5, dist = Math.max(Math.max(hM, 0.5) / 2 / Math.tan(vHalf), (Math.max(wM, x.d) + (small ? 0.3 : 0)) / 2 / Math.tan(hHalf)) * (small ? 1.4 : 1.3) + (small ? 0.6 : 0.35);
-    var sec = uw.sec, n = g.normal, a = g.axis, dir, lift = 0;
+    var sec = uw.sec, n = g.normal, a = g.axis, dir, lift = 0, fa = (sec === "pos" || sec === "hw") && uw.smida && uw.smFocusAbs != null ? uw.smFocusAbs : null; // Smíða: one shelf / one hinge at a time — the camera goes to it
+    if (fa != null){ cy = x.y0 + (x.plinthM || 0) + fa / 1000; dist = Math.max(dist * 0.5, 0.9); }
     if (sec === "d"){ dir = { x:a.x * 0.94 + n.x * 0.34, z:a.z * 0.94 + n.z * 0.34 }; }
     else if (sec === "w" || sec === "inn" || sec === "pos" || sec === "hw" || sec === "yfir"){ dir = { x:n.x, z:n.z }; }
     else { dir = { x:n.x * 0.74 + a.x * 0.67, z:n.z * 0.74 + a.z * 0.67 }; lift = hM * 0.12; }
@@ -18786,18 +18791,102 @@
   function smReal(it){ return it.kind === "mm" || it.kind === "choice"; }
   function smGrpDone(x, grp){ return smItems(grp, x).filter(smReal).every(function(it){ return smItemAckOk(x.b, grp, it); }); }
   function smItemSecs(b, c, secHtml){
-    var x = smCtx(); uw.smHasPos = false; uw.smHasHw = false; uw.smMarks = {}; uw.smZones = [];
+    var x = smCtx(); uw.smHasPos = false; uw.smHasHw = false; uw.smMarks = {}; uw.smZones = []; uw.smFocusAbs = null;
+    if (uw.sec !== "pos") uw.smPos = null;
     var both = !!(KP3D.twoDoors(b.widthMm, c.zone === "wall") && !c.fridge && c.cls !== "corner" && proDoorsOf(b, c, x.zone).length);
     uw.smHingeSides = both ? ["l", "r"] : [b.swing === "vinstri" ? "l" : "r"];
     [["pos", "Staðsetning"], ["hw", "Vélbúnaður"]].forEach(function(g){
-      var items = smItems(g[0], x), real = items.filter(smReal);
-      uw.smMarks[g[0]] = real.map(function(it){ return { id:it.id, abs:it.abs, mm:it.kind === "mm" ? it.mm : "", ok:smItemAckOk(b, g[0], it), hinge:it.hinge || null, hit:!!it.hit }; });
+      var items = smItems(g[0], x), real = items.filter(smReal), scr = g[0] === "pos" ? smPosScreens(items) : null, cur = scr && uw.sec === "pos" ? smPosCur(x, scr) : -1, curItems = cur >= 0 ? scr[cur].items : null;
+      uw.smMarks[g[0]] = real.filter(function(it){ return !curItems || curItems.indexOf(it) >= 0; }).map(function(it){ return { id:it.id, abs:it.abs, mm:it.kind === "mm" ? it.mm : "", ok:smItemAckOk(b, g[0], it), hinge:it.hinge || null, hit:!!it.hit, cur:!!(curItems && scr[cur].kind === "shelf" && /^sh\d+$/.test(it.id)) }; });
+      if (cur >= 0 && scr[cur].kind === "shelf"){ var shIt = scr[cur].items[0]; uw.smFocusAbs = shIt.abs; }
       if (!items.length) return;
       if (g[0] === "pos") uw.smHasPos = real.length > 0; else { uw.smHasHw = real.length > 0; uw.smZones = proShelfRows(b, proBodyMm(b, c, x.zone)).map(function(r){ return { lo:r.at - 30, hi:r.at + 30, what:r.what }; }); }
-      var done = real.filter(function(it){ return smItemAckOk(b, g[0], it); }).length, lastGroup = null, html = '<p class="sec-note">' + (g[0] === "pos" ? 'Sláðu inn hverja stöðu — eða ýttu á Rétt ef teikningin stemmir. Mælt frá botni skáps.' : 'Staðfestu hverja löm, hurð og grip — sláðu inn, dragðu lömina í teikningunni, eða ýttu á Rétt / veldu. Ljósbláu svæðin eru þar sem löm má ekki vera.') + '</p>';
-      items.forEach(function(it){
+      var done = real.filter(function(it){ return smItemAckOk(b, g[0], it); }).length, html;
+      if (scr && scr.length) html = cur >= 0 ? smScreenHtml(x, scr, cur) : ''; // (a closed section draws no body)
+      else html = '<p class="sec-note">Staðfestu hverja löm, hurð og grip — sláðu inn, dragðu lömina í teikningunni, eða ýttu á Rétt / veldu. Ljósbláu svæðin eru þar sem löm má ekki vera.</p>' + smRowsHtml(g[0], items, b);
+      secHtml.push(uwSec(g[0], g[1], real.length ? (done === real.length ? done + " ✓" : done + "/" + real.length) : "", html));
+    });
+  }
+  // ---- Round 2 (owner 2026-10-30): Staðsetning one thing at a time. Each shelf is its own screen ("Hilla 2 af 4"): the camera lifts to its
+  // height, a blue band + line marks it on the drawing, the field holds its CURRENT position, Föst / Laus / Læst (blue when chosen), and
+  // fjöldi gata + bil milli gata appear only for a Laus shelf, pre-filled. ONE Rétt confirms what the screen shows (mm, and for Laus the
+  // two hole values) — the acks stay per item (pos.shK / shpK / shgK), same shapes. Everything else (Sérhæð, ofn, Raðborun, slár,
+  // innskúffur, bath holes) keeps its rows, grouped on "other" screens before / after the shelves. ----
+  function smPosScreens(items){
+    var scr = [], rest = [];
+    function flush(){ if (rest.length){ scr.push({ kind:"rest", items:rest }); rest = []; } }
+    items.forEach(function(it){
+      var m = /^(sh|shp|shg)(\d+)$/.exec(it.id), last = scr[scr.length - 1];
+      if (m && m[1] === "sh"){ flush(); scr.push({ kind:"shelf", k:+m[2], items:[it] }); }
+      else if (m && last && last.kind === "shelf" && last.k === +m[2]) last.items.push(it);
+      else rest.push(it);
+    });
+    flush();
+    return scr;
+  }
+  function smScrDone(x, s){ return s.items.filter(smReal).every(function(it){ return smItemAckOk(x.b, "pos", it); }); }
+  function smPosCur(x, scr){
+    var i = uw.smPos;
+    if (i == null || i < 0 || i >= scr.length){ i = scr.findIndex(function(q){ return !smScrDone(x, q); }); if (i < 0) i = 0; }
+    uw.smPos = i; uw.smPosN = scr.length;
+    return i;
+  }
+  function smPosScreenOf(id){ var x = smCtx(); if (!x) return 0; var scr = smPosScreens(smItems("pos", x)), i = scr.findIndex(function(s){ return s.items.some(function(it){ return it.id === id; }); }); return i < 0 ? 0 : i; }
+  function smScreenHtml(x, scr, i){
+    var s = scr[i], b = x.b, c = x.c, shelves = scr.filter(function(q){ return q.kind === "shelf"; }).length, done = smScrDone(x, s);
+    if (s.kind === "rest") return '<div class="uw-scr"><p class="uw-scrname">Aðrir hlutir</p><p class="sec-note">Sláðu inn hverja stöðu eða ýttu á Rétt. Mælt frá botni skáps.</p>' + smRowsHtml("pos", s.items, b) + '</div>';
+    var sh = s.items[0], shp = s.items.find(function(it){ return /^shp/.test(it.id); }), shg = s.items.find(function(it){ return /^shg/.test(it.id); }), key = "pos:" + sh.id, name = c.oven ? "Ofnhilla" : "Hilla";
+    function row(it, label, unit){ return '<div class="uw-smrow"><label>' + label + '</label><input type="text" inputmode="decimal" autocomplete="off" placeholder="' + unit + '" data-sm-pin="pos:' + it.id + '" value="' + it.mm + '"><small>' + unit + '</small></div>'; }
+    return '<div class="uw-scr" data-sm-scr="' + i + '"><p class="uw-scrname">' + name + ' ' + (s.k + 1) + ' af ' + shelves + '</p>' +
+      row(sh, 'Staða frá botni', 'mm') +
+      '<div class="uw-smrow"><label>Gerð</label><span class="uw-smtyp"><button type="button" class="hw-btn' + (sh.fixed ? ' active' : '') + '" data-sm-typ="' + key + ':1">Föst</button><button type="button" class="hw-btn' + (!sh.fixed ? ' active' : '') + '" data-sm-typ="' + key + ':0">Laus</button><button type="button" class="hw-btn' + (sh.locked ? ' active' : '') + '" data-sm-lock="' + key + '" title="Læst hilla færist ekki þegar hillum er dreift jafnt">Læst</button></span></div>' +
+      (shp && shg ? '<p class="uw-group">Gataröð</p>' + row(shp, 'Fjöldi gata', 'stk') + row(shg, 'Bil milli gata', 'mm') : '') +
+      '<div class="uw-smrow"><button type="button" class="btn ' + (done ? 'btn-secondary on' : 'btn-primary') + ' btn-small uw-sm-ok uw-scr-ok" data-sm-scrok="' + i + '"' + (done ? ' title="Ýttu aftur til að taka staðfestinguna af"' : '') + '>' + (done ? '✓ Rétt' : 'Rétt') + '</button></div></div>';
+  }
+  // Rétt on a shelf screen: apply what the fields show (hole values first, the position last — it may re-sort the shelves), then confirm
+  // every item of the screen exactly as shown, and go on to the next screen. Pressed again on a confirmed screen it takes the confirmation back.
+  function smScreenOk(i){
+    var x = smCtx(); if (!x) return;
+    var scr = smPosScreens(smItems("pos", x)), s = scr[i]; if (!s || s.kind !== "shelf") return;
+    var side = document.getElementById("uwSide"), reals = s.items.filter(smReal), k = s.k;
+    if (smScrDone(x, s)){
+      var a = Object.assign({}, x.b.smidaAck); a.pos = Object.assign({}, a.pos); reals.forEach(function(it){ delete a.pos[it.id]; }); a.at = new Date().toISOString(); x.b.smidaAck = a;
+      if (x.b.smidaReady) proSetReadyQuiet(x.b, false);
+      save(); uwPrevKey = ""; renderUnitWizard(); return;
+    }
+    var order = reals.filter(function(it){ return !/^sh\d+$/.test(it.id); }).concat(reals.filter(function(it){ return /^sh\d+$/.test(it.id); }));
+    for (var q = 0; q < order.length; q++){
+      var it = order[q], inp = side && side.querySelector('[data-sm-pin="pos:' + it.id + '"]'); if (!inp) continue;
+      var raw = String(inp.value).trim().replace(",", "."), v = Math.round(parseFloat(raw));
+      if (!raw || isNaN(v)){ toast("Sláðu inn tölu."); inp.focus(); inp.select(); return; }
+      if (v !== it.mm){ var res = it.set(v); if (res === false){ renderUnitWizard(); return; } if (typeof res === "string" && /^sh\d+$/.test(it.id)) k = +res.slice(2); }
+    }
+    save(); uwPrevKey = "";
+    x = smCtx(); scr = smPosScreens(smItems("pos", x));
+    var si = scr.findIndex(function(q){ return q.kind === "shelf" && q.k === k; }); if (si < 0) si = i;
+    scr[si].items.filter(smReal).forEach(function(it){ smAckItem("pos", it.id); });
+    save();
+    smPosGoNext(x, scr, i); // (from the screen she was on: if the shelf passed another, that screen now holds the shelf that is still open)
+    uw.smFocus2 = true; renderUnitWizard();
+  }
+  // after an item row in Staðsetning is confirmed: the next open item of the same screen, else the next screen, else the next section
+  function smPosAfter(){
+    var x = smCtx(), scr = smPosScreens(smItems("pos", x)), i = uw.smPos || 0, s = scr[i];
+    if (s){ var it = s.items.filter(smReal).find(function(q){ return !smItemAckOk(x.b, "pos", q); }); if (it){ uw.smFocusItem = "pos:" + it.id; return; } }
+    smPosGoNext(x, scr, i);
+  }
+  // the next screen still open — from here on, then from the top; none left = the next section
+  function smPosGoNext(x, scr, from){
+    var open = function(q, k){ return !smScrDone(x, q); }, nx = scr.findIndex(function(q, k){ return k >= from && open(q); });
+    if (nx < 0) nx = scr.findIndex(open);
+    if (nx >= 0) uw.smPos = nx; else smAdvanceFrom("pos");
+  }
+  // one row per item (mm field + Rétt, choice buttons + Rétt, actions) — the Vélbúnaður list and the "other items" screen of Staðsetning
+  function smRowsHtml(grp, items, b){
+    var html = "", lastGroup = null;
+    items.forEach(function(it){
         if (it.group && it.group !== lastGroup){ html += '<p class="uw-group">' + escapeHtmlPro(it.group) + '</p>'; lastGroup = it.group; }
-        var ok = smItemAckOk(b, g[0], it), key = g[0] + ":" + it.id;
+        var ok = smItemAckOk(b, grp, it), key = grp + ":" + it.id;
         if (it.kind === "note") html += '<p class="sec-note">' + escapeHtmlPro(it.label) + '</p>';
         else if (it.kind === "action") html += '<div class="uw-smrow"><button type="button" class="btn btn-secondary btn-small" data-sm-act="' + key + '">' + escapeHtmlPro(it.label) + '</button></div>';
         else if (it.kind === "mm"){
@@ -18814,8 +18903,7 @@
             '<button type="button" class="btn ' + (ok ? 'btn-secondary on' : 'btn-primary') + ' btn-small uw-sm-ok" data-sm-pok="' + key + '"' + (ok ? ' title="Ýttu aftur til að taka staðfestinguna af"' : '') + '>' + (ok ? '✓' : 'Rétt') + '</button></div>';
         }
       });
-      secHtml.push(uwSec(g[0], g[1], real.length ? (done === real.length ? done + " ✓" : done + "/" + real.length) : "", html));
-    });
+    return html;
   }
   function smAckAll(grp, items, b){ return ''; }
   function smFindItem(key){ var p = key.split(":"), grp = p.shift(), id = p.join(":"), x = smCtx(), items = x ? smItems(grp, x) : []; return { grp:grp, id:id, x:x, it:items.find(function(i){ return i.id === id; }) }; }
@@ -18836,7 +18924,7 @@
     if (res === false){ renderUnitWizard(); return; }
     save(); uwPrevKey = "";
     smAckItem(grp, typeof res === "string" ? res : id); save();
-    var nx = smNextItem(grp); if (nx) uw.smFocusItem = grp + ":" + nx; else smAdvanceFrom(grp);
+    if (grp === "pos") smPosAfter(); else { var nx = smNextItem(grp); if (nx) uw.smFocusItem = grp + ":" + nx; else smAdvanceFrom(grp); }
     renderUnitWizard();
   }
   // the finished sections glide off the top: the open one is brought up under the header (smooth, from where the list was — never a jump)
@@ -18868,7 +18956,7 @@
     svg.addEventListener("pointerdown", function(e){
       var h = e.target.closest && e.target.closest("[data-sm-hd]"); if (!h || !uw || !uw.smida) return;
       var id = h.dataset.smHd, m = ((uw.smMarks || {}).hw || []).find(function(q){ return q.id === id; }); if (!m || !m.hinge) return;
-      e.preventDefault(); uw.smDrag = { id:id, abs:m.abs };
+      e.preventDefault(); uw.smDrag = { id:id, abs:m.abs, pointer:true };
       function mv(ev){ var a = smAbsAt(ev.clientY, m); uw.smDrag.abs = Math.max(m.hinge.dbot + 30, Math.min(m.hinge.dbot + m.hinge.box - 30, a)); drawUwDims(); var inp = document.querySelector('[data-sm-pin="hw:' + id + '"]'); if (inp && document.activeElement !== inp) inp.value = Math.round(uw.smDrag.abs - m.hinge.dbot); }
       function up(){ window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); var d = uw && uw.smDrag; if (uw) uw.smDrag = null; if (d) smItemDone("hw", id, String(Math.round(d.abs - m.hinge.dbot))); }
       window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
@@ -18885,7 +18973,7 @@
       if (k === "inn"){ if (smInnOk(b)) smUnack("inn"); else smAckInn(); }
       else if (smAckNow(k)) smUnack("mal", k); else smCommit(k, String(smMm(k)));
     }); });
-    side.querySelectorAll("[data-sm-chip]").forEach(function(el){ el.addEventListener("click", function(){ uw.sec = el.dataset.smChip; renderUnitWizard(); }); });
+    side.querySelectorAll("[data-sm-chip]").forEach(function(el){ el.addEventListener("click", function(){ uw.sec = el.dataset.smChip; uw.smPos = null; renderUnitWizard(); }); });
     side.querySelectorAll("[data-sm-fix]").forEach(function(el){ el.addEventListener("click", function(){
       if (el.dataset.smFix === "drawers"){ var msg = proFixDrawers(b, c); if (msg) toast(msg); } else if (el.dataset.smFix === "hinges") proAutoHinges(b, c, x.zone);
       uwPrevKey = ""; renderUnitWizard();
@@ -18894,9 +18982,17 @@
       var k = inp.dataset.smPin, i0 = k.indexOf(":");
       inp.addEventListener("focus", function(){ uw.smItem = k; });
       inp.addEventListener("blur", function(){ if (uw.smItem === k) uw.smItem = null; });
+      var scrEl = inp.closest("[data-sm-scr]"); // a shelf screen: Enter confirms the whole screen, a typed value shows live on the drawing
+      if (scrEl){
+        inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smScreenOk(+scrEl.dataset.smScr); } });
+        inp.addEventListener("input", function(){ var m = ((uw.smMarks || {}).pos || []).find(function(q){ return q.id === k.slice(i0 + 1); }), v = parseFloat(String(inp.value).replace(",", ".")); if (m && m.abs != null && !isNaN(v)){ uw.smDrag = { id:m.id, abs:v }; drawUwDims(); } });
+        inp.addEventListener("blur", function(){ if (uw && uw.smDrag && !uw.smDrag.pointer){ uw.smDrag = null; drawUwDims(); } });
+        return;
+      }
       inp.addEventListener("change", function(){ if (!inp.__sent) smItemDone(k.slice(0, i0), k.slice(i0 + 1), inp.value); });
       inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smItemDone(k.slice(0, i0), k.slice(i0 + 1), inp.value); } });
     });
+    side.querySelectorAll("[data-sm-scrok]").forEach(function(el){ el.addEventListener("click", function(){ smScreenOk(+el.dataset.smScrok); }); });
     side.querySelectorAll("[data-sm-pok]").forEach(function(el){ el.addEventListener("click", function(){
       var f = smFindItem(el.dataset.smPok); if (!f.it) return;
       if (smItemAckOk(f.x.b, f.grp, f.it)) smUnack(f.grp, f.id); else smItemDone(f.grp, f.id, f.it.kind === "mm" ? String(f.it.mm) : null, f.it.val);
@@ -18912,13 +19008,13 @@
     }); });
     var un = side.querySelector("[data-sm-unready]"); if (un) un.addEventListener("click", function(){ proSetReadyQuiet(b, false); renderUnitWizard(); });
     var ed = side.querySelector("[data-sm-editor]"); if (ed) ed.addEventListener("click", function(){ smOldEditor(b.id); });
-    var bk = side.querySelector("[data-sm-back]"); if (bk) bk.addEventListener("click", function(){ if (smUndoOk()){ smUndoNew(); return; } var ord = smOrder(), i = ord.indexOf(uw.sec); if (i > 0){ uw.sec = ord[i - 1]; renderUnitWizard(); } });
+    var bk = side.querySelector("[data-sm-back]"); if (bk) bk.addEventListener("click", function(){ if (uw.sec === "pos" && (uw.smPos || 0) > 0){ uw.smPos--; renderUnitWizard(); return; } if (smUndoOk()){ smUndoNew(); return; } var ord = smOrder(), i = ord.indexOf(uw.sec); if (i > 0){ uw.sec = ord[i - 1]; renderUnitWizard(); } });
     function smGoMissing(m){
       toast((m.sec === "yfir" ? "Lagaðu: " : "Vantar: ") + m.text);
       if (m.sec === "yfir") return;
-      uw.sec = m.sec; if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard();
+      uw.sec = m.sec; if (m.grp === "pos" && m.id) uw.smPos = smPosScreenOf(m.id); else if (m.sec === "pos") uw.smPos = null; if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard();
     }
-    side.querySelectorAll("[data-sm-goto]").forEach(function(el){ el.addEventListener("click", function(){ var m = (uw.smMiss || [])[+el.dataset.smGoto]; if (m){ uw.sec = m.sec; if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard(); } }); });
+    side.querySelectorAll("[data-sm-goto]").forEach(function(el){ el.addEventListener("click", function(){ var m = (uw.smMiss || [])[+el.dataset.smGoto]; if (m){ uw.sec = m.sec; if (m.grp === "pos" && m.id) uw.smPos = smPosScreenOf(m.id); else if (m.sec === "pos") uw.smPos = null; if (m.grp && m.id) uw.smFocusItem = m.grp + ":" + m.id; else uw.smFocus = true; renderUnitWizard(); } }); });
     side.querySelectorAll("[data-sm-act]").forEach(function(el){ el.addEventListener("click", function(){ var f = smFindItem(el.dataset.smAct); if (f.it && f.it.run){ var r = f.it.run(); if (r !== false){ save(); uwPrevKey = ""; uw.sec = f.grp; renderUnitWizard(); } } }); });
     side.querySelectorAll("[data-sm-lock]").forEach(function(el){ el.addEventListener("click", function(){ var f = smFindItem(el.dataset.smLock); if (f.it && f.it.lock){ f.it.lock(); save(); renderUnitWizard(); } }); });
     if (uw.sec === "more") smMountPanels(b);
@@ -18926,8 +19022,13 @@
     var nx = side.querySelector("[data-sm-next]"); if (nx) nx.addEventListener("click", function(){
       var miss = smMissing(x), ord = smOrder(), cur = uw.sec && ord.indexOf(uw.sec) >= 0 ? uw.sec : "yfir";
       if (cur !== "yfir"){
+        if (cur === "pos" && uw.smPosN > 1){ // one screen at a time: this one first, then the next
+          var scr = smPosScreens(smItems("pos", x)), pi = uw.smPos || 0, ps = scr[pi];
+          if (ps && !smScrDone(x, ps)){ var pm = ps.items.filter(smReal).find(function(it){ return !smItemAckOk(b, "pos", it); }); toast("Staðfestu fyrst: " + (pm ? pm.label : "þennan skjá")); if (pm && ps.kind === "rest") uw.smFocusItem = "pos:" + pm.id; renderUnitWizard(); return; }
+          if (pi < scr.length - 1){ uw.smPos = pi + 1; renderUnitWizard(); return; }
+        }
         var m1 = miss.find(function(m){ return m.sec === cur; });
-        if (m1){ toast("Staðfestu fyrst: " + m1.text); if (m1.grp && m1.id) uw.smFocusItem = m1.grp + ":" + m1.id; else if (!m1.grp) uw.smFocus = true; renderUnitWizard(); return; }
+        if (m1){ toast("Staðfestu fyrst: " + m1.text); if (m1.grp === "pos" && m1.id) uw.smPos = smPosScreenOf(m1.id); if (m1.grp && m1.id) uw.smFocusItem = m1.grp + ":" + m1.id; else if (!m1.grp) uw.smFocus = true; renderUnitWizard(); return; }
         uw.sec = ord[ord.indexOf(cur) + 1]; renderUnitWizard(); return;
       }
       if (miss.length){ smGoMissing(miss[0]); return; }
@@ -18936,6 +19037,7 @@
     });
     var cl = side.querySelector("[data-sm-close]"); if (cl) cl.addEventListener("click", closeUnitWizard);
     if (uw.smFocusItem){ var fi = side.querySelector('[data-sm-pin="' + uw.smFocusItem + '"]'); uw.smFocusItem = null; if (fi) setTimeout(function(){ if (fi.isConnected){ fi.focus({ preventScroll:true }); fi.select(); } }, 40); }
+    if (uw.smFocus2){ uw.smFocus2 = false; var f2 = side.querySelector('.uw-scr [data-sm-pin]'); if (f2) setTimeout(function(){ if (f2.isConnected){ f2.focus({ preventScroll:true }); f2.select(); } }, 40); }
     if (uw.smFocus){ uw.smFocus = false; var inp0 = side.querySelector("[data-sm-in]"); if (inp0) setTimeout(function(){ if (inp0.isConnected){ inp0.focus({ preventScroll:true }); inp0.select(); } }, 40); }
   }
   // proSetReady without refreshAfterEdit (the room scene isn't up behind the wizard)
@@ -18975,7 +19077,7 @@
     var cut = String(uid).lastIndexOf("|"), cat = cut >= 0 ? uid.slice(0, cut) : state.activeCategory, id = cut >= 0 ? uid.slice(cut + 1) : uid;
     if (cat && state.activeCategory && cat !== state.activeCategory){ save(); closeUnitWizard(); smOpenAt(uid); return; } // another room: leave, open that room, come back in
     var fb = findBlock(id); if (!fb) return;
-    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uw.smDone = false; uw.smFocus = true; uwPrevKey = ""; selectedBlockId = fb.block.id; closetInnTab = "";
+    uw.b = fb.block; uw.wallId = fb.wall.id; uw.secFor = null; uw.picked = {}; uw.smDone = false; uw.smFocus = true; uw.smPos = null; uwPrevKey = ""; selectedBlockId = fb.block.id; closetInnTab = "";
     renderUnitWizard();
   }
   var smReturn = null;
