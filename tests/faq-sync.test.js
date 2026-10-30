@@ -22,3 +22,18 @@ test("faq.html DATA and chatbot FAQ_CORPUS carry the same questions and answers"
   }
   for (const q of bot.keys()) assert.ok(faq.has(q), `only in the chatbot prompt: ${q}`);
 });
+
+test("draft answers: flagged the same on both sides, and kept out of the bot prompt until reviewed", async () => {
+  const { renderCorpus } = await import("../api/_chatbot-faq-prompt.js");
+  const faqDraft = new Set(DATA.flatMap((c) => c.questions.filter((q) => q.draft).map((q) => q.q)));
+  const botDraft = new Set(FAQ_CORPUS.flatMap((c) => c.questions.filter((q) => q[2] === "draft").map((q) => q[0])));
+  assert.ok(faqDraft.size > 0, "there are drafts");
+  assert.deepEqual([...faqDraft].sort(), [...botDraft].sort());
+  const prev = process.env.CHATBOT_INCLUDE_DRAFTS;
+  try {
+    delete process.env.CHATBOT_INCLUDE_DRAFTS;
+    for (const q of faqDraft) assert.ok(!renderCorpus().includes(q), `draft leaked into the bot: ${q}`);
+    process.env.CHATBOT_INCLUDE_DRAFTS = "1";
+    for (const q of faqDraft) assert.ok(renderCorpus().includes(q), `flag on, still missing: ${q}`);
+  } finally { prev === undefined ? delete process.env.CHATBOT_INCLUDE_DRAFTS : (process.env.CHATBOT_INCLUDE_DRAFTS = prev); }
+});

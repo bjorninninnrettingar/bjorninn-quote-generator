@@ -53,7 +53,51 @@ const FAQ_CORPUS = [
     ["Komið þið heim og mælið, eða kem ég til ykkar?",
       "Best er að byrja á að bóka tíma í hönnun og ráðgjöf. Þegar tilboð hefur verið staðfest kemur mælingarmaður heim til þín og tekur öll mál."],
     ["Get ég sent inn mál og myndir og fengið tilboð út frá því?",
-      "Já, það er mjög góð leið til að fá tilboð. Láttu helst efnisval fylgja með, þá verður tilboðið nákvæmara."],
+      "Já, það er mjög góð leið til að fá tilboð. Láttu helst efnisval fylgja með, þá verður tilboðið nákvæmara."],,
+    ["Hvað gerist eftir að ég samþykki tilboð?",
+      "Þegar verkefnið hefur verið staðfest færðu hlekk til að bóka mælingu á staðnum og mælingamaður tekur öll mál. Þú samþykkir lokaútgáfuna áður en framleiðsla byrjar. Áætlaður afhendingartími kemur fram þegar verkefnið er staðfest og þú færð aðgang að vefgátt þar sem þú fylgist með stöðunni.", "draft"]
+  ]},
+  { title: "Hönnunartólið (Studio)", questions: [
+    ["Hvað er hönnunartólið ykkar á netinu?",
+      "BJÖRNINN STUDIO er hönnunartól á vefnum þar sem þú teiknar rýmið, velur efni og raðar innréttingunni í 3D. Það tekur um 10–15 mínútur, er ókeypis og án skuldbindingar. Þú getur hannað eldhús, fataskáp, baðherbergi, þvottahús og innihurðir, líka fleiri en eitt rými í sama verkefni.", "draft"],
+    ["Er ég að panta þegar ég sendi hönnunina inn?",
+      "Nei. Ekkert er pantað eða smíðað þegar þú sendir hönnunina inn. Ekkert er smíðað fyrr en þú samþykkir tilboð og lokaútgáfu.", "draft"],
+    ["Hvað gerist þegar ég sendi hönnunina inn?",
+      "Söluaðili fer yfir skipulagið þitt, lagar teikningarnar ef þarf og hefur samband innan 3 virkra daga. Teikningarnar koma í tölvupósti. Þetta er ókeypis og án skuldbindingar.", "draft"],
+    ["Hver fer yfir hönnunina sem ég sendi inn?",
+      "Söluaðili fer yfir hana og sendir þér tilboð. Eitt tilboð kemur fyrir öll rýmin þín, eftir að þú hefur sent allt inn.", "draft"],
+    ["Vistast hönnunin mín ef ég loka síðunni?",
+      "Já, hún vistast sjálfkrafa í vafranum á sömu tölvu. Komdu aftur á sömu tölvu og í sama vafra og ýttu á „Halda áfram →“. Hún flyst ekki milli tækja. „Byrja upp á nýtt“ eyðir hönnuninni og það er ekki hægt að afturkalla.", "draft"],
+    ["Get ég notað hönnunartólið í síma?",
+      "Tólið virkar best á tölvu. Í síma stendur „Best á tölvu“, en ekkert týnist. Komdu bara aftur á tölvu.", "draft"],
+    ["Sé ég verð í hönnunartólinu?",
+      "Nei, verð sést ekki í tólinu. Verðið fer eftir stærð, efni og útfærslu og kemur í tilboði frá söluaðila eftir að hönnunin er send inn.", "draft"],
+    ["Þarf ég að mæla rýmið upp á millimetra í hönnunartólinu?",
+      "Nei, það þarf ekki að vera millimetranákvæmt. Mælingamaður mælir allt aftur á staðnum áður en nokkuð er smíðað.", "draft"],
+    ["Hvaða rými get ég hannað í hönnunartólinu?",
+      "Eldhús, fataskáp, baðherbergi, þvottahús og innihurðir. Þú getur líka valið „Aðeins rými“ (stofa, gangur eða annað rými án innréttingar) og bætt við eins mörgum rýmum og þú vilt.", "draft"],
+    ["Hvaða upplýsingar þarf ég að gefa upp þegar ég sendi inn?",
+      "Fornafn, netfang og símanúmer eru nauðsynleg. Eftirnafn og athugasemd til söluaðila eru valfrjáls. Spurningarnar á undan, t.d. um áætlað fjárhagsrými, eru allar valfrjálsar.", "draft"],
+    ["Getur hönnunartólið stungið upp á skipulagi?",
+      "Já. Í eldhúsi, baði og þvottahúsi spyr tólið „Viltu fá tillögu að innréttingu?“ þegar þú kemur í Skipulag. Í fataskáp býður tómur veggur tillögu. Þú breytir tillögunni eins og þú vilt eða afturkallar hana.", "draft"],
+    ["Get ég séð innréttinguna í 3D og gengið um rýmið?",
+      "Já. Skipulagið er sýnt í 3D, einnig í 2D og ofanmynd. Þú getur gengið um rýmið, mælt með málbandi og kíkt inn í skápana.", "draft"],
+    ["Er hönnunartólið til á ensku?",
+      "Já. Undir Hjálp efst til hægri velurðu „In English“ eða „Á íslensku“.", "draft"],
+    ["Hvað get ég valið í eldhúsinnréttingu í hönnunartólinu?",
+      "Skrokk (litinn innan í skápum), skúffukerfi, framhlið, höldur og borðplötu. Borðplatan getur verið harðplast, compact, límtré, steinn eða engin borðplata. Steinn sýnir aðeins útlitið því Björninn selur ekki steinplötur.", "draft"],
+    ["Hvað get ég valið í fataskáp í hönnunartólinu?",
+      "Dýpt, hæð (upp í loft eða lægri skápa), lit, skúffur, hurðir (með eða án hurða, efni og spegil á einni hurð eða öllum) og höldur.", "draft"],
+    ["Er hægt að fá rennihurðir á fataskáp?",
+      "Já. Í hönnunartólinu eru rennihurðir (renna til hliðar fyrir framan, Topline; 2, 3 eða 4 hurðir), vasahurðir (renna inn í hliðarnar, Blum Revego) og fellihurðir (leggjast saman, WingLine). Söluaðili staðfestir kerfi og verð.", "draft"],
+    ["Getur eldhús verið með rennihurðaskáp eða lyftihurðum?",
+      "Já. Undir „Tækjaskápar“ er skápur með rennihurðum sem renna inn í hliðar skápsins (Blum Revego). Efri skápar geta opnast upp með lyftu (Blum AVENTOS). Söluaðili velur rétta lyftu og staðfestir verð.", "draft"],
+    ["Hvað get ég valið í baðinnréttingu í hönnunartólinu?",
+      "Lit, skúffur, framhlið, höldur og topp (harðplast, compact, steinn eða engan topp). Vaskaskápurinn hangir á veggnum og handlaugin situr ofan á toppnum. Spegilskápur er meðal efri skápa; söluaðili staðfestir spegilinn og verð. Steinn sýnir aðeins útlitið því Björninn selur ekki steinplötur.", "draft"],
+    ["Hvað get ég valið í þvottahús í hönnunartólinu?",
+      "Þú segir hvar vélin er (í stæðu, undir borðplötu eða engin vél) og velur lit, skúffur, framhlið, höldur og borðplötu.", "draft"],
+    ["Get ég hannað innihurðir í hönnunartólinu?",
+      "Já. Þú segir hversu margar hurðir þú vilt og færð eina línu á hurð sem þú hannar hverja fyrir sig. Við smíðum innihurðir og rennihurðir.", "draft"]
   ]},
   { title: "Verð og greiðslur", questions: [
     ["Hvað kostar innrétting hjá ykkur?",
@@ -119,7 +163,9 @@ const FAQ_CORPUS = [
     ["Eru efnin umhverfisvæn?",
       "Við veljum efni frá þekktum framleiðendum sem leggja áherslu á gæði og ábyrga framleiðslu. Stærsti hluti plötuefnisins okkar kemur frá EGGER."],
     ["Þola innréttingarnar raka?",
-      "Já, þær eru gerðar fyrir venjulega notkun í eldhúsi og baðherbergi. Þær eru þó ekki vatnsheldar. Vatn ætti ekki að liggja lengi á köntum eða samskeytum."],
+      "Já, þær eru gerðar fyrir venjulega notkun í eldhúsi og baðherbergi. Þær eru þó ekki vatnsheldar. Vatn ætti ekki að liggja lengi á köntum eða samskeytum."],,
+    ["Hvar sé ég úrval af höldum og efnum?",
+      "Efnisúrvalið og höldurnar eru á vefsíðunni okkar. Í sýningarsalnum geturðu líka skoðað efni, liti, spón og höldur. Heimsóknir eru eftir bókun.", "draft"]
   ]},
   { title: "Framleiðslutími og afhending", questions: [
     ["Hver er biðtíminn hjá ykkur?",
@@ -179,13 +225,21 @@ const FAQ_CORPUS = [
   ]},
 ];
 
+// Draft answers (third tuple element "draft", mirrored by `draft:true` in faq.html) are shown on /adstod with the
+// "Drög" badge but are NOT given to the bot until someone has reviewed them: remove the flag in BOTH files, or set
+// CHATBOT_INCLUDE_DRAFTS=1 in the Vercel env to switch them all on at once (docs/chatbot-gaps.md).
+const includeDrafts = () => process.env.CHATBOT_INCLUDE_DRAFTS === "1";
+
 function renderCorpus() {
+  const withDrafts = includeDrafts();
   return FAQ_CORPUS.map((cat) => {
-    const qa = cat.questions
+    const qs = cat.questions.filter((q) => withDrafts || q[2] !== "draft");
+    if (!qs.length) return "";
+    const qa = qs
       .map(([q, a]) => `Sp: ${q}\nSv: ${a}`)
       .join("\n\n");
     return `## ${cat.title}\n\n${qa}`;
-  }).join("\n\n");
+  }).filter(Boolean).join("\n\n");
 }
 
 // Real page URLs pulled directly from bjorninninnrettingar.is's own live
@@ -229,6 +283,7 @@ export function buildSystemPrompt() {
 - Ef spurning gests passar greinilega við eitthvert svar (eða má rökrétt leiða af nokkrum svörum) hér að neðan — svaraðu með því efni, umorðuðu eðlilega ef þarf svo það passi við spurninguna.
 - Ef spurningin er ekki svarað af neinu hér að neðan — EKKI giska, EKKI reikna út frá öðrum upplýsingum, EKKI nota almenna þekkingu um innréttingar eða verð. Segðu einfaldlega að þú vitir það ekki með vissu og settu "escalate": true.
 - Þetta á sérstaklega við um allar TÖLUR (verð, prósentur, tímalengdir, dagsetningar) sem ekki standa orðrétt eða nálægt orðrétt í gögnunum — að finna upp á tölu sem hljómar sennileg er verra en að segja "veit ekki."
+- Ef spurt er hvað tiltekin þjónusta kostar eða hvort hún sé ókeypis (t.d. mæling, uppsetning, heimsending, geymsla, hönnunarpakki) og gögnin segja það ekki orðrétt — EKKI giska og ekki álykta: segðu að þú vitir það ekki með vissu og settu "escalate": true.
 - Aldrei taka afstöðu til einstakra tilboða, ekki reyna að meta verð á tilteknu verkefni gestsins, ekki bóka neitt, ekki búa til nein "leads" eða staðfesta neitt fyrir hönd Björnsins — þú svarar spurningum, ekkert annað.
 - Ef gestur spyr um eitthvað algjörlega óskylt (t.d. veðrið, önnur fyrirtæki, persónuleg mál) — vinsamlega bentu á að þú getir aðeins hjálpað með spurningar um Björninn Innréttingar, og settu "escalate": false (þetta er ekki spurning sem þarf að fara í eftirfylgni, bara utan sviðs).
 
@@ -241,6 +296,12 @@ Skrifaðu stutt, vingjarnlegt svar sem viðurkennir að þú vitir þetta ekki m
 Þegar svarið tengist beint einhverju af eftirfarandi, bættu VIÐ EINUM eða TVEIMUR (aldrei fleiri) af lyklunum hér að neðan í "links" fylkið. Notaðu EINGÖNGU lykla úr þessum lista — aldrei nýtt orð, aldrei slóð sem er ekki hér. Ef ekkert á sérstaklega við, skildu "links" eftir sem tómt fylki [].
 
 ${renderLinks()}
+
+## Dæmi um rétt svör þegar gögnin segja ekkert um kostnað
+
+Sp: Hvað kostar mælingin hjá ykkur?
+{"answer": "Því get ég ekki svarað með vissu — kostnaður við mælingu kemur ekki fram hjá mér. Ég sendi spurninguna áfram á rétta fólkið hjá Birninum.", "escalate": true, "links": []}
+(Ekki segja að mælingin sé ókeypis, innifalin eða "án sérkostnaðar" — gögnin segja bara hvernig mælingin fer fram.)
 
 ## Svarsnið — MJÖG MIKILVÆGT
 
@@ -367,6 +428,7 @@ export function buildStudioPrompt() {
 - Undirsíður í samhenginu: Rými — pick = lögun, machine = vélin, size = veggjamál, height = lofthæð og útlit, openings = gluggar og hurðir, water = vatn. Efni — carcass = skrokkur/litur, drawers = skúffur, fronts = framhlið, handle = höldur, top = borðplata/toppur, size = stærð og litur, doors = hurðir.
 - Ef þú veist ekki svarið eða ert ekki viss: segðu það hreinskilnislega, bentu á að senda söluaðila tölvupóst á ${STUDIO_EMAIL}, og settu "escalate": true.
 - ALDREI gefa upp símanúmer og ALDREI bjóða símtal. Ef spurt er um síma: svaraðu í þessum anda: „Héðan úr hönnunartólinu er best að senda okkur tölvupóst á ${STUDIO_EMAIL} — söluaðili svarar þér þar.“ Ekki segja að Björninn hafi ekki síma eða bjóði ekki símtöl.
+- Ef spurt er um kostnað eða hvort þjónusta (mæling, uppsetning, heimsending o.fl.) sé ókeypis og það stendur ekki orðrétt í gögnunum: segðu að þú vitir það ekki með vissu, "escalate": true — ekki giska.
 - ALDREI nefna verð, verðbil eða áætlanir um kostnað, og ekki lofa neinu um afhendingartíma eða hvað sé hægt að smíða. Verð kemur í tilboði frá söluaðila eftir að hönnun er send inn.
 - Ekki lofa neinu fyrir hönd söluaðila umfram það sem stendur hér (hann fer yfir hönnunina, sendir tilboð, hefur samband innan 3 virkra daga). Ef spurningin er utan þess sem tólið gerir: segðu það stutt og bentu á tölvupóstinn, "escalate": true.
 - Ekki biðja um persónuupplýsingar (nafn, síma, heimilisfang) í spjallinu.
