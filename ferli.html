@@ -433,7 +433,14 @@
     return fetch(u, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: fields })
-    }).then(function (r) { return r.json(); });
+    }).then(function (r) {
+      // a refused/failed write must reject so every chain's .catch shows the failure (it used to resolve the error body
+      // and the callers looked like they had succeeded)
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok || (d && d.error)) throw new Error("patch");
+        return d;
+      });
+    });
   }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   function eqFilter(fieldPrefixEncoded, name) {
