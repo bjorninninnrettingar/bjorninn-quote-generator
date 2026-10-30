@@ -25,16 +25,33 @@
   // (api/chat.js then answers from the Studio guide), its own calm look, email-only
   // contact (no phone, no contact page), no FAQ tab, and window.BjorninnChat for the
   // page's own "Spyrja" entry under Hjálp + launcher visibility.
-  var CFG = window.BJORNINN_CHAT || {};
+  // Staff tools (2026-10-30): one tag per internal page, e.g.
+  //   <script src="/chat-widget.js" data-app="labels" data-context="Merkingar: prentun á Zebra miðum" defer></script>
+  // reads app + context from the tag when window.BJORNINN_CHAT isn't set. A staff app gets its own greeting, a small
+  // round launcher bottom-left lifted above the page's bottom buttons, and answers only with the floor key
+  // (api/chat.js). Public site (path "/") and Studio are untouched.
+  var SCRIPT = document.currentScript || document.querySelector('script[src*="chat-widget.js"][data-app]');
+  var DS = (SCRIPT && SCRIPT.dataset) || {};
+  var CFG = window.BJORNINN_CHAT || (DS.app ? { app: DS.app, context: DS.context || "" } : {});
+  var APP = !CFG.mode && typeof CFG.app === "string" && /^[a-z]{2,20}$/.test(CFG.app) ? CFG.app : "";
+  var FLOOR = !!APP;
+  // data-pos="header": for a page whose whole screen is a grid of tiles (/app) — the launcher sits in the empty
+  // part of the header row instead of bottom-left, where it would cover a tile
+  var HEADER_POS = FLOOR && (CFG.pos || DS.pos) === "header";
   var STUDIO = CFG.mode === "studio";
   var EN = STUDIO && CFG.lang === "en";
   var STUDIO_EMAIL = "bjorninn@bjorninninnrettingar.is";
-  var API_BASE = STUDIO || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
+  var API_BASE = STUDIO || FLOOR || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
     ? "" // Studio is always served from the Vercel app itself
     : "https://bjorninn.vercel.app";
   var VEFSPJALL_PATH = "tbltD1UNpqj05WtMx";
   var CONTACT_URL = "https://www.bjorninninnrettingar.is/hafðu-samband";
-  var T = !STUDIO ? {
+  var T = FLOOR ? {
+    greeting: "Hæ! Spurðu mig hvernig á að nota þetta tól — t.d. „hvernig prenta ég miða?“. Ég svara ekki um laun eða persónulegar upplýsingar.",
+    error: "Því miður kom upp villa. Reyndu aftur, eða spurðu Ísak eða Rakel.",
+    title: "Hjálp", placeholder: "Hvernig…?", send: "Senda", close: "Loka", open: "Hjálp", question: "Spurning",
+    direct: "", contact: "", email: "", emailLabel: "", thanks: "", retry: ""
+  } : !STUDIO ? {
     greeting: "Hæ! Ég get svarað spurningum um sérsmíði, verð, ferlið og fleira hjá Birninum. Hvað viltu vita?",
     error: "Því miður kom upp villa. Endilega reyndu aftur, eða hafðu samband beint.",
     title: "BJÖRNINN", placeholder: "Skrifaðu spurningu...", send: "Senda", close: "Loka", open: "Opna spjall", question: "Spurning",
@@ -61,7 +78,7 @@
   // whatever page-scope the Wix Custom Code panel has set, since that's a
   // manually-configured admin setting and easy to get wrong or change by
   // accident later; this check can't drift from it.
-  if (!STUDIO && location.pathname !== "/") return;
+  if (!STUDIO && !FLOOR && location.pathname !== "/") return;
 
   // A prior version let visitors collapse the bubble to a small
   // up-arrow handle, persisted via localStorage — dropped because that
@@ -89,6 +106,21 @@
     try { var c = CFG.getContext() || {}; c.app = "studio"; return c; } catch (e) { return { app: "studio" }; }
   }
   var awaitingReply = false;
+  // Staff: where the person is (page + the tag's own description) — never personal data
+  function floorContext() { return FLOOR ? { app: APP, context: String(CFG.context || "").slice(0, 200) } : null; }
+  // The floor key comes from what the page already holds: a paired device's token, the page's own VERK_KEY / KEY,
+  // the ?k= of a scanned label (piece token) or the office key saved by /skrifstofa. Nothing is hard-coded here.
+  function floorKey() {
+    try {
+      if (CFG.key) return CFG.key;
+      if (window.FloorKey && window.FloorKey.read && window.FloorKey.read()) return window.FloorKey.read();
+      if (typeof VERK_KEY === "string" && VERK_KEY) return VERK_KEY;
+      var q = new URLSearchParams(location.search).get("k");
+      if (q) return q;
+      if (typeof KEY === "string" && KEY) return KEY;
+      return localStorage.getItem("bjorninn:skrifstofa:k") || "";
+    } catch (e) { return ""; }
+  }
 
   // ---- shadow host ----
   var host = document.createElement("div");
@@ -229,6 +261,17 @@
     ".escalate a.contact{background:#fff;color:#3d61c1;border:1px solid #3d61c1;word-break:break-all;}",
     ".escalate a.contact:hover{background:#eaeefb;}",
     ".inputrow{border-radius:0 0 14px 14px;}",
+  ].join("\n") : "") + (FLOOR ? [
+    // Staff tools: small round brand-blue launcher bottom-left, lifted above the page's bottom buttons
+    // (/velja's big button, /labels print, saga's bottom bar). Same blue as bjorninn-tokens.css (--blue #3d61c1).
+    ".wrap{left:12px;right:auto;bottom:calc(88px + env(safe-area-inset-bottom,0px));align-items:flex-start;padding:0;gap:8px;}",
+    HEADER_POS ? ".wrap{top:16px;bottom:auto;left:calc(max(0px,(100vw - 640px)/2) + 172px);}" : "",
+    HEADER_POS ? ".wrap:has(.panel){left:12px;}" : "",
+    ".bubble{width:40px;height:40px;background:#3d61c1;box-shadow:0 4px 14px rgba(0,0,0,.28);}",
+    ".bubble svg{width:19px;height:19px;}",
+    ".panel{width:340px;max-width:calc(100vw - 24px);height:min(480px, calc(100dvh - 120px));border-radius:12px;}",
+    ".hdr{border-radius:12px 12px 0 0;}",
+    ".inputrow{border-radius:0 0 12px 12px;}",
   ].join("\n") : "");
   root.appendChild(style);
 
@@ -249,7 +292,7 @@
     var vv = window.visualViewport;
     if (!vv) return;
     var obscured = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    wrap.style.bottom = obscured > 0 ? obscured + "px" : "";
+    if (!HEADER_POS) wrap.style.bottom = obscured > 0 ? obscured + "px" : "";
   }
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", syncViewportOffset);
@@ -262,7 +305,7 @@
   var bubble = document.createElement("button");
   bubble.className = "bubble";
   bubble.setAttribute("aria-label", T.open);
-  if (STUDIO) bubble.title = T.open;
+  if (STUDIO || FLOOR) bubble.title = T.open;
   bubble.innerHTML = '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="' + (STUDIO ? "currentColor" : "#fff") + '" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-4.4 7.4L4 21l2.1-4.6A8.38 8.38 0 0 1 12 3a8.38 8.38 0 0 1 9 8.5Z"/></svg>';
   bubble.addEventListener("click", togglePanel);
   wrap.appendChild(bubble);
@@ -366,7 +409,7 @@
 
     panel.appendChild(hdr);
     panel.appendChild(content);
-    if (!STUDIO) panel.appendChild(tabbar); // Studio: just the chat (its Hjálp already has the rest)
+    if (!STUDIO && !FLOOR) panel.appendChild(tabbar); // Studio: just the chat (its Hjálp already has the rest)
     wrap.insertBefore(panel, bubble);
 
     function send() {
@@ -552,7 +595,7 @@
 
   function sendMessage(text, input, sendBtn) {
     addRow("user", text);
-    var ctx = studioContext();
+    var ctx = studioContext() || floorContext();
     transcript.push({ role: "user", text: text, where: ctx && ctx.where });
     apiMessages.push({ role: "user", content: text });
     scrollToBottom();
@@ -575,7 +618,7 @@
     fetch(API_BASE + "/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(ctx ? { messages: apiMessages, context: ctx } : { messages: apiMessages }),
+      body: JSON.stringify(FLOOR ? { messages: apiMessages, context: ctx, k: floorKey() } : ctx ? { messages: apiMessages, context: ctx } : { messages: apiMessages }),
     })
       // fetch() only rejects on a real network failure — a 4xx/5xx HTTP
       // response (hitting the message cap, a backend/Anthropic outage,
@@ -585,6 +628,8 @@
       // human, unlike a real network failure below. Throwing routes both
       // cases through the same .catch(), which does escalate.
       .then(function (res) {
+        // Staff: a 401 carries a plain "device not paired" answer — show it instead of the generic error
+        if (FLOOR && res.status === 401) return res.json();
         if (!res.ok) throw new Error("chat API error " + res.status);
         return res.json();
       })
@@ -598,14 +643,15 @@
         transcript.push(entry);
         addBotBubble(answer);
         if (links.length) addLinkChips(links);
-        if (escalate) addEscalateBlock(entry);
+        // Staff: no email capture / contact page — the answer itself says "spurðu Ísak eða Rakel"
+        if (escalate && !FLOOR) addEscalateBlock(entry);
       })
       .catch(function () {
         typingRow.remove();
         var entry = { role: "bot", text: GENERIC_ERROR, escalate: true, question: text };
         transcript.push(entry);
         addBotBubble(GENERIC_ERROR);
-        addEscalateBlock(entry);
+        if (!FLOOR) addEscalateBlock(entry);
       })
       .then(function () {
         awaitingReply = false;
@@ -639,7 +685,7 @@
       "Fyrsta spurning": transcript[0].text,
       "Samtal": lines.join("\n"),
       // Studio rows read "Studio · <step of the first question>" so the owner sees where people get stuck
-      "Síða": STUDIO ? ("Studio · " + (transcript[0].where || "?")).slice(0, 200) : (location.pathname || "/"),
+      "Síða": FLOOR ? APP : STUDIO ? ("Studio · " + (transcript[0].where || "?")).slice(0, 200) : (location.pathname || "/"),
     };
     if (escalatedQuestion || lastEscalated) fields["Óleyst spurning"] = escalatedQuestion || lastEscalated;
     if (email) fields["Netfang"] = email;

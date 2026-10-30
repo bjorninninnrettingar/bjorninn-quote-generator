@@ -20,6 +20,8 @@
 
 import { buildSystemPrompt, buildStudioPrompt, renderStudioContext, LINKS, STUDIO_LINK_KEYS } from "./_chatbot-faq-prompt.js";
 import { applyCors } from "./_cors.js";
+import { STAFF_APPS, buildStaffPrompt, renderStaffContext, staffLinkMap } from "./_chatbot-staff-prompts.js";
+import { keyLevel, verifyPieceToken, isPieceTokenShape } from "./_auth.js";
 
 const MODEL = process.env.CHATBOT_MODEL || "claude-haiku-4-5-20251001";
 const MAX_TOKENS = 500;
@@ -75,9 +77,17 @@ export default async function handler(req, res) {
 
   const cleaned = validateMessages(req.body?.messages);
   if (cleaned.error) return res.status(400).json({ error: cleaned.error });
-  const studio = cleanStudioContext(req.body?.context);
+  // Staff tools (2026-10-30): context.app is one of STAFF_APPS → internal prompt, ONLY with a floor/office key
+  // (or a piece token from a scanned label). Without it nothing is answered and no prompt text leaves the server.
+  const staff = cleanStaffContext(req.body?.context);
+  if (staff && !staffKeyOk(req.body?.k)) {
+    return res.status(401).json({ error: "Floor key required", answer: STAFF_NO_KEY_ANSWER, escalate: false, links: [] });
+  }
+  const studio = staff ? null : cleanStudioContext(req.body?.context);
   // Studio: the long static guide is cached (same text every request), the per-question context isn't
-  const system = studio
+  const system = staff
+    ? [{ type: "text", text: buildStaffPrompt(staff.app), cache_control: { type: "ephemeral" } }, { type: "text", text: renderStaffContext(staff.app, staff.context) }]
+    : studio
     ? [{ type: "text", text: buildStudioPrompt(), cache_control: { type: "ephemeral" } }, { type: "text", text: renderStudioContext(studio) }]
     : buildSystemPrompt();
 
@@ -113,7 +123,20 @@ export default async function handler(req, res) {
     .join("")
     .trim();
 
-  return res.status(200).json(parseModelReply(text, studio ? STUDIO_LINK_MAP : LINK_MAP));
+  return res.status(200).json(parseModelReply(text, staff ? staffLinkMap() : studio ? STUDIO_LINK_MAP : LINK_MAP));
+}
+
+const STAFF_NO_KEY_ANSWER = "Þetta tæki er ekki tengt. Opnaðu verkstæðisappið í tækinu sem er parað við kerfið, eða spurðu Ísak.";
+export function staffKeyOk(k) {
+  if (typeof k !== "string" || !k) return false;
+  return keyLevel(k) !== null || (isPieceTokenShape(k) && verifyPieceToken(k).ok);
+}
+// Staff context: { app, context } — app must be a known staff app, context is a short plain string from the page's
+// data-context. Returns null for anything else (public / Studio paths never see this).
+export function cleanStaffContext(ctx) {
+  if (!ctx || typeof ctx !== "object" || typeof ctx.app !== "string" || !STAFF_APPS.includes(ctx.app)) return null;
+  const c = typeof ctx.context === "string" ? ctx.context.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, MAX_CONTEXT_CHARS) : "";
+  return { app: ctx.app, context: c };
 }
 
 export function cleanStudioContext(ctx) {
