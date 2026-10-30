@@ -1,0 +1,41 @@
+// PRO Smíða round 2 (owner feedback 2026-10-30, docs/pro-smida-wizard.md "Round 2"): source-level guards.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const html = fs.readFileSync(new URL("../kitchen-planner.html", import.meta.url), "utf8");
+function fnBody(name) {
+  const start = html.indexOf("function " + name + "(");
+  assert.ok(start >= 0, name + " exists");
+  const next = html.indexOf("\n  function ", start + 10);
+  return html.slice(start, next);
+}
+
+test("A: a confirmation can be taken back — only the ack key is removed, same shapes, and Klár is dropped", () => {
+  const u = fnBody("smUnack");
+  assert.ok(/delete a\.inn/.test(u) && /delete a\[grp\]\[id\]/.test(u), "removes the key under mal / inn / pos / hw");
+  assert.ok(/proSetReadyQuiet\(x\.b, false\)/.test(u));
+  assert.ok(!/smida\b[^A]/.test(u.replace(/smidaAck|smidaReady/g, "")), "never touches b.smida");
+  const w = fnBody("smWire");
+  assert.ok(/smUnack\("mal", k\)/.test(w) && /smUnack\("inn"\)/.test(w) && /smUnack\(f\.grp, f\.id\)/.test(w), "Rétt ✓ is a toggle for Mál, Innvols and every item");
+});
+
+test("A: the current value is IN the field (never empty + ghost), Enter confirms what the field shows", () => {
+  assert.ok(/data-sm-in="' \+ d\.k \+ '" value="' \+ d\.mm \+ '"/.test(fnBody("smDimSecs")));
+  assert.ok(/data-sm-pin="' \+ key \+ '" value="' \+ it\.mm \+ '"/.test(fnBody("smItemSecs")));
+  const w = fnBody("smWire");
+  assert.ok(/e\.key === "Enter"\)\{ e\.preventDefault\(\); inp\.__sent = true; smCommit/.test(w));
+  assert.ok(/e\.key === "Enter"\)\{ e\.preventDefault\(\); inp\.__sent = true; smItemDone/.test(w));
+});
+
+test("A: the chosen option is solid blue, never a dashed 'suggest'; Yfirlit rows use the dark panel tokens", () => {
+  assert.ok(!/' suggest'/.test(fnBody("smItemSecs")));
+  assert.ok(/body\.pro \.uw-side \.sm-secs :is\(\.hw-btn\.active/.test(html));
+  assert.ok(/\.uw-sm-missbtn\{[^}]*background:var\(--card/.test(html));
+  assert.ok(/\.uw-sm-issues\{[^}]*var\(--danger-soft/.test(html));
+});
+
+test("A: Raðborun is unset (Af) for any cabinet that has not chosen it — the wizard shows Af as the chosen value, never writes it", () => {
+  const body = fnBody("smItems");
+  assert.ok(/ch\("rb", "Raðborun", rb \? "1" : "0"/.test(body));
+});

@@ -52,3 +52,9 @@ Two more sections after Innvols, built from a list of ITEMS (`smItems(grp, x)`, 
 - **Rýmin í þessu verki:** `homeBtn` shows in PRO under that name, `homeBackTo` works in PRO, room cards show "X / Y Klár" (+ bar, "N með villur" from `proIssues`) via `hlProStats` (reads every room through `withEachCategory`), button Halda áfram (first cabinet not Klár) or Opna, no × on PRO cards, "Áfram í yfirferð →" opens Yfirferð instead of Spurningar. When a room's queue finishes, `smNext` → `smRoomDone` shows this overview with a **Næsta herbergi** button (`hlRoomDone`); every room change (card, Næsta herbergi, Klár across rooms) goes through `smOpenAt` (openRoom + openSmidaWizard).
 - Test aids on `window.__sm`: `nextRight`, `undoOk`, `openAt`, `stats`, `next`, `ready`.
 - Not built (rounds 2–3): one-item-at-a-time sections, the hinge section, Enter = Rétt.
+
+## Round 2 (2026-10-30)
+Owner feedback after testing round 1 on T-32 (8 points). Built in four small steps; each ends with what to click in T-32.
+
+**A — choices, undo, colours, current values (built):** the chosen option of every Smíða choice (Föst/Laus/Læst, Gerð, Skipting fronta, Raðborun Af/Á, Grip, Hurðir/Skúffur) is solid blue, the rest neutral (the dashed "suggest" is gone); each choice row now has its own Rétt. Raðborun was never on by data — Af just wasn't shown as chosen. **Rétt ✓ is a toggle**: pressing a confirmed item again removes its ack (`smUnack`; keys under `smidaAck.mal/inn/pos/hw` only, and a cabinet that was Klár stops being Klár). Fields always show the CURRENT value (selected on focus); Enter confirms what the field shows; Rétt on fjöldi gata / bil milli gata confirms exactly the shown number. Yfirlit rows (Vantar enn, Laga) use the dark panel tokens.
+*Click in T-32:* open a cabinet in Smíða → Staðsetning: Raðborun shows Af in blue; press Rétt on Hilla 1 (✓), press ✓ again (back to Rétt); change "bil milli gata" and press Enter; Yfirlit: rows are dark with readable text.
