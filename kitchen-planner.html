@@ -18478,6 +18478,7 @@
     raw = String(raw == null ? "" : raw).trim(); if (!raw) return;
     var d = x.dims.find(function(dd){ return dd.k === k; }), v = Math.round(parseFloat(raw.replace(",", ".")));
     if (isNaN(v)){ toast("Sláðu inn tölu í mm."); return; }
+    var fracMm = Math.abs(parseFloat(raw.replace(",", ".")) - v) > 1e-9; // 599.5 used to confirm 600 without a word
     if (v !== d.mm){
       if (!d.set(v)){ renderUnitWizard(); return; } // refused (locked, out of range, no room): the toast says why, nothing is confirmed
       x = smCtx(); d = x.dims.find(function(dd){ return dd.k === k; }); v = d.mm; uwPrevKey = "";
@@ -18485,6 +18486,7 @@
     x.b.smidaAck = Object.assign({}, x.b.smidaAck, { mal:Object.assign({}, x.b.smidaAck && x.b.smidaAck.mal) });
     x.b.smidaAck.mal[k] = v; x.b.smidaAck.at = new Date().toISOString();
     save(); smAdvanceFrom(k); renderUnitWizard();
+    if (fracMm) toast("Aðeins heilir millimetrar — " + raw + " var námundað í " + v + " mm.");
   }
   function smAckInn(){
     var x = smCtx(); if (!x) return;
