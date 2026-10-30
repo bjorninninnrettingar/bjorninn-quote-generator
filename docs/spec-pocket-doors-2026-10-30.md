@@ -90,6 +90,13 @@ CAD, borgögn, CNC (`cnc-sides.js` heldur áfram að sleppa lömum), nákvæm br
 **Umferð 3 (ef vill) — borðplötuútgáfa og uno+uno.** Skrár sömu.
 Fyrir hverja umferð: `npm test` + `npm run test:live` grænt, ekkert Airtable-skrif.
 
+## Ákvarðanir eiganda (30.10.2026)
+1. **Studio og PRO velja bæði** vasahurð (ekki bara PRO). Spurning 1 er því svarað: viðskiptavinur getur líka valið hana í Studio.
+2. **Vasinn innan breiddar** (100 mm uno, 150 mm duo í uppsetningarbreiddinni, eins og hjá Blum): já.
+3. **Borðplötuútgáfa** (vasahurð á borðplötu, framhlið frá 1130 mm) er **með í umferð 1**.
+4. **Concepta „tvöfalt kerfi“**: eigandi sendir mynd af því sem hann vill; engin ágiskun fyrr en hún er komin.
+5. Sökkull sjálfgefinn: **já** (spurningu 5 ekki svarað sérstaklega; tillagan stendur nema eigandi segi annað).
+
 ## 8. Opnar spurningar (eitt orð nægir)
 1. Studio sér vasahurð líka, eða bara PRO? (mæli: **Studio-útlit, PRO-val**)
 2. Á vasinn að vera *innan* skápsbreiddar (eins og Blum) — já/nei? (mæli: **já**)
