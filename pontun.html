@@ -165,7 +165,22 @@
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: fields })
-    }).then(function (r) { return r.json(); });
+    }).then(function (r) {
+      // a refused/failed write must reject: callers used to treat the {error} body as success (and could post
+      // a real "Allt efni komið í hús" chat after a refused tick)
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok || (d && d.error)) throw new Error("patch");
+        return d;
+      });
+    });
+  }
+  function errToast(msg) {
+    var t = document.createElement("div");
+    t.setAttribute("role", "alert");
+    t.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#b3261e;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;z-index:9999;max-width:90vw";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 6000);
   }
   // Same fix as /yfirferd: Airtable's ARRAYJOIN on a linked-record field
   // resolves to the linked record's NAME, not its id (confirmed by direct
@@ -291,7 +306,7 @@
         // syncEfni already announced "Allt efni komið í hús" if it just ticked the box; if the box
         // was ticked by hand earlier the button still tells the floor.
         if (!flipped) window.OfficeShell.notifyEfni(k, recordId, "Allt efni komið í hús", { name: (shellInfo.record && shellInfo.record.name) || "" });
-      }).catch(function () { b.disabled = false; alert("Tókst ekki að vista allt — endurhlaða og reyna aftur."); });
+      }).catch(function () { b.disabled = false; errToast("Tókst ekki að vista allt — endurhlaðið og reynið aftur. Ekkert var tilkynnt gólfinu nema Efni lent hafi vistast."); });
     });
 
     var unlinkedWrap = document.getElementById("unlinkedWrap");
@@ -438,9 +453,17 @@
     }
     el.querySelector("[data-status]").addEventListener("change", function (ev) {
       ev.stopPropagation();
-      var st = ev.target.value;
+      var sel = ev.target, st = sel.value;
+      var prev = ((currentOrders.filter(function (x) { return x.id === o.id; })[0] || {}).fields || {})["Staða"] || "";
+      var wasAll = currentOrders.length && currentOrders.every(function (x) { return (x.fields || {})["Staða"] === ARRIVED; });
+      var othersDone = currentOrders.every(function (x) { return x.id === o.id || (x.fields || {})["Staða"] === ARRIVED; });
+      // the last order to arrive ticks "5. Efni lent í húsi" and tells the whole floor: ask first
+      if (st === ARRIVED && othersDone && !efniLanded && !confirm("Þetta er síðasta pöntunin. Haka „5. Efni lent í húsi“ og tilkynna gólfinu „Allt efni komið í hús“?")) { sel.value = prev; return; }
       var fields = {}; fields["Staða"] = st;
+      sel.disabled = true;
+      var saved = false;
       apiPatch(PANTADIR + "/" + o.id, fields).then(function () {
+        saved = true; sel.disabled = false;
         setOrderStatus(o.id, st); return syncEfni();
       }).then(function (flipped) {
         // 2026-10-28 (G5): one order arrived (not the last) -> quiet bell line, no chat ping.
@@ -448,6 +471,12 @@
           var n = currentOrders.filter(function (x) { return (x.fields || {})["Staða"] === ARRIVED; }).length;
           window.OfficeShell.notifyEfni(k, recordId, "Pöntun komin í hús (" + n + " / " + currentOrders.length + ")", { chat: false, name: (shellInfo.record && shellInfo.record.name) || "" });
         }
+      }).catch(function () {
+        // the order write (or the Efni lent tick) was refused: undo the dropdown, say so, send NO notification
+        sel.disabled = false;
+        if (saved) { paintEfniBar(); errToast("Staðan vistaðist en „5. Efni lent í húsi“ vistaðist ekki — ekkert var tilkynnt. Reyndu aftur."); return; }
+        sel.value = prev;
+        errToast("Tókst ekki að vista stöðuna — ekkert var tilkynnt. Reyndu aftur.");
       });
     });
     var offBtn = el.querySelector("[data-offline]");
@@ -460,7 +489,7 @@
           offBtn.remove();
           var sb = el.querySelector("[data-send]"); if (sb) sb.remove();
           paintEfniBar();
-        }).catch(function () { offBtn.disabled = false; });
+        }).catch(function () { offBtn.disabled = false; errToast("Tókst ekki að vista — reyndu aftur."); });
       });
     }
     el.querySelector("[data-status]").addEventListener("click", function (ev) { ev.stopPropagation(); });

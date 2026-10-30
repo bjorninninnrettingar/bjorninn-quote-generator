@@ -737,7 +737,7 @@
               cb.disabled = false;
               if (ticked && window.OfficeShell) OfficeShell.notifyEfni(getK(), id, "Efni komið í hús", { name: rowName });
             })
-            .catch(function () { cb.checked = !cb.checked; cb.disabled = false; });
+            .catch(function () { cb.checked = !cb.checked; cb.disabled = false; errToast("Tókst ekki að vista „Efni lent“ — ekkert var tilkynnt gólfinu."); });
         });
       });
     }
@@ -757,7 +757,21 @@
   function apiPatchProject(id, fields) {
     var u = "/api/airtable?path=" + encodeURIComponent(PROJECTS + "/" + id);
     if (getK()) u += "&k=" + encodeURIComponent(getK());
-    return fetch(u, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields }) }).then(function (r) { return r.json(); });
+    return fetch(u, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields: fields }) }).then(function (r) {
+      // reject on a refused/failed write (it used to resolve the error body and look like success)
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok || (d && d.error)) throw new Error("patch");
+        return d;
+      });
+    });
+  }
+  function errToast(msg) {
+    var t = document.createElement("div");
+    t.setAttribute("role", "alert");
+    t.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#b3261e;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;z-index:9999;max-width:90vw";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 6000);
   }
   document.getElementById("cashUpcomingTile").addEventListener("click", function (e) {
     if (e.target.closest(".arrangeHandle")) return; // dragging/resizing the tile isn't "open the table"
@@ -1195,6 +1209,7 @@
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: fields })
     }).then(function (r) {
+      if (!r.ok) throw new Error("quickfix"); // keep the typed text, tell the user
       // 🔔 Tilkynningar (2026-10-27): the person it's assigned to sees it in /app's bell and
       // in ALMENNT chat — same line /app writes. Only once the Quick Fix itself is saved.
       var k = getK();
@@ -1212,7 +1227,7 @@
       document.getElementById("qfForm").style.display = "none";
       submitBtn.disabled = false;
       loadQuickFix();
-    }).catch(function () { submitBtn.disabled = false; });
+    }).catch(function () { submitBtn.disabled = false; errToast("Tókst ekki að vista Quick Fix — textinn er enn í reitnum, reyndu aftur."); });
   }
 
   document.getElementById("qfAddBtn").addEventListener("click", function () {
