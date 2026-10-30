@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex" />
 <title>Skipulagsferli — Björninn</title>
 <link rel="icon" href="/icons/icon-192.png" />
+<script src="/bjorninn-icons.js"></script><script>BJICON.autoStrip()</script>
 <script>
 // Apply a saved dark-theme choice before first paint (avoids a light→dark flash) — same pattern
 // app.html/verk.html already use for the floor PWA, see office-shell.js's theme comment.
@@ -1423,7 +1424,7 @@
     if (f["Vantar hluta ⚠️"]) addFlag("Það vantar hluta fyrir þessa einingu");
     if (!sogun.length) addFlag("Engir hlutar í Sögunarlista fyrir þessa einingu");
     if (!vorur.length) addFlag("Engar vörur á einingunni (Pöntun einingar er tóm)");
-    if (vorur.some(function (v) { return (v.fields || {})["⛔ Villa"]; })) addFlag("Vara á einingunni er með villu (⛔) — skoðaðu Pöntun einingar");
+    if (vorur.some(function (v) { return (v.fields || {})["⛔ Villa"]; })) addFlag("Vara á einingunni er með villu — skoðaðu Pöntun einingar");
     function addFlag(msg) { var d = document.createElement("div"); d.className = "wFlag"; d.textContent = "! " + msg; flagsEl.appendChild(d); }
 
     var box = parseBox(f);
@@ -1575,7 +1576,7 @@
         groups[g].map(function (r) {
           var f = r.fields || {}, on = !!f["Tilbúið 🔒"];
           readyState["sog:" + r.id] = on;
-          return '<tr><td>' + esc(f["Partur"] || "") + (f["Villa?"] ? " ⚠️" : "") + '</td><td class="n">' + esc(f["H"] ?? "—") + '</td><td class="n">' + esc(f["B"] ?? "—") + '</td><td class="n">' + esc(f["Þ"] ?? "—") + '</td><td class="n">' + esc(f["M"] ?? "—") +
+          return '<tr><td>' + esc(f["Partur"] || "") + (f["Villa?"] ? " <i data-ic=alert></i>" : "") + '</td><td class="n">' + esc(f["H"] ?? "—") + '</td><td class="n">' + esc(f["B"] ?? "—") + '</td><td class="n">' + esc(f["Þ"] ?? "—") + '</td><td class="n">' + esc(f["M"] ?? "—") +
             '</td><td class="c"><label class="tbCheck"><input type="checkbox" data-id="' + r.id + '" data-kind="sog"' + (on ? " checked" : "") + ' /></label></td></tr>';
         }).join("") + '</tbody></table></details>';
     }).join("") : '<div class="empty">Ekkert fellur undir þessa síu</div>';
@@ -1620,7 +1621,7 @@
       recs.map(function (r) {
         var f = r.fields || {}, on = !!f["Rétt"], names = (f["Vörulisti 🚪"] || []).map(function (id) { return prodNames[id] || ""; }).filter(Boolean).join(", "), im = thumb(f["Mynd 🖼️"]);
         readyState["vor:" + r.id] = on;
-        return '<tr><td>' + esc(tx(f["Tegund"]) || "Vara") + (f["⛔ Villa"] ? " ⚠️" : "") + '</td><td>' + (names ? '<span class="pill">' + esc(names) + '</span>' : "—") + '</td>' + (hasWhat ? '<td>' + esc(tx(f["Hvað viltu panta?"]) || "–") + '</td>' : "") +
+        return '<tr><td>' + esc(tx(f["Tegund"]) || "Vara") + (f["⛔ Villa"] ? " <i data-ic=alert></i>" : "") + '</td><td>' + (names ? '<span class="pill">' + esc(names) + '</span>' : "—") + '</td>' + (hasWhat ? '<td>' + esc(tx(f["Hvað viltu panta?"]) || "–") + '</td>' : "") +
           '<td class="n">' + esc(tx(f["Skúffu dýpt"]) || "–") + '</td><td class="n">' + esc(f["Magn"] ?? "–") + '</td><td>' + (im ? '<img class="th" src="' + esc(im) + '" alt="">' : "") + '</td>' +
           '<td class="c"><label class="tbCheck"><input type="checkbox" data-id="' + r.id + '" data-kind="vor"' + (on ? " checked" : "") + ' /></label></td>' + (hasDim ? '<td class="n">' + esc(f["Hæð (mm)"] ?? "–") + '</td><td class="n">' + esc(f["Breidd (mm)"] ?? "–") + '</td>' : "") + '</tr>';
       }).join("") + '</tbody></table>';

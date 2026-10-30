@@ -50,9 +50,9 @@
   }
 
   var PRINTS = [
-    { mode: "cabinets", label: "🖨️ Tilboð" },
-    { mode: "combined", label: "🖨️ Sameinað tilboð" },
-    { mode: "estimate", label: "💡 Verðhugmynd" },
+    { mode: "cabinets", label: '<i data-ic=printer></i> Tilboð' },
+    { mode: "combined", label: '<i data-ic=printer></i> Sameinað tilboð' },
+    { mode: "estimate", label: '<i data-ic=bulb></i> Verðhugmynd' },
   ];
 
   // Each mount() bumps the token, so a slow response for a previously opened project never paints
@@ -87,7 +87,7 @@
     }
     function fileLinks(list) {
       return list.length ? '<div class="omFiles">' + list.map(function (f) {
-        return '<a href="' + esc(f.url) + '" target="_blank" rel="noopener" title="' + esc(f.filename) + '">📄 ' + esc(f.filename) + '</a>';
+        return '<a href="' + esc(f.url) + '" target="_blank" rel="noopener" title="' + esc(f.filename) + '"><i data-ic=file></i> ' + esc(f.filename) + '</a>';
       }).join("") + '</div>' : "";
     }
 
@@ -128,7 +128,7 @@
           (canApprove ? '<button class="omBtn primary" type="button" data-act="vidbaetur">Samþykkja</button>' : "") + '</span></div>' +
         (s.vidbaeturSamthykktar ? '<div class="omRow"><span class="k">Samþykktar (innréttingar)</span><span class="v">' + kr(s.vidbaeturSamthykktar) + '</span></div>' : "") +
         '<div class="omRow"><span class="k">Viðbótartilboð</span><span class="v">' +
-          '<button class="omBtn" type="button" data-print="vidbot"' + (canApprove ? "" : " disabled title=\"Engar ósamþykktar viðbætur á staðfestu verki\"") + '>📄 Prenta</button></span></div>' +
+          '<button class="omBtn" type="button" data-print="vidbot"' + (canApprove ? "" : " disabled title=\"Engar ósamþykktar viðbætur á staðfestu verki\"") + '><i data-ic=file></i> Prenta</button></span></div>' +
         fileLinks(s.vidbot) +
         (s.confirmed == null ? '<div class="omNote">Verkið er ekki staðfest — viðbætur reiknast eftir staðfestingu.</div>' : "") +
         '</div>';
@@ -137,8 +137,8 @@
       var g1 = s.g1Drafted
         ? '<span class="omOk">✓ Drög til</span>'
         : (s.g1Ready
-          ? '<button class="omBtn" type="button" data-act="g1">🧾 Búa til drög</button>'
-          : '<button class="omBtn" type="button" disabled title="Þarf fyrst að tengja automationið í Airtable">🧾 Búa til drög</button>');
+          ? '<button class="omBtn" type="button" data-act="g1"><i data-ic=file></i> Búa til drög</button>'
+          : '<button class="omBtn" type="button" disabled title="Þarf fyrst að tengja automationið í Airtable"><i data-ic=file></i> Búa til drög</button>');
       html += '<div class="omGroup"><div class="omGroupHd">Konto</div>' +
         '<div class="omRow"><span class="k">Drög að greiðslu 1</span><span class="v">' + g1 + '</span></div>' +
         (s.kontoLog ? '<div class="omLog">' + esc(s.kontoLog) + '</div>' : '<div class="omNote">Engin Konto drög enn. Aldrei búin til tvisvar.</div>') +
@@ -207,7 +207,7 @@
 
     function print(mode, s, btn) {
       if (mode === "vidbot") {
-        if (!confirm("Prenta viðbótartilboð upp á " + kr(s.vidbaetur) + "?\n\nBætist við Viðbótartilboð 📄 — eldri haldast.")) return;
+        if (!confirm("Prenta viðbótartilboð upp á " + kr(s.vidbaetur) + "?\n\nBætist við Viðbótartilboð — eldri haldast.")) return;
         return send({ action: "print", mode: mode }, btn, "✓ Viðbótartilboð prentað");
       }
       if (s.tilbod.length && !confirm("Prenta nýtt tilboð?\n\nÞað kemur í stað þess sem er núna í Tilboð til sendingar.")) return;

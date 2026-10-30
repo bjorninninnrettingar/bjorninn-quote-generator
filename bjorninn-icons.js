@@ -105,6 +105,7 @@
     ring: '<circle cx="12" cy="12" r="6"/>',
     menu: '<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>',
     wifiOff: '<path d="M3.5 3.5l17 17M8.5 15.5a5 5 0 0 1 5.5-1.2M5 11.5a10 10 0 0 1 3.5-2M12 19.5h.01M12 8.5a10 10 0 0 1 7 3M16.5 12.5a5 5 0 0 1 1.6 1.2"/>',
+    tv: '<rect x="3.5" y="5" width="17" height="11.5" rx="1.5"/><path d="M9 20h6M12 16.5V20"/>',
     rubble: '<path d="M4.5 19.5l4-7 3 4 3-6 5 9z"/>'
   };
 
@@ -135,7 +136,7 @@
     "📁": "folder", "📊": "chart", "📈": "chart", "🔗": "link",
     "✂": "scissors", "🤖": "robot", "🚀": "rocket", "🎬": "video", "🧠": "brain",
     "🔴": "dot", "🟡": "dot", "🟢": "dot", "⚫": "dot", "⚪": "ring",
-    "📣": "bell", "🆕": "sparkle", "🔢": null, "🦓": null,
+    "📣": "bell", "📲": "phone", "📺": "tv", "👨🏻": "user", "🧑🏻": "user", "🆕": "sparkle", "🔢": null, "🦓": null,
     "♾": null, "👉": "arrowR", "👈": "arrowL", "✋": null, "✊": null,
     "🧨": null, "🏃": null, "🦙": null, "🧦": null, "🛟": null, "🦾": null,
     "🍽": null, "😠": null, "🥀": null, "🤓": null, "🐻": null, "🐰": null,
@@ -215,6 +216,45 @@
       }
     }).observe(document.documentElement, { childList: true, subtree: true });
   }
+
+  // Render-time safety net for pages that show lots of Airtable text (stage / status / owner / category names
+  // with emoji in them). Strips emoji from the DISPLAYED text nodes and title/placeholder/aria-label/alt
+  // attributes only — JS strings, option values, input values and data-* attributes are never touched, so
+  // comparisons and writes keep the exact Airtable strings.
+  var ATTRS = ["title", "placeholder", "aria-label", "alt", "label"];
+  function clean(s) { return s.replace(STRIP, "").replace(/ {2,}/g, " "); }
+  function autoNode(n) {
+    if (n.nodeType === 3) {
+      var p = n.parentNode, tg = p && p.nodeName;
+      if (tg === "SCRIPT" || tg === "STYLE" || tg === "TEXTAREA") return;
+      STRIP.lastIndex = 0;
+      if (STRIP.test(n.nodeValue)) { STRIP.lastIndex = 0; n.nodeValue = clean(n.nodeValue); }
+      STRIP.lastIndex = 0;
+      return;
+    }
+    if (n.nodeType !== 1 || n.nodeName === "SCRIPT" || n.nodeName === "STYLE") return;
+    for (var i = 0; i < ATTRS.length; i++) {
+      var v = n.getAttribute(ATTRS[i]);
+      if (v) { STRIP.lastIndex = 0; if (STRIP.test(v)) { STRIP.lastIndex = 0; n.setAttribute(ATTRS[i], clean(v)); } STRIP.lastIndex = 0; }
+    }
+    for (var c = n.firstChild; c; c = c.nextSibling) autoNode(c);
+  }
+  BJICON.autoStrip = function () {
+    function go() {
+      autoNode(document.body);
+      if (document.title) document.title = clean(document.title);
+      if (typeof MutationObserver === "undefined") return;
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          var m = muts[i];
+          if (m.type === "characterData") autoNode(m.target);
+          else if (m.type === "attributes") autoNode(m.target);
+          else for (var j = 0; j < m.addedNodes.length; j++) autoNode(m.addedNodes[j]);
+        }
+      }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS });
+    }
+    if (document.body) go(); else document.addEventListener("DOMContentLoaded", go);
+  };
 
   window.BJICON = BJICON;
   if (typeof document !== "undefined") {
