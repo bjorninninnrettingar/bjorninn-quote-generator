@@ -30,7 +30,7 @@ Prófað á T-32 (prufuverkið) eftir hverja umferð. Skýring: PRO = Pro-hamur 
 |---|---|---|---|
 | 1 | Sjá bilið til veggja og annarra eininga í mm á meðan eyjan er dregin (grænt 1000 og yfir, gult 900–1000, rautt undir) og slá inn staðsetningu ("Bil frá vegg 1: 1050") | Hátt | Lítil–miðlungs |
 | 2 | Úthliðar á eyjuenda með einum hnappi (og sjálfkrafa þegar hár skápur kemur) | Hátt (þarf fyrir A) | Miðlungs |
-| 3 | "＋ Skápur" á eyjuspjaldinu opnar Ný eining með öllum eininganum (ekki bara grunnskáp) | Hátt (þarf fyrir A) | Lítil |
+| 3 | "＋ Skápur" á eyjuspjaldinu opnar Ný eining með öllum einingum (ekki bara grunnskáp) | Hátt (þarf fyrir A) | Lítil |
 | 4 | Barborð: yfirhang á bakhlið 250–300 mm og fjöldi barstóla (barstóll er til sem húsgagn, borðplatan hefur yfirhang á framhlið/endum en ekki á baki eyju) | Hátt fyrir sölu | Miðlungs |
 | 5 | Seglar þegar dregið er: eyjan jafnast við skápaupphald, glugga og miðju veggjar (50 mm), og helst samsíða vegg | Miðlungs | Miðlungs |
 | 6 | Betri sjálfgefin staðsetning: lengsti auði vegg, með 1000–1200 mm gönguleið (nú alltaf vegg 1) | Miðlungs | Lítil |
@@ -43,7 +43,7 @@ Prófað á T-32 (prufuverkið) eftir hverja umferð. Skýring: PRO = Pro-hamur 
 
 **Hvernig það virkar í dag (í orðum)**
 - Biti er "frjáls" hindrun. Í 3D er hann dreginn eftir plani í hæð miðju hans, rétt undir loftinu (um 2,4 m). Færslan er mismunurinn á bendli frá því þú ýttir (grípur því rétt), en ekkert er ávalað, engir seglar, engin mál á skjánum meðan dregið er.
-- Við sleppt er bitinn festur við næsta vegg (veggur sem hann er yfir telst hans). Fari miðjan út af veggendanum flyst hann á annan vegg, með þeirri afleiðingu að skýrleiki "hvað er 0°" breytist. Ef hann lendir utan herbergis gerist ekkert (hoppar til baka án útskýringar).
+- Þegar honum er sleppt er hann festur við vegg: sama vegg og áður meðan miðjan er innan hans, annars næsta vegg (þá breytist hvað "0°" þýðir fyrir hann). Ef hann lendir utan herbergis gerist ekkert (hoppar til baka án útskýringar).
 - Snúningur í ritlinum: aðeins hnappur "↻ Snúa 90°" í spjaldinu. Frjáls snúningur (45° skref, 6° segull, Shift = frjálst) er bara til á stærðarsíðunni í 2D (`startObRotate`), ekki í ritlinum. Hornið `ang` er geymt en 3D-dragið lítur framhjá því (notar óhallaða stærð við að finna stað).
 - Spjaldið: staða frá horni, breidd, dýpt, hæð, bil frá vegg, ◀ ▶ 100 mm, læsa. Enginn snúningsreitur.
 - Handföng (til að lengja) eru bara á milliveggjum, ekki bitum.
@@ -77,7 +77,7 @@ Svar: **Ofnar já, ísskápar nei.**
 | 2 | Hár skápur í eyju (A) + B1–B3 | `kitchen-planner.html` (kassalisti, eyjuspjald, úthliðar), `kitchen-planner-3d.js` (bak, bit-athugun), `kitchen-planner-worktop.js` (endar) | PRO → Ný eining → Eyja → Hár skápur í A2. Úthliðar-hnappur setur báða enda. Borðplata í 2 hlutum, endar "veggur". Bak fylgir hæð. Sýnir bil við vegg meðan dregið. Engin villa í Yfirlit |
 | 3 | Loftun ísskápa (D, liðir 1–2) + barborð (B4) | `kitchen-planner-3d.js`, `kitchen-planner.html` (Smíða), `kitchen-planner-worktop.js` | Ísskápur: sést rist, kveikt í Smíða, lína í pöntun. Eyja: barborð 300 mm yfirhang + 2 stólar |
 
-Umferð 1 og 2 breyta sitt hvorum hluta sömu skráa: geta keyrt samhliða en sameinast hver á eftir annarri. **Ekki með:** Studio-útgáfa af háum skáp í eyju, teikningar fyrir eyjar, CNC-rauf fyrir ísskápsloftun, Airtable-breytingar, bitar sem rista í gegnum fleiri hæðir, aðrir hlutir en nefndir í B1–B4.
+Umferð 1 og 2 breyta sitt hvorum hluta sömu skráa: geta keyrt samhliða en sameinast hver á eftir annarri. **Ekki með:** Studio-útgáfa af háum skáp í eyju, teikningar fyrir eyjar, CNC-rauf fyrir ísskápsloftun, Airtable-breytingar og aðrar eyjuúrbætur en B1–B4.
 
 ## F. Spurningar (eitt orð)
 
