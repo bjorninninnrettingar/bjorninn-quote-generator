@@ -800,6 +800,8 @@
     "Ekki nóg pláss á {wall}.": "Not enough space on {wall}.",
     "Teiknaðu rýmið fyrst.": "Draw the room first.",
     "Of langt til að snúa á þessum vegg — styttu það fyrst.": "Too long to rotate on this wall — shorten it first.",
+    "Bitinn lenti utan herbergis — hann fór aftur á sinn stað.": "The beam ended up outside the room — it went back where it was.",
+    "Hluturinn lenti utan herbergis — hann fór aftur á sinn stað.": "The item ended up outside the room — it went back where it was.",
     "Fjarlægðu skápana af milliveggnum fyrst.": "Remove the cabinets from the partition wall first.",
     "Hindrun · ekki í pöntun": "Obstacle · not ordered",
     "Veggur": "Wall",

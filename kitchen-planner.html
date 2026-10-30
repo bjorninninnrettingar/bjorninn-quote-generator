@@ -89,6 +89,7 @@
 <script src="kitchen-planner-handles.js"></script>
 <script src="kitchen-planner-models.js"></script>
 <script src="kitchen-planner-linemap.js"></script>
+<script src="kitchen-planner-beam.js"></script>
 <script src="kitchen-planner-3d.js"></script>
 <script src="kitchen-planner-doors.js"></script>
 <script src="kitchen-planner-showcase.js"></script>
@@ -11660,7 +11661,7 @@
         return;
       }
       wrap.innerHTML = "";
-      KP3D.buildScene(wrap, state, { darkBg:!!PRO, pickWorktop:!!PRO && !isBath(), selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragStart:on3DDragStart, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
+      KP3D.buildScene(wrap, state, { darkBg:!!PRO, pickWorktop:!!PRO && !isBath(), selectedId:selectedBlockId, selectedWallId:selectedWallId, onWallSelect:onWallSelect, onSelect:onCabinetSelect, onCabinetDragMove:on3DDragMove, onCabinetDragStart:on3DDragStart, onCabinetDragEnd:on3DDragEnd, onIslandDragEnd:onIslandDragEnd, onIslandDragMove:clampIslandDragMove, onDecorDragEnd:onDecorDragEnd, onDecorDragMove:onDecorDragMove, onObstacleFloorEnd:onObstacleFloorEnd, onObstacleTurnEnd:onObstacleTurnEnd, onBeamTargets:beamSnapTargets, onObstacleResizeMove:onObstacleResizeMove, onObstacleResizeEnd:onObstacleResizeEnd, onShelfPosMove:onShelfPosMove, onShelfPosEnd:onShelfPosEnd, onShelfPosInfo:onShelfPosInfo, onDrawerResize:onDrawerResize, onDrawerResizeEnd:onShelfPosEnd, floatEl:document.getElementById("floatBar"), landedId:landedBlockId, warnIds:warnIdList(), readyIds:PRO ? proReadyIds() : null,
         xray:inspect.on || walkParts, // inspect mode / walking: every cabinet built in parts (drawers/doors tap open, nothing drags)
         onPeek:function(){ renderView(); }, // right-click "kíkja inn" on a solid (unlocked) cabinet: rebuilt in parts, opening
         onPeekToggle:function(){ hintOnce("kikja", __("<b>Kíkt inn</b> — hægrismelltu aftur á skápinn til að loka honum.")); },
@@ -12612,12 +12613,64 @@
   // a free-standing column / partition dropped anywhere on the floor in 3D (2026-10-12)
   function onObstacleFloorEnd(id, spot){
     var o = findObstacle(id), wall = spot && state.walls.find(function(w){ return w.id === spot.wallId; });
-    if (!o || !wall){ refreshAfterEdit(); return; }
+    if (o && o.kind === "biti" && spot && spot.beam){ // a ceiling beam: the 3D drag already damped + snapped it (2026-10-30)
+      if (spot.outside){ toast(__("Bitinn lenti utan herbergis — hann fór aftur á sinn stað.")); refreshAfterEdit(); return; }
+      if (!wall || !beamSetPose(o, wall, spot.cA, spot.cN, spot.longDeg - (o.depthMm > o.widthMm ? 90 : 0))){ refreshAfterEdit(); return; }
+      selectedBlockId = o.id; save(); refreshAfterEdit(); return;
+    }
+    if (!o || !wall){ if (o && !spot) toast(__("Hluturinn lenti utan herbergis — hann fór aftur á sinn stað.")); refreshAfterEdit(); return; }
     var r = KP3D.obstacleRect(o), p = obstaclePlace(o, wall, spot.alongMm - (r.a1 - r.a0) / 2, null);
     o.wallId = wall.id; o.widthMm = p.widthMm; o.offsetMm = p.offsetMm;
     var out = Math.round(spot.outMm / 10) * 10; o.outMm = out < 60 ? 0 : out; // close to the wall = against it
     selectedBlockId = o.id;
     save(); refreshAfterEdit();
+  }
+  // ---- ceiling beams (2026-10-30): pose = centre (cA along the wall, cN out of it, mm) + turn beta (degrees, of the UNTURNED box
+  // widthMm × depthMm about its centre). Stored as before: offsetMm / outMm / widthMm / depthMm / rot / ang. A turn of exactly a
+  // quarter becomes rot 90 (cabinets then see the right footprint), anything else is `ang`. Maths: kitchen-planner-beam.js.
+  function beamTotal(o){ return (o.rot === 90 ? 90 : 0) + (o.ang || 0); }
+  function beamCentre(o){ var r = KP3D.obstacleRect(o); return { a:(r.a0 + r.a1) / 2, n:(r.n0 + r.n1) / 2 }; }
+  // false (and a toast) when the turned beam is longer than the wall
+  function beamSetPose(o, wall, cA, cN, beta){
+    var K = window.KPBEAM, L = wall.lengthMm, w = o.widthMm, d = o.depthMm, b = K.normLine(beta);
+    var ex = K.extents(cA, cN, w, d, b);
+    if (ex.maxA - ex.minA > L + 0.5){ toast(__("Of langt til að snúa á þessum vegg — styttu það fyrst.")); return false; }
+    if (ex.minA < 0) cA -= ex.minA; if (ex.maxA > L) cA -= ex.maxA - L; if (ex.minN < 0) cN -= ex.minN; // never through its own wall or past the wall's ends
+    var cur = K.normLine(beamTotal(o)), keep = Math.abs(K.normLine(b - cur)) < 0.05 && wall.id === o.wallId;
+    if (!keep){
+      var q = Math.round(b / 90);
+      if (Math.abs(b - q * 90) < 0.05){ if (Math.abs(q) % 2) o.rot = 90; else delete o.rot; delete o.ang; }
+      else { delete o.rot; o.ang = Math.round(b * 10) / 10; }
+    }
+    var r = KP3D.obstacleRect(Object.assign({}, o, { offsetMm:0, outMm:0 })), aw = r.a1, nd = r.n1;
+    o.wallId = wall.id;
+    o.offsetMm = Math.max(0, Math.min(Math.max(0, L - aw), Math.round(cA - aw / 2)));
+    o.outMm = Math.max(0, Math.round(cN - nd / 2));
+    return true;
+  }
+  // the lines a dragged beam is pulled to on a wall (mm): wall ends, window / door / cabinet edges, other obstacles' sides
+  function beamSnapTargets(id, wallId){
+    var wall = state.walls.find(function(w){ return w.id === wallId; }), a = [0], n = [0];
+    if (!wall) return { a:a, n:n };
+    a.push(wall.lengthMm);
+    (state.windows || []).concat(state.doors || []).forEach(function(x){ if (x.wallId === wallId){ a.push(x.offsetMm, x.offsetMm + x.widthMm); } });
+    [["floor", cornerClearance(wall, "floor")], ["wall", cornerClearance(wall, "wall")]].forEach(function(z){
+      var list = wall[z[0]] || [], st = KP3D.blockStartsMm(list, z[1]);
+      list.forEach(function(b, i){ a.push(st[i], st[i] + b.widthMm); });
+    });
+    (state.obstacles || []).forEach(function(x){
+      if (x.id === id || x.wallId !== wallId) return;
+      var r = KP3D.obstacleRect(x); a.push(r.a0, r.a1); n.push(r.n0, r.n1);
+    });
+    return { a:a, n:n };
+  }
+  // turned by its handle in 3D: the centre stays, the box turns
+  function onObstacleTurnEnd(id, beta, unchanged){
+    var o = findObstacle(id), wall = o && state.walls.find(function(w){ return w.id === o.wallId; });
+    if (!o || !wall || unchanged){ refreshAfterEdit(); return; }
+    var c = beamCentre(o);
+    if (!beamSetPose(o, wall, c.a, c.n, beta)){ refreshAfterEdit(); return; }
+    selectedBlockId = o.id; save(); refreshAfterEdit();
   }
   // dragged in 3D (along / up and down the wall, or onto another wall)
   function moveObstacle(id, wallId, alongMm, elevMm){

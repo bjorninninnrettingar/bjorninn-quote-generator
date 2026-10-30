@@ -1838,6 +1838,7 @@
   }
 
   var SELECT_COLOR = 0x3d61c1;
+  var BEAM_HUD = null; // the live beam's distance labels (set by setupCabinetInteraction), so setSelected3D can refresh them
   var WARN_COLOR = 0xd9822b; // outline of a cabinet/opening the fit check flagged
 
   // ---------- optional real models (.glb) — see kitchen-planner-models.js ----------
@@ -3772,13 +3773,13 @@
       var hits = raycaster.intersectObjects(pickables, false);
       // a milliveggur's resize handles are drawn on top of everything, so if one is under the pointer it wins — even when
       // it sits inside the partition (the end standing against its wall) or behind another box along the ray (2026-10-23)
-      for (var hi = 0; hi < hits.length; hi++) if (hits[hi].object.userData && hits[hi].object.userData.kind === "obstacle-resize") return hits[hi].object;
+      for (var hi = 0; hi < hits.length; hi++) if (hits[hi].object.userData && (hits[hi].object.userData.kind === "obstacle-resize" || hits[hi].object.userData.kind === "beam-turn")) return hits[hi].object;
       var first = null;
       for (var i = 0; i < hits.length; i++) if (!seeThrough(hits[i].object)){ first = hits[i].object; break; }
       if (!first) return null;
       // a drawer/door you can see through the cabinet's own invisible pick box (an inner drawer once its front is
       // open sits inside that box) is what you're pointing at, not the box (2026-10-24)
-      if (first.material && first.material.visible === false){
+      if (first.material && first.material.visible === false && first.userData.kind !== "obstacle"){ // (a beam / column / partition's own grab box is what you point at — a cabinet's door seen behind it along the ray used to win, 2026-10-30)
         for (var k = 0; k < hits.length; k++){ var hp = hits[k].object; if (hp.userData && hp.userData.isPart && !seeThrough(hp)) return hp; }
       }
       // an open cabinet's own invisible pick box (its only click target, since isOpen never adds its
@@ -3871,6 +3872,133 @@
       return { along:Math.max(-half, Math.min(half, a - c)), y:0 };
     }
 
+    // ---- Ceiling beams (2026-10-30): damped drag, 50 mm magnets, a turn handle, distances to the walls ----------------------
+    // the maths is KPBEAM (kitchen-planner-beam.js, tested in tests/kp-beam.test.js); here is only the picture glue.
+    var BEAM_BLUE = "#0d6ebf", beamHud = [];
+    function wallIdx(id){ return walls.findIndex(function(w){ return w.id === id; }); }
+    function wallPt(g, a, n){ return { x:g.origin.x + g.axis.x * a / 1000 + g.normal.x * n / 1000, z:g.origin.z + g.axis.z * a / 1000 + g.normal.z * n / 1000 }; } // (a, n) mm → world metres
+    function wallAN(g, x, z){ return { a:((x - g.origin.x) * g.axis.x + (z - g.origin.z) * g.axis.z) * 1000, n:((x - g.origin.x) * g.normal.x + (z - g.origin.z) * g.normal.z) * 1000 }; } // world metres → mm
+    function insideRoomAt(px, pz){ // the same ray-cast as freeSpotOnWalls (an open room = anywhere)
+      if (walls.some(function(w){ return w.open; })) return true;
+      var rg = geoms.filter(function(g, i){ return walls[i] && !walls[i].island; }), inside = false;
+      rg.forEach(function(g, i){ var h = rg[(i + 1) % rg.length], a = g.origin, b = h.origin;
+        if ((a.z > pz) !== (b.z > pz) && px < (b.x - a.x) * (pz - a.z) / (b.z - a.z) + a.x) inside = !inside; });
+      return inside;
+    }
+    function sceneForHud(){ return THREE_STATE && THREE_STATE.scene; }
+    function hudHide(){ beamHud.forEach(function(it){ it.line.visible = false; it.label.visible = false; }); }
+    function hudItem(i){
+      if (beamHud[i]) return beamHud[i];
+      var sc = sceneForHud(); if (!sc) return null;
+      var cv = document.createElement("canvas"); cv.width = 260; cv.height = 92;
+      var label = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(cv), depthTest:false, transparent:true, sizeAttenuation:false }));
+      label.scale.set(0.105, 0.037, 1); label.renderOrder = 999; label.userData.cv = cv; label.userData.last = "";
+      var line = new THREE.Mesh(new THREE.BoxGeometry(1, 0.006, 0.006), new THREE.MeshBasicMaterial({ color:0x0d6ebf, depthTest:false, transparent:true, opacity:0.9 }));
+      line.renderOrder = 998;
+      sc.add(label); sc.add(line);
+      beamHud[i] = { line:line, label:label };
+      return beamHud[i];
+    }
+    // distances (mm) from a beam in pose {wallId, cA, cN, beta} to its wall's left corner, right corner and the wall itself
+    function hudDraw(bm, pose){
+      var K = window.KPBEAM, gi = wallIdx(pose.wallId), g = geoms[gi]; if (!K || !g){ hudHide(); return; }
+      var gp = K.wallGaps(pose.cA, pose.cN, bm.w, bm.d, pose.beta, g.lenM * 1000), ex = K.extents(pose.cA, pose.cN, bm.w, bm.d, pose.beta);
+      var y = (bm.loMm + bm.hiMm) / 2000 - 0.02;
+      var segs = [
+        { a0:ex.minA, n0:pose.cN, a1:0, n1:pose.cN, mm:gp.left, snap:pose.snapA && Math.abs(gp.left) < 1 },
+        { a0:ex.maxA, n0:pose.cN, a1:g.lenM * 1000, n1:pose.cN, mm:gp.right, snap:pose.snapA && Math.abs(gp.right) < 1 },
+        { a0:pose.cA, n0:ex.minN, a1:pose.cA, n1:0, mm:gp.out, snap:pose.snapN && Math.abs(gp.out) < 1 }
+      ];
+      segs.forEach(function(sg, i){
+        var it = hudItem(i); if (!it) return;
+        var p0 = wallPt(g, sg.a0, sg.n0), p1 = wallPt(g, sg.a1, sg.n1), len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+        if (len < 0.02 || sg.mm < 0){ it.line.visible = false; it.label.visible = false; return; }
+        it.line.visible = true; it.label.visible = true;
+        it.line.scale.x = len; it.line.position.set((p0.x + p1.x) / 2, y, (p0.z + p1.z) / 2); it.line.rotation.y = -Math.atan2(p1.z - p0.z, p1.x - p0.x);
+        it.label.position.set((p0.x + p1.x) / 2, y + 0.05, (p0.z + p1.z) / 2);
+        var txt = gapText(sg.mm) + (sg.snap ? "" : ""), key = txt + (sg.snap ? "|s" : "");
+        if (it.label.userData.last !== key){ gapLabelPaint(it.label.userData.cv, txt, !!sg.snap); it.label.material.map.needsUpdate = true; it.label.userData.last = key; }
+      });
+    }
+    function beamTargets(d, wallId){ // snap lines on a wall (mm), asked from the editor once per wall per drag
+      d.tcache = d.tcache || {};
+      if (!d.tcache[wallId]) d.tcache[wallId] = (opts.onBeamTargets && opts.onBeamTargets(d.meta.blockId, wallId)) || { a:[], n:[] };
+      return d.tcache[wallId];
+    }
+    // The beam's pose for a wanted centre (world mm): its own wall until the centre is well past that wall's ends, else the
+    // wall it has actually crossed onto (never a jump to a far wall); 10 mm grid + 50 mm magnets in that wall's frame.
+    function beamPoseAt(d, xMm, zMm, fine, free){
+      var K = window.KPBEAM, bm = d.meta.beam, g0 = geoms[wallIdx(bm.wallId)], wallId = bm.wallId, g = g0;
+      var lo = wallAN(g0, xMm / 1000, zMm / 1000), inside = insideRoomAt(xMm / 1000, zMm / 1000);
+      if (!K.keepsWall(lo.a, g0.lenM * 1000)){
+        var best = null;
+        walls.forEach(function(w, i){
+          var gg = geoms[i]; if (!gg || w.open || w.island || w.id === bm.wallId) return;
+          var q = wallAN(gg, xMm / 1000, zMm / 1000);
+          if (q.a < 0 || q.a > gg.lenM * 1000 || q.n < -50) return;
+          if (!best || q.n < best.n) best = { id:w.id, g:gg, n:q.n };
+        });
+        if (best){ wallId = best.id; g = best.g; }
+      }
+      var q2 = wallAN(g, xMm / 1000, zMm / 1000), long0 = bm.longDeg, longDeg = long0;
+      if (wallId !== bm.wallId){ // keep the beam pointing the same way in the room: its long axis in the new wall's frame
+        var dir = { x:g0.axis.x * Math.cos(long0 * Math.PI / 180) + g0.normal.x * Math.sin(long0 * Math.PI / 180), z:g0.axis.z * Math.cos(long0 * Math.PI / 180) + g0.normal.z * Math.sin(long0 * Math.PI / 180) };
+        longDeg = Math.atan2(dir.x * g.normal.x + dir.z * g.normal.z, dir.x * g.axis.x + dir.z * g.axis.z) * 180 / Math.PI;
+      }
+      var beta = longDeg - (bm.d > bm.w ? 90 : 0);
+      var pl = K.place({ cA:q2.a, cN:q2.n, w:bm.w, d:bm.d, ang:beta, fine:fine, free:free, targets:free ? null : beamTargets(d, wallId) });
+      return { wallId:wallId, cA:pl.cA, cN:pl.cN, beta:beta, longDeg:longDeg, snapA:pl.snapA, snapN:pl.snapN, outside:!inside };
+    }
+    function beamMove(evt){
+      var d = drag, pt = floorHit(evt, d.planeY); if (!pt || !d.pt0) return;
+      raycaster.setFromCamera(ndc(evt), camera);
+      var elev = Math.asin(Math.min(1, Math.abs(raycaster.ray.direction.y))) * 180 / Math.PI; // how steeply the ray meets the ceiling plane
+      // the pointer's TRAVEL since the last event (not its distance from the press) is what gets scaled and capped: the beam never
+      // catches up to the pointer, so a flat view can't make a steady hand fling it (the grip stays where it was grabbed)
+      var prev = d.prev || d.pt0, fl = Math.hypot(raycaster.ray.direction.x, raycaster.ray.direction.z) || 1,
+        nxt = window.KPBEAM.dampStep(d.cur, { x:d.cur.x + (pt.x - prev.x) * 1000, z:d.cur.z + (pt.z - prev.z) * 1000 }, elev, 0, { x:raycaster.ray.direction.x / fl, z:raycaster.ray.direction.z / fl });
+      d.prev = pt; d.cur = nxt;
+      var pose = beamPoseAt(d, nxt.x, nxt.z, evt.shiftKey, evt.altKey);
+      d.pose = pose;
+      var wp = wallPt(geoms[wallIdx(pose.wallId)], pose.cA, pose.cN);
+      if (!d.base) d.base = d.group.position.clone();
+      d.group.position.set(d.base.x + wp.x - d.c0.x / 1000, d.base.y, d.base.z + wp.z - d.c0.z / 1000);
+      hudDraw(d.meta.beam, pose);
+    }
+    function beamTurnAngle(evt, d){ // the pointer's direction from the beam's centre, in its wall's frame (degrees)
+      var g = geoms[wallIdx(d.meta.wallId)], pt = floorHit(evt, d.planeY); if (!g || !pt) return null;
+      var q = wallAN(g, pt.x - d.cw.x + g.origin.x, pt.z - d.cw.z + g.origin.z); // relative to the centre
+      return Math.atan2(q.n, q.a) * 180 / Math.PI;
+    }
+    function beamTurnMove(evt){
+      var d = drag, pa = beamTurnAngle(evt, d); if (pa === null) return;
+      var bm = d.meta.beam, K = window.KPBEAM, base = bm.d > bm.w ? 90 : 0;
+      var t = K.turn({ pointerAng:pa, grab:d.grab, base:base, fine:evt.shiftKey, free:evt.altKey });
+      d.longDeg = t.total; d.beta = t.total - base; d.magnet = t.magnet;
+      var u = d.meta; // the proxy was built as basis × rotY(-ang): rebuild it from the basis and the NEW total turn minus the quarter turn the rect already holds
+      u.proxy.quaternion.copy(u.baseQ).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -(d.beta - bm.rotBase) * Math.PI / 180));
+      var g = geoms[wallIdx(u.wallId)], phi = t.total * Math.PI / 180, hp = wallPt(g, bm.cA + Math.cos(phi) * u.dist * 1000, bm.cN + Math.sin(phi) * u.dist * 1000);
+      d.mesh.position.set(hp.x, d.mesh.position.y, hp.z);
+      hudDraw(bm, { wallId:u.wallId, cA:bm.cA, cN:bm.cN, beta:d.beta, snapA:false, snapN:false });
+    }
+    function beamCancel(){ // Esc during a drag: the beam goes back where it was, nothing is saved
+      var d = drag; if (!d) return false;
+      if (d.beam){ if (d.base) d.group.position.copy(d.base); }
+      else if (d.beamTurn){ var u = d.meta, bm = u.beam; u.proxy.quaternion.copy(u.baseQ).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -(bm.beta - bm.rotBase) * Math.PI / 180)); d.mesh.position.copy(d.pos0); }
+      else return false;
+      drag = null; haveTarget = false; controls.enabled = true; renderer.domElement.style.cursor = "";
+      suppressClick = true; hudHide(); showBeamHud(opts.selectedId);
+      return true;
+    }
+    function showBeamHud(id){ // the selected beam keeps its distances on show
+      var m = null;
+      pickables.forEach(function(p){ if (!m && p.userData && p.userData.ceiling && p.userData.blockId === id && p.userData.beam) m = p.userData; });
+      if (!m || !window.KPBEAM){ hudHide(); return; }
+      hudDraw(m.beam, { wallId:m.beam.wallId, cA:m.beam.cA, cN:m.beam.cN, beta:m.beam.beta, snapA:false, snapN:false });
+    }
+    BEAM_HUD = { sync:function(id){ if (!drag) showBeamHud(id); }, hide:hudHide };
+    function onBeamKey(e){ if (e.key === "Escape" && drag && (drag.beam || drag.beamTurn) && beamCancel()){ e.preventDefault(); e.stopImmediatePropagation(); } }
+    window.addEventListener("keydown", onBeamKey, true);
     function onDown(evt){
       if (evt.button !== undefined && evt.button !== 0) return;
       if (MEASURING) return; // málband (user, 2026-10-17): every click is left to OrbitControls and the tape tool, nothing here drags or selects
@@ -3909,6 +4037,17 @@
         controls.enabled = false;
         return;
       }
+      if (mesh.userData.kind === "beam-turn" && window.KPBEAM){ // a ceiling beam's turn handle (2026-10-30): the press belongs to the handle, not to orbiting
+        var bt = mesh.userData, bgi = wallIdx(bt.wallId), bg = geoms[bgi];
+        if (bg){
+          var cwB = wallPt(bg, bt.beam.cA, bt.beam.cN), bcw = { x:cwB.x, z:cwB.z };
+          drag = { meta:bt, mesh:mesh, beamTurn:true, startX:evt.clientX, startY:evt.clientY, moved:false, planeY:mesh.position.y, cw:bcw, pos0:mesh.position.clone() };
+          var pa0 = beamTurnAngle(evt, drag);
+          drag.grab = pa0 === null ? 0 : window.KPBEAM.normAng(pa0 - bt.beam.longDeg); // the angle between where it was grabbed and the beam's axis is kept
+        }
+        controls.enabled = false;
+        return;
+      }
       if (mesh.userData.kind === "obstacle-resize"){ // milliveggur far-end handle: stretches/shrinks it along its own wall's normal (2026-10-20)
         drag = { meta:mesh.userData, mesh:mesh, resize:true, startX:evt.clientX, startY:evt.clientY, moved:false };
         controls.enabled = false;
@@ -3918,6 +4057,10 @@
         var og = mesh; while (og.parent && !og.parent.isScene) og = og.parent;
         var ow = new THREE.Vector3(); mesh.getWorldPosition(ow); // moved on a level plane at its own mid-height: no parallax
         drag = { meta:mesh.userData, mesh:mesh, group:og, island:true, decor:true, obstacle:true, planeY:ow.y, startX:evt.clientX, startY:evt.clientY, moved:false, pt0:floorHit(evt, ow.y), dx:0, dz:0, groups:[og] };
+        if (mesh.userData.ceiling && mesh.userData.beam && window.KPBEAM){ // damped + snapped (2026-10-30)
+          var bmm = mesh.userData.beam, bgm = geoms[wallIdx(bmm.wallId)], c0w = bgm ? wallPt(bgm, bmm.cA, bmm.cN) : null;
+          if (c0w){ drag.beam = true; drag.c0 = { x:c0w.x * 1000, z:c0w.z * 1000 }; drag.cur = { x:drag.c0.x, z:drag.c0.z }; drag.pt0 = drag.pt0 || floorHit(evt, ow.y); }
+        }
         controls.enabled = false;
         return;
       }
@@ -4129,6 +4272,8 @@
         }
         return;
       }
+      if (drag.beamTurn){ beamTurnMove(evt); return; }
+      if (drag.beam){ beamMove(evt); return; }
       if (drag.island){
         var pt = floorHit(evt, drag.decor ? drag.planeY : 0);
         if (!pt || !drag.pt0) return;
@@ -4232,6 +4377,13 @@
         if (dS.moved){ suppressClick = true; if (opts.onShelfPosEnd) opts.onShelfPosEnd(dS.meta.blockId); }
         return;
       }
+      if (drag.beamTurn){
+        var dT = drag;
+        drag = null; controls.enabled = true; renderer.domElement.style.cursor = ""; hudHide();
+        if (dT.moved && dT.beta !== undefined){ suppressClick = true; if (opts.onObstacleTurnEnd) opts.onObstacleTurnEnd(dT.meta.obstacleId, dT.beta, dT.beta === dT.meta.beam.beta); }
+        else if (!dT.moved && opts.onSelect) opts.onSelect({ kind:"obstacle", zone:"obstacle", blockId:dT.meta.obstacleId, wallId:dT.meta.wallId });
+        return;
+      }
       if (drag.resize){
         var dR = drag;
         drag = null; controls.enabled = true; renderer.domElement.style.cursor = "";
@@ -4246,7 +4398,8 @@
         if (d0.moved){
           if (!d0.decor) d0.groups.forEach(function(g){ g.matrix.identity(); g.matrixWorldNeedsUpdate = true; });
           suppressClick = true;
-          if (d0.obstacle){ if (opts.onObstacleFloorEnd) opts.onObstacleFloorEnd(d0.meta.blockId, freeSpotOnWalls(d0)); }
+          if (d0.beam){ hudHide(); if (opts.onObstacleFloorEnd) opts.onObstacleFloorEnd(d0.meta.blockId, d0.pose ? { beam:true, wallId:d0.pose.wallId, cA:d0.pose.cA, cN:d0.pose.cN, longDeg:d0.pose.longDeg, outside:d0.pose.outside } : null); }
+          else if (d0.obstacle){ if (opts.onObstacleFloorEnd) opts.onObstacleFloorEnd(d0.meta.blockId, freeSpotOnWalls(d0)); }
           else if (d0.decor){ if (opts.onDecorDragEnd) opts.onDecorDragEnd(d0.meta.decorId, Math.round(d0.dx * 1000), Math.round(d0.dz * 1000)); }
           else if (opts.onIslandDragEnd) opts.onIslandDragEnd(d0.meta.islandId, Math.round(d0.dx * 1000), Math.round(d0.dz * 1000));
         } else if (opts.onSelect){
@@ -4309,6 +4462,7 @@
       wrap.removeEventListener("pointerdown", onDown, { capture:true });
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("keydown", onBeamKey, true); BEAM_HUD = null;
       renderer.domElement.removeEventListener("click", onClickEmpty);
     };
   }
@@ -4413,8 +4567,9 @@
       if (!!u.selected === want) return;
       u.selected = want;
       if (u.isPart) return; // fronts of a locked cabinet: only the outline shows the selection
+      if (u.kind === "beam-turn"){ if (u.dotMat) u.dotMat.color.setHex(want ? 0x0d8fbf : 0xf5c518); return; }
       if (u.kind === "obstacle"){ // the invisible grab box: tint its visible parts
-        m.children.forEach(function(ch){ if (ch.material && ch.material.emissive){ ch.material.emissive = new THREE.Color(want ? SELECT_COLOR : 0x000000); ch.material.emissiveIntensity = want ? 0.55 : 0; } });
+        m.children.forEach(function(ch){ if (ch.userData && ch.userData.beamOutline) ch.visible = want; else if (ch.material && ch.material.emissive){ ch.material.emissive = new THREE.Color(want ? SELECT_COLOR : 0x000000); ch.material.emissiveIntensity = want ? 0.55 : 0; } });
         return;
       }
       var cab = m.parent && m.parent.userData && m.parent.userData.cab;
@@ -4446,6 +4601,7 @@
       }
     });
     THREE_STATE.opts.selectedId = id;
+    if (BEAM_HUD) BEAM_HUD.sync(id);
     return true;
   }
 
@@ -5601,11 +5757,19 @@
       // dragged along / up and down the wall in the editor like a window (2026-10-11); o.locked = stays put (2026-10-23)
       var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd || !!o.locked, widthMm:rr.a1 - rr.a0, depthMm:rr.n1 - rr.n0, heightMm:v.hi - v.lo, elevMm:v.lo,
         free:!!def.free && !!opts.onObstacleFloorEnd && !o.locked };
+      if (def.ceiling && window.KPBEAM){ // a ceiling beam (2026-10-30): everything the damped drag / the turn handle need, in its wall's frame (mm)
+        // the UNTURNED box (w along the wall, d out of it, rot 90 undone) turned by beta = rot + ang about its centre — the same
+        // picture as obstacleCorners; longDeg = where its long axis points (the turn handle sits past that end)
+        var bwU = rr.rot ? rr.n1 - rr.n0 : rr.a1 - rr.a0, bdU = rr.rot ? rr.a1 - rr.a0 : rr.n1 - rr.n0, bBeta = (rr.rot ? 90 : 0) + obstacleAng(o);
+        meta.ceiling = true;
+        meta.beam = { rotBase:rr.rot ? 90 : 0, wallId:o.wallId, cA:(rr.a0 + rr.a1) / 2, cN:(rr.n0 + rr.n1) / 2, w:bwU, d:bdU, beta:bBeta, longDeg:bBeta + (bdU > bwU ? 90 : 0), wallLen:g.lenM * 1000, loMm:v.lo, hiMm:v.hi };
+      }
       // one invisible box = what you grab (world position, like a window plane); the visible parts are its children
       var grp = new THREE.Group(), proxy = new THREE.Mesh(new THREE.BoxGeometry(wM, hM, dM), new THREE.MeshBasicMaterial({ visible:false }));
       proxy.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
       var along = rr.a0 / 1000 + wM / 2;
       proxy.position.set(g.origin.x + g.axis.x * along + g.normal.x * (outM + dM / 2), v.lo / 1000 + hM / 2, g.origin.z + g.axis.z * along + g.normal.z * (outM + dM / 2));
+      var baseQ = proxy.quaternion.clone();
       if (obstacleAng(o)) proxy.rotateY(-obstacleAng(o) * Math.PI / 180); // any angle (2026-10-24), about its own centre
       proxy.userData = meta; grp.add(proxy); pickables.push(proxy);
       function part(geo, color, rough, metal, x, y, z){ // y from the bottom, z from the depth centre
@@ -5694,6 +5858,23 @@
           rH.userData = { kind:"obstacle-resize", obstacleId:o.id, wallId:o.wallId, end:end, rot:rr.rot, s0:rr.rot ? rr.a0 : rr.n0, s1:rr.rot ? rr.a1 : rr.n1, proxy:proxy, gapMm:gapMm };
           scene.add(rH); pickables.push(rH);
         });
+      }
+      // A ceiling beam (2026-10-30): a blue outline when selected, and a round turn handle past one end of it — always
+      // there (when it can be moved), a bigger invisible ball around it is what you grab, and it wins the pick over the beam
+      if (meta.ceiling){
+        var bm = meta.beam;
+        var edB = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(wM, hM, dM)), new THREE.LineBasicMaterial({ color:0x0d6ebf, depthTest:false }));
+        edB.renderOrder = 11; edB.visible = sel; edB.userData.beamOutline = true; proxy.add(edB); // setSelected3D flips it without a rebuild
+        if (meta.free && opts.onObstacleTurnEnd){
+          var half = Math.max(0.3, Math.max(bm.w, bm.d) / 2000 + 0.14), phiB = bm.longDeg * Math.PI / 180;
+          var ha = bm.cA / 1000 + Math.cos(phiB) * half, hn = bm.cN / 1000 + Math.sin(phiB) * half;
+          var pickB = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), new THREE.MeshBasicMaterial({ visible:false }));
+          var dotB = new THREE.Mesh(new THREE.SphereGeometry(0.07, 18, 18), new THREE.MeshBasicMaterial({ color:sel ? 0x0d8fbf : 0xf5c518, depthTest:false }));
+          dotB.renderOrder = 12; pickB.add(dotB);
+          pickB.position.set(g.origin.x + g.axis.x * ha + g.normal.x * hn, (v.lo + v.hi) / 2000, g.origin.z + g.axis.z * ha + g.normal.z * hn);
+          pickB.userData = { kind:"beam-turn", obstacleId:o.id, blockId:o.id, wallId:o.wallId, beam:bm, proxy:proxy, baseQ:baseQ, grpRef:grp, dist:half, dotMat:dotB.material };
+          scene.add(pickB); pickables.push(pickB);
+        }
       }
     });
 
@@ -6249,6 +6430,7 @@
     }
     THREE_STATE = { renderer:renderer, camera:camera, controls:controls, scene:scene, rafId:0, onResize:resize, cleanupInteraction:cleanupInteraction, wallToScreen:wallToScreen, screenToWall:screenToWall,
                     walls:surfaces, geoms:allGeoms, previewMesh:null, dragging:false, opts:opts, pickables:pickables, roomHM:WALL_H, wallHi:null, frontMat:frontMat };
+    if (BEAM_HUD) BEAM_HUD.sync(opts.selectedId); // a selected ceiling beam shows its distances to the walls right after a rebuild
     if (opts.selectedWallId) setSelectedWall3D(opts.selectedWallId);
 
     // Ganga um (user, 2026-10-23): first-person walk-through at eye height. Drag = look around, W/A/S/D or
