@@ -17946,7 +17946,7 @@
       var dCodes = KP3D.drawerCodes(b.interior, drawerSys()), dSpace = drawerBodyMm(b, c);
       var dFronts = KP3D.stackFrontsMm(b.interior, dCodes, dSpace);
       if (dFronts && dFronts.length === dCodes.length){
-        var dSum = dFronts.reduce(function(a, h){ return a + h; }, 0);
+        var dSum = dFronts.reduce(function(a, h){ return a + Math.round(h); }, 0); // the rounded values — what smidaFor writes
         if (Math.abs(dSum - dSpace) > 1.5) add(KPPROTEXT.drawerSum(dSum, dSpace), "drawers");
         dFronts.forEach(function(h, i){ if (h < KP3D.slotMin(dCodes[i]) - 0.5) add(KPPROTEXT.drawerMin(CODE_LABEL[dCodes[i]].toLowerCase(), h, KP3D.slotMin(dCodes[i])), "drawers"); });
       }
@@ -19649,7 +19649,7 @@
     var o = c.panel ? { v:1, w:d, h:h, d:19 } : { v:1, w:b.widthMm, h:h, d:d };
     // fronts[].mm = the drawer's slot = its "Sérhæð" on the Eyðublað — the designer's drawer heights ARE slots
     // (KP3D.drawerFrontsMm, 2026-10-09): they fill the space exactly and ÚRVINNSLA cuts each front 3 mm smaller
-    // (400 → 397). Rounded here; the top one takes what's left so they still add up.
+    // (400 → 397). Each front is just Math.round'ed here (no remainder goes to the top one); proIssues sums the same rounded values, so what it checks is what /cnc gets.
     var codes = null, fronts = null, space = 0;
     if (isDrawerUnit(b)){ codes = KP3D.drawerCodes(b.interior, drawerSys()); space = drawerBodyMm(b, c); fronts = KP3D.stackFrontsMm(b.interior, codes, space); }
     else if (c.lowOven){ codes = ["M"]; space = Math.max(53, h - KP3D.ovenHOf(b, c)); fronts = [space]; } // the zone under OFN6 is one slot (slot + oven = body)
