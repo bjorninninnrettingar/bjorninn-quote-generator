@@ -6497,8 +6497,22 @@
       }
       shift.cur += (shift.target - shift.cur) * 0.2;
       if (Math.abs(shift.target - shift.cur) < 0.5) shift.cur = shift.target;
-      if (shift.cur > 0.5) camera.setViewOffset(W, H, shift.cur, 0, W, H);
-      else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+      // the bottom card ("Viltu fá tillögu…", #fitAsk) covers the lower part of the canvas: until it is answered, frame the room
+      // in the part left over — same camera, a taller virtual frame shifted up (sweep studio2 #2). Perspective views only.
+      var bp = 0, ask = !focusBounds && document.querySelector(".fit-ask:not([hidden])"); // "Viltu fá tillögu" and the wardrobe's fill offer share the class
+      if (ask && ask.getClientRects().length){ /* position:fixed: no offsetParent */ var ar = ask.getBoundingClientRect(); bp = Math.max(0, Math.min(H * 0.45, cr.bottom - ar.top + 14)); }
+      if (bp > 0){
+        var padKey = W + "|" + H + "|" + Math.round(bp) + "|" + shift.cur;
+        if (padKey !== shift.padKey){
+          shift.padKey = padKey;
+          var avail = H - bp, FW = W * avail / H; // a frame as tall as the free band, the window (the whole canvas) bigger than it: the picture shrinks into the band, top-aligned
+          camera.setViewOffset(FW, avail, (FW - W) / 2 + shift.cur, 0, W, H);
+        }
+      } else {
+        shift.padKey = "";
+        if (shift.cur > 0.5) camera.setViewOffset(W, H, shift.cur, 0, W, H);
+        else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+      }
     }
 
     // "Veggur" view's dimension chain — projected fresh every frame (cheap: at most ~a dozen ticks)
