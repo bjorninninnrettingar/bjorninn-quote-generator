@@ -801,6 +801,8 @@
     "Teiknaðu rýmið fyrst.": "Draw the room first.",
     "Of langt til að snúa á þessum vegg — styttu það fyrst.": "Too long to rotate on this wall — shorten it first.",
     "Staða frá horni": "Position from corner",
+    "Sýna loft": "Show ceiling",
+    "Myndavélin fer upp og lítur niður á allt herbergið — bitinn sést alltaf": "The camera goes up and looks down on the whole room — the beam is always in view",
     "Snúningur (°)": "Turn (°)",
     "Hæð frá lofti": "Drop from ceiling",
     "Bitinn lenti utan herbergis — hann fór aftur á sinn stað.": "The beam ended up outside the room — it went back where it was.",

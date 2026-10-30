@@ -11645,7 +11645,7 @@
 
     if (viewMode === "2d"){
       wrap.hidden = true; plan.hidden = false;
-      KP3D.buildPlan2D(plan, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onSelect:onCabinetSelect, onWallSelect:onWallSelect, warnIds:warnIdList() });
+      KP3D.buildPlan2D(plan, state, { selectedId:selectedBlockId, selectedWallId:selectedWallId, onSelect:onCabinetSelect, onWallSelect:onWallSelect, warnIds:warnIdList(), onObstacleFloorEnd:onObstacleFloorEnd, onObstacleTurnEnd:onObstacleTurnEnd, onBeamTargets:beamSnapTargets });
       wireBlockDragHandlers();
       positionFloatBar2D();
       return;
@@ -12946,6 +12946,7 @@
       (def.blocks ? '' : '<p class="ov-mat" style="margin:8px 0 0;">' + __("Vaskaskápur eða uppþvottavél fer yfir það.") + '</p>') + '</div>' +
       (def.shapes ? '<div class="edit-field"><label>' + __("Lögun") + '</label><div class="hw-toggle"><button type="button" class="hw-btn' + (o.shape !== "round" ? ' active' : '') + '" data-ob-shape="square">▢ ' + __("Kassi") + '</button><button type="button" class="hw-btn' + (o.shape === "round" ? ' active' : '') + '" data-ob-shape="round">◯ ' + __("Hringur") + '</button></div></div>' : '') +
       (def.free || def.rotatable ? '<div class="edit-field lock-row">' +
+        (def.ceiling ? '<button type="button" class="iconbtn" data-role="ob-ceil" title="' + __("Myndavélin fer upp og lítur niður á allt herbergið — bitinn sést alltaf") + '">' + __("Sýna loft") + '</button> ' : '') +
         (def.rotatable ? '<button type="button" class="iconbtn" data-role="ob-rot" title="' + __("Snúa um 90° um miðjuna") + '"' + (o.locked ? ' disabled' : '') + '>' + __("↻ Snúa 90°") + '</button> ' : '') +
         '<button type="button" class="iconbtn lockbtn' + (o.locked ? ' on' : '') + '" data-role="ob-lock">' + (o.locked ? __("Læst — smelltu til að geta fært") : __("Hægt að færa — smelltu til að læsa")) + '</button></div>' : '') +
       '<div class="edit-actions"><button class="iconbtn" data-role="left"' + (o.locked ? ' disabled' : '') + '>◀ 100</button><button class="iconbtn" data-role="right"' + (o.locked ? ' disabled' : '') + '>100 ▶</button><button class="iconbtn del" data-role="delete"' + (o.locked ? ' disabled' : '') + '>' + __("✕ Fjarlægja") + '</button></div></div>';
@@ -12953,6 +12954,7 @@
     host.querySelector('[data-role="left"]').addEventListener("click", function(){ nudgeObstacle(o, -100); });
     host.querySelector('[data-role="right"]').addEventListener("click", function(){ nudgeObstacle(o, 100); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){ removeObstacle(o.id); });
+    var obCeil = host.querySelector('[data-role="ob-ceil"]'); if (obCeil) obCeil.addEventListener("click", function(){ if (viewMode !== "3d") setViewMode("3d"); KP3D.viewCeiling(); });
     var obRot = host.querySelector('[data-role="ob-rot"]'); if (obRot) obRot.addEventListener("click", function(){ rotateObstacle(o); });
     var obLock = host.querySelector('[data-role="ob-lock"]'); if (obLock) obLock.addEventListener("click", function(){ o.locked = !o.locked; if (!o.locked) delete o.locked; save(); refreshAfterEdit(); });
     host.querySelectorAll("[data-ob-shape]").forEach(function(b){ b.addEventListener("click", function(){ if (b.dataset.obShape === "round") o.shape = "round"; else delete o.shape; save(); refreshAfterEdit(); }); });

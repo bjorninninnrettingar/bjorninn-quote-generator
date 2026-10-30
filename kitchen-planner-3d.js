@@ -3737,6 +3737,58 @@
   }
   function isWallItem(meta){ return !!meta && (meta.zone === "wall" || meta.kind === "window" || meta.kind === "door" || meta.kind === "obstacle"); }
 
+  // Everything the damped drag / the turn handle / the plan drag need about a ceiling beam, in its wall's frame (mm): the UNTURNED
+  // box (w along the wall, d out of it, a quarter turn undone) turned by beta = rot + ang about its centre — the same picture as
+  // obstacleCorners; longDeg = where its long axis points (the turn handle sits past that end); rotBase = the quarter turn the
+  // rect (obstacleRect) already holds.
+  function beamMetaFor(state, o, g){
+    var rr = obstacleRect(o), v = obstacleVSpan(state, o);
+    var bwU = rr.rot ? rr.n1 - rr.n0 : rr.a1 - rr.a0, bdU = rr.rot ? rr.a1 - rr.a0 : rr.n1 - rr.n0, bBeta = (rr.rot ? 90 : 0) + obstacleAng(o);
+    return { rotBase:rr.rot ? 90 : 0, wallId:o.wallId, cA:(rr.a0 + rr.a1) / 2, cN:(rr.n0 + rr.n1) / 2, w:bwU, d:bdU, beta:bBeta, longDeg:bBeta + (bdU > bwU ? 90 : 0), wallLen:g.lenM * 1000, loMm:v.lo, hiMm:v.hi };
+  }
+  // ---- ceiling beam pose (2026-10-30), shared by the 3D drag and the Ofanmynd drag ----
+  // inside a closed room (ray-cast over the wall corners); an open room = anywhere
+  function beamRoomInside(geoms, walls, px, pz){
+    if (walls.some(function(w){ return w.open; })) return true;
+    var rg = geoms.filter(function(g, i){ return walls[i] && !walls[i].island; }), inside = false;
+    rg.forEach(function(g, i){ var h = rg[(i + 1) % rg.length], a = g.origin, b = h.origin;
+      if ((a.z > pz) !== (b.z > pz) && px < (b.x - a.x) * (pz - a.z) / (b.z - a.z) + a.x) inside = !inside; });
+    return inside;
+  }
+  function beamWallAN(g, x, z){ return { a:((x - g.origin.x) * g.axis.x + (z - g.origin.z) * g.axis.z) * 1000, n:((x - g.origin.x) * g.normal.x + (z - g.origin.z) * g.normal.z) * 1000 }; } // world metres → wall frame mm
+  // The beam's pose for a wanted centre (world mm): its own wall until the centre is well past that wall's ends, else the wall it
+  // has actually crossed onto (never a jump to a far wall); 10 mm grid + 50 mm magnets in that wall's frame.
+  // bm = meta.beam (unturned box w × d, long-axis direction longDeg in its wall's frame), targetsFor(wallId) → {a, n} snap lines.
+  function beamPoseFor(geoms, walls, bm, xMm, zMm, fine, free, targetsFor){
+    var K = window.KPBEAM, wi0 = walls.findIndex(function(w){ return w.id === bm.wallId; }), g0 = geoms[wi0], wallId = bm.wallId, g = g0;
+    var lo = beamWallAN(g0, xMm / 1000, zMm / 1000), inside = beamRoomInside(geoms, walls, xMm / 1000, zMm / 1000);
+    if (!K.keepsWall(lo.a, g0.lenM * 1000)){
+      var best = null;
+      walls.forEach(function(w, i){
+        var gg = geoms[i]; if (!gg || w.open || w.island || w.id === bm.wallId) return;
+        var q = beamWallAN(gg, xMm / 1000, zMm / 1000);
+        if (q.a < 0 || q.a > gg.lenM * 1000 || q.n < -50) return;
+        if (!best || q.n < best.n) best = { id:w.id, g:gg, n:q.n };
+      });
+      if (best){ wallId = best.id; g = best.g; }
+    }
+    var q2 = beamWallAN(g, xMm / 1000, zMm / 1000), long0 = bm.longDeg * Math.PI / 180, longDeg = bm.longDeg;
+    if (wallId !== bm.wallId){ // keep the beam pointing the same way in the room: its long axis in the new wall's frame
+      var dir = { x:g0.axis.x * Math.cos(long0) + g0.normal.x * Math.sin(long0), z:g0.axis.z * Math.cos(long0) + g0.normal.z * Math.sin(long0) };
+      longDeg = Math.atan2(dir.x * g.normal.x + dir.z * g.normal.z, dir.x * g.axis.x + dir.z * g.axis.z) * 180 / Math.PI;
+    }
+    var beta = longDeg - (bm.d > bm.w ? 90 : 0);
+    var pl = K.place({ cA:q2.a, cN:q2.n, w:bm.w, d:bm.d, ang:beta, fine:fine, free:free, targets:free ? null : targetsFor(wallId) });
+    return { wallId:wallId, cA:pl.cA, cN:pl.cN, beta:beta, longDeg:longDeg, snapA:pl.snapA, snapN:pl.snapN, outside:!inside };
+  }
+  // the turned box's four corners in world metres, for a pose in its wall's frame
+  function beamCornersWorld(g, cA, cN, w, d, beta){
+    var t = beta * Math.PI / 180, cs = Math.cos(t), sn = Math.sin(t);
+    return [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(function(p){
+      var a = cA + p[0] * cs - p[1] * sn, n = cN + p[0] * sn + p[1] * cs;
+      return { x:g.origin.x + g.axis.x * a / 1000 + g.normal.x * n / 1000, z:g.origin.z + g.axis.z * a / 1000 + g.normal.z * n / 1000 };
+    });
+  }
   function setupCabinetInteraction(THREE, wrap, renderer, camera, controls, pickables, geoms, walls, opts, roomHM){
     var raycaster = new THREE.Raycaster();
     var floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -3877,14 +3929,8 @@
     var BEAM_BLUE = "#0d6ebf", beamHud = [];
     function wallIdx(id){ return walls.findIndex(function(w){ return w.id === id; }); }
     function wallPt(g, a, n){ return { x:g.origin.x + g.axis.x * a / 1000 + g.normal.x * n / 1000, z:g.origin.z + g.axis.z * a / 1000 + g.normal.z * n / 1000 }; } // (a, n) mm → world metres
-    function wallAN(g, x, z){ return { a:((x - g.origin.x) * g.axis.x + (z - g.origin.z) * g.axis.z) * 1000, n:((x - g.origin.x) * g.normal.x + (z - g.origin.z) * g.normal.z) * 1000 }; } // world metres → mm
-    function insideRoomAt(px, pz){ // the same ray-cast as freeSpotOnWalls (an open room = anywhere)
-      if (walls.some(function(w){ return w.open; })) return true;
-      var rg = geoms.filter(function(g, i){ return walls[i] && !walls[i].island; }), inside = false;
-      rg.forEach(function(g, i){ var h = rg[(i + 1) % rg.length], a = g.origin, b = h.origin;
-        if ((a.z > pz) !== (b.z > pz) && px < (b.x - a.x) * (pz - a.z) / (b.z - a.z) + a.x) inside = !inside; });
-      return inside;
-    }
+    function wallAN(g, x, z){ return beamWallAN(g, x, z); } // world metres → mm
+    function insideRoomAt(px, pz){ return beamRoomInside(geoms, walls, px, pz); }
     function sceneForHud(){ return THREE_STATE && THREE_STATE.scene; }
     function hudHide(){ beamHud.forEach(function(it){ it.line.visible = false; it.label.visible = false; }); }
     function hudItem(i){
@@ -3925,30 +3971,7 @@
       if (!d.tcache[wallId]) d.tcache[wallId] = (opts.onBeamTargets && opts.onBeamTargets(d.meta.blockId, wallId)) || { a:[], n:[] };
       return d.tcache[wallId];
     }
-    // The beam's pose for a wanted centre (world mm): its own wall until the centre is well past that wall's ends, else the
-    // wall it has actually crossed onto (never a jump to a far wall); 10 mm grid + 50 mm magnets in that wall's frame.
-    function beamPoseAt(d, xMm, zMm, fine, free){
-      var K = window.KPBEAM, bm = d.meta.beam, g0 = geoms[wallIdx(bm.wallId)], wallId = bm.wallId, g = g0;
-      var lo = wallAN(g0, xMm / 1000, zMm / 1000), inside = insideRoomAt(xMm / 1000, zMm / 1000);
-      if (!K.keepsWall(lo.a, g0.lenM * 1000)){
-        var best = null;
-        walls.forEach(function(w, i){
-          var gg = geoms[i]; if (!gg || w.open || w.island || w.id === bm.wallId) return;
-          var q = wallAN(gg, xMm / 1000, zMm / 1000);
-          if (q.a < 0 || q.a > gg.lenM * 1000 || q.n < -50) return;
-          if (!best || q.n < best.n) best = { id:w.id, g:gg, n:q.n };
-        });
-        if (best){ wallId = best.id; g = best.g; }
-      }
-      var q2 = wallAN(g, xMm / 1000, zMm / 1000), long0 = bm.longDeg, longDeg = long0;
-      if (wallId !== bm.wallId){ // keep the beam pointing the same way in the room: its long axis in the new wall's frame
-        var dir = { x:g0.axis.x * Math.cos(long0 * Math.PI / 180) + g0.normal.x * Math.sin(long0 * Math.PI / 180), z:g0.axis.z * Math.cos(long0 * Math.PI / 180) + g0.normal.z * Math.sin(long0 * Math.PI / 180) };
-        longDeg = Math.atan2(dir.x * g.normal.x + dir.z * g.normal.z, dir.x * g.axis.x + dir.z * g.axis.z) * 180 / Math.PI;
-      }
-      var beta = longDeg - (bm.d > bm.w ? 90 : 0);
-      var pl = K.place({ cA:q2.a, cN:q2.n, w:bm.w, d:bm.d, ang:beta, fine:fine, free:free, targets:free ? null : beamTargets(d, wallId) });
-      return { wallId:wallId, cA:pl.cA, cN:pl.cN, beta:beta, longDeg:longDeg, snapA:pl.snapA, snapN:pl.snapN, outside:!inside };
-    }
+    function beamPoseAt(d, xMm, zMm, fine, free){ return beamPoseFor(geoms, walls, d.meta.beam, xMm, zMm, fine, free, function(wid){ return beamTargets(d, wid); }); }
     function beamMove(evt){
       var d = drag, pt = floorHit(evt, d.planeY); if (!pt || !d.pt0) return;
       raycaster.setFromCamera(ndc(evt), camera);
@@ -5757,13 +5780,7 @@
       // dragged along / up and down the wall in the editor like a window (2026-10-11); o.locked = stays put (2026-10-23)
       var meta = { kind:"obstacle", zone:"obstacle", blockId:o.id, wallId:o.wallId, locked:!opts.onCabinetDragEnd || !!o.locked, widthMm:rr.a1 - rr.a0, depthMm:rr.n1 - rr.n0, heightMm:v.hi - v.lo, elevMm:v.lo,
         free:!!def.free && !!opts.onObstacleFloorEnd && !o.locked };
-      if (def.ceiling && window.KPBEAM){ // a ceiling beam (2026-10-30): everything the damped drag / the turn handle need, in its wall's frame (mm)
-        // the UNTURNED box (w along the wall, d out of it, rot 90 undone) turned by beta = rot + ang about its centre — the same
-        // picture as obstacleCorners; longDeg = where its long axis points (the turn handle sits past that end)
-        var bwU = rr.rot ? rr.n1 - rr.n0 : rr.a1 - rr.a0, bdU = rr.rot ? rr.a1 - rr.a0 : rr.n1 - rr.n0, bBeta = (rr.rot ? 90 : 0) + obstacleAng(o);
-        meta.ceiling = true;
-        meta.beam = { rotBase:rr.rot ? 90 : 0, wallId:o.wallId, cA:(rr.a0 + rr.a1) / 2, cN:(rr.n0 + rr.n1) / 2, w:bwU, d:bdU, beta:bBeta, longDeg:bBeta + (bdU > bwU ? 90 : 0), wallLen:g.lenM * 1000, loMm:v.lo, hiMm:v.hi };
-      }
+      if (def.ceiling && window.KPBEAM){ meta.ceiling = true; meta.beam = beamMetaFor(state, o, g); } // a ceiling beam (2026-10-30)
       // one invisible box = what you grab (world position, like a window plane); the visible parts are its children
       var grp = new THREE.Group(), proxy = new THREE.Mesh(new THREE.BoxGeometry(wM, hM, dM), new THREE.MeshBasicMaterial({ visible:false }));
       proxy.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(g.axis.x, 0, g.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(g.normal.x, 0, g.normal.z)));
@@ -8094,6 +8111,56 @@
   // text along a plan line, never upside down; a side wall's text reads bottom-up
   function planTextAng(dx, dy){ var a = Math.atan2(dy, dx) * 180 / Math.PI; if (a >= 89.5) a -= 180; if (a < -90.5) a += 180; return Math.round(a * 10) / 10; }
   function planIsPro(){ return typeof document !== "undefined" && !!document.body && document.body.classList.contains("pro"); } // Sk-numbers are shop talk
+  // Ofanmynd: drag a ceiling beam and turn it by its round handle (2026-10-30). The plan is 1:1, so no damping — the same 10 mm grid,
+  // 50 mm magnets and wall rule as in 3D (beamPoseFor / KPBEAM.turn), Shift = fine, Alt = no magnets, Esc = back. Saved through
+  // opts.onObstacleFloorEnd / onObstacleTurnEnd, exactly what the 3D drag calls.
+  function wireBeamPlan(container, state, geoms, opts, handles, X, Y, minX, minZ){
+    var svgEl = container.querySelector("svg"), K = window.KPBEAM; if (!svgEl) return;
+    function toWorld(evt){ var m = svgEl.getScreenCTM(); if (!m) return null; var pt = svgEl.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY; var p = pt.matrixTransform(m.inverse()); return { x:p.x / PX_PER_M + minX, z:p.y / PX_PER_M + minZ }; }
+    function pts(cs){ return cs.map(function(p){ return X(p.x) + "," + Y(p.z); }).join(" "); }
+    Object.keys(handles).forEach(function(id){
+      var H = handles[id], bm = H.bm, g = H.g, poly = container.querySelector('polygon[data-obstacle-id="' + id + '"]'), hnd = container.querySelector('[data-beam-turn="' + id + '"]');
+      if (!poly || !hnd) return;
+      var poly0 = poly.getAttribute("points"), hx0 = hnd.getAttribute("cx"), hy0 = hnd.getAttribute("cy");
+      function run(evt, onMove, onEnd, onCancel){ // one gesture: window listeners until release / Esc
+        var startX = evt.clientX, startY = evt.clientY, moved = false;
+        function mv(e){ if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return; moved = true; onMove(e); }
+        function done(){ window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("keydown", esc, true); }
+        function up(e){ done(); if (moved) onEnd(e); }
+        function esc(e){ if (e.key === "Escape"){ e.preventDefault(); e.stopImmediatePropagation(); done(); poly.setAttribute("points", poly0); hnd.setAttribute("cx", hx0); hnd.setAttribute("cy", hy0); onCancel(); } }
+        window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("keydown", esc, true);
+      }
+      poly.style.cursor = "grab";
+      poly.addEventListener("pointerdown", function(evt){
+        if (evt.button) return;
+        evt.preventDefault();
+        var p0 = toWorld(evt); if (!p0) return;
+        var c0 = { x:(g.origin.x + g.axis.x * bm.cA / 1000 + g.normal.x * bm.cN / 1000) * 1000, z:(g.origin.z + g.axis.z * bm.cA / 1000 + g.normal.z * bm.cN / 1000) * 1000 }, pose = null, cache = {};
+        run(evt, function(e){
+          var p = toWorld(e); if (!p) return;
+          pose = beamPoseFor(geoms, state.walls, bm, c0.x + (p.x - p0.x) * 1000, c0.z + (p.z - p0.z) * 1000, e.shiftKey, e.altKey, function(wid){ return cache[wid] || (cache[wid] = opts.onBeamTargets(id, wid) || { a:[], n:[] }); });
+          var gp = geoms[state.walls.findIndex(function(w){ return w.id === pose.wallId; })];
+          poly.setAttribute("points", pts(beamCornersWorld(gp, pose.cA, pose.cN, bm.w, bm.d, pose.beta)));
+          hnd.style.visibility = "hidden";
+        }, function(){ hnd.style.visibility = ""; opts.onObstacleFloorEnd(id, pose ? { beam:true, wallId:pose.wallId, cA:pose.cA, cN:pose.cN, longDeg:pose.longDeg, outside:pose.outside } : null); }, function(){ hnd.style.visibility = ""; });
+      });
+      hnd.addEventListener("pointerdown", function(evt){
+        if (evt.button) return;
+        evt.preventDefault(); evt.stopPropagation();
+        var cw = { x:g.origin.x + g.axis.x * bm.cA / 1000 + g.normal.x * bm.cN / 1000, z:g.origin.z + g.axis.z * bm.cA / 1000 + g.normal.z * bm.cN / 1000 };
+        function ang(e){ var p = toWorld(e); if (!p) return null; var q = beamWallAN(g, p.x - cw.x + g.origin.x, p.z - cw.z + g.origin.z); return Math.atan2(q.n, q.a) * 180 / Math.PI; }
+        var a0 = ang(evt), grab = a0 === null ? 0 : K.normAng(a0 - bm.longDeg), base = bm.d > bm.w ? 90 : 0, beta = bm.beta;
+        run(evt, function(e){
+          var a = ang(e); if (a === null) return;
+          var t = K.turn({ pointerAng:a, grab:grab, base:base, fine:e.shiftKey, free:e.altKey }); beta = t.total - base;
+          poly.setAttribute("points", pts(beamCornersWorld(g, bm.cA, bm.cN, bm.w, bm.d, beta)));
+          var half = Math.max(0.3, Math.max(bm.w, bm.d) / 2000 + 0.14), ph = t.total * Math.PI / 180;
+          var hw = { x:cw.x + (g.axis.x * Math.cos(ph) + g.normal.x * Math.sin(ph)) * half, z:cw.z + (g.axis.z * Math.cos(ph) + g.normal.z * Math.sin(ph)) * half };
+          hnd.setAttribute("cx", X(hw.x)); hnd.setAttribute("cy", Y(hw.z));
+        }, function(){ opts.onObstacleTurnEnd(id, beta, beta === bm.beta); }, function(){});
+      });
+    });
+  }
   function buildPlan2D(container, state, opts){
     opts = opts || {};
     var geoms = wallGeoms(state);
@@ -8289,8 +8356,21 @@
         '<text x="' + X(hp.x) + '" y="' + Y(hp.z) + '" font-size="13" text-anchor="middle" dominant-baseline="central" fill="' + (sel ? "#fff" : "#2a2a2a") + '" style="pointer-events:none;">✥</text>';
     });
 
+    // ceiling beams: a round turn handle past the end (Ofanmynd drag, 2026-10-30) — same maths as the 3D one
+    var beamPlan = !!(window.KPBEAM && opts.onObstacleFloorEnd && opts.onObstacleTurnEnd && opts.onBeamTargets), beamHandles = {};
+    if (beamPlan) (state.obstacles || []).forEach(function(o){
+      var def = OBSTACLES[o.kind], gi = state.walls.findIndex(function(w){ return w.id === o.wallId; }), g = geoms[gi];
+      if (!def || !def.ceiling || o.locked || !g || state.walls[gi].open) return;
+      var bm = beamMetaFor(state, o, g), half = Math.max(0.3, Math.max(bm.w, bm.d) / 2000 + 0.14), phi = bm.longDeg * Math.PI / 180;
+      var hw = { x:g.origin.x + g.axis.x * (bm.cA / 1000 + Math.cos(phi) * half) + g.normal.x * (bm.cN / 1000 + Math.sin(phi) * half), z:g.origin.z + g.axis.z * (bm.cA / 1000 + Math.cos(phi) * half) + g.normal.z * (bm.cN / 1000 + Math.sin(phi) * half) };
+      beamHandles[o.id] = { bm:bm, g:g, o:o };
+      svg += '<circle data-beam-turn="' + o.id + '" cx="' + X(hw.x) + '" cy="' + Y(hw.z) + '" r="9" fill="' + (opts.selectedId === o.id ? "#0d8fbf" : "#f5c518") + '" stroke="#2a2a2a" stroke-width="1.4" style="cursor:grab;"/>';
+    });
+
     svg += "</svg>";
     container.innerHTML = svg;
+
+    if (beamPlan) wireBeamPlan(container, state, geoms, opts, beamHandles, X, Y, minX, minZ);
 
     if (opts.onSelect){
       container.querySelectorAll("[data-block-id]").forEach(function(el){
@@ -8426,6 +8506,24 @@
     hideDragPreview3D: hideDragPreview3D, showSnapGuides: showSnapGuides,
     teardown3D: teardown3D,
     _three: function(){ return THREE_STATE; },
+    // "Sýna loft" (2026-10-30): the camera goes up and looks almost straight down at the whole room, keeping the side it was on,
+    // so a ceiling beam is always in the picture and every drag ray is steep (no damping). The beams hang in the open from there.
+    viewCeiling: function(){
+      var st = THREE_STATE; if (!st) return false;
+      var xs = [], zs = [];
+      st.geoms.forEach(function(g, i){ var w = st.walls[i]; if (!g || !w || w.island) return; xs.push(g.origin.x, g.origin.x + g.axis.x * g.lenM); zs.push(g.origin.z, g.origin.z + g.axis.z * g.lenM); });
+      if (!xs.length) return false;
+      var cx = (Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2, cz = (Math.min.apply(null, zs) + Math.max.apply(null, zs)) / 2;
+      var span = Math.max(Math.max.apply(null, xs) - Math.min.apply(null, xs), Math.max.apply(null, zs) - Math.min.apply(null, zs), 2);
+      var cam = st.camera, ctl = st.controls, fov = (cam.fov || 40) * Math.PI / 180, aspect = cam.aspect || 1.4;
+      var R = (span * 0.62) / Math.tan(Math.min(fov / 2, Math.atan(Math.tan(fov / 2) * aspect))) + st.roomHM; // fits the room, from above its ceiling
+      var hx = cam.position.x - ctl.target.x, hz = cam.position.z - ctl.target.z, hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl; // the side it was on
+      var polar = 0.2; // a little off vertical, so it still orbits
+      ctl.target.set(cx, st.roomHM * 0.9, cz);
+      cam.position.set(cx + hx * R * Math.sin(polar), ctl.target.y + R * Math.cos(polar), cz + hz * R * Math.sin(polar));
+      ctl.update(); cam.updateMatrixWorld(); idleBump(2500);
+      return true;
+    },
     _quality: QUALITY,
     _stepMood: function(n){ for (var i = 0; i < (n || 60); i++) if (THREE_STATE) stepMood(THREE_STATE.scene); return MOOD_T; } // debugging: rAF doesn't run in a hidden tab
   };
