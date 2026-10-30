@@ -1549,6 +1549,7 @@
     "({n} skápar).": "({n} cabinets).",
     "Vatnsinntak / niðurfall á {w} er ekki á bak við vaskaskáp eða uppþvottavél.": "The water supply / drain on {w} is not behind a sink cabinet or dishwasher.",
     "Bil {n} mm frá {a} að vegg á {w} — áfella eða færa skápinn að?": "{n} mm gap from {a} to the wall on {w} — filler panel, or move the cabinet up to it?",
+    "Áfella {n} mm á {w} við {a} — færa skápinn að eða setja fyllistykki?": "Filler panel {n} mm on {w} at {a} — move the cabinet closer or add a filler strip?",
     "Bil {n} mm milli {a} og {b} á {w} — áfella, fyllistykki eða færa saman?": "{n} mm gap between {a} and {b} on {w} — filler panel, or close it up?",
     "{n} vaskaskápar í rýminu ({list}) — er það ætlunin?": "{n} sink cabinets in this room ({list}) — is that intended?",
     "Rennihurðin á {w} rennur þar sem {what} eru — láttu hana renna í hina áttina eða færðu skápana.": "The sliding door on {w} slides where the {what} are — make it slide the other way or move the cabinets.",

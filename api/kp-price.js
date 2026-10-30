@@ -25,7 +25,7 @@ import { makeAirtable, listAll, idsKey, validHandleSkus, handleSlots } from "./k
 const PROJECTS = "tbl4LMXlQjp66RFKI", LINE_ITEMS = "tblFcsUoGxsuUwNEH", VARIANTS = "tbl8HjvBwNJ41cTV0";
 const MATERIALS = "tbl8CrVWKF8CuI7HD", PRODUCTS = "tblzuuRSRkeXaLWxC";
 const REC_RE = /^rec[A-Za-z0-9]{14}$/;
-const KEY_RE = /^(Sk|UH|HU|BP|BV|BH)\d{1,3}$/; // cabinets Sk1…, room doors HU1… (2026-10-23), worktop BP1 + its cutouts BV1/BH1 (2026-10-26)
+const KEY_RE = /^(Sk|UH|AF|HU|BP|BV|BH)\d{1,3}$/; // cabinets Sk1…, room doors HU1… (2026-10-23), worktop BP1 + its cutouts BV1/BH1 (2026-10-26)
 const VAT = 1.24;
 const DEFAULT_MARKUP = 2.05; // "❗Álagning á efniskostnað❗" default on a new Line Item (every planner line has it)
 

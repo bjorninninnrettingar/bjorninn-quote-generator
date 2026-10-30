@@ -30,6 +30,7 @@ const want = { efnislisti: new Set(), vorulisti: new Set(), utfaerslur: new Set(
 for (const h of Object.values(ctx.window.KPMODELS.handles || {})) for (const o of h.lenOptions || []) want.vorulisti.add(o.vorulistiId);
 // linemap + Töfrahorn → Útfærslur
 (function walk(o) { for (const v of Object.values(o)) if (v && typeof v === "object") { if (typeof v.id === "string") want.utfaerslur.add(v.id); walk(v); } })(ctx.window.KP_LINEMAP);
+if (/^rec\w{14}$/.test(ctx.window.KP_LINEMAP.afellaId || "")) want.utfaerslur.add(ctx.window.KP_LINEMAP.afellaId); // Útfærsla "Áfella" (a plain string, so the walk above misses it)
 const tof = read("kitchen-planner-3d.js").match(/tofrahornIds:(\{[^\n]+\} \})/);
 for (const m of (tof ? tof[1] : "").matchAll(/"(rec\w{14})"/g)) want.utfaerslur.add(m[1]);
 // lighting products (LIGHT_PRODUCTS in the planner) → Útfærslur

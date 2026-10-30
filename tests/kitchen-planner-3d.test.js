@@ -150,7 +150,9 @@ test("fitWarnings pro: small gaps want an áfella; a door in the gap or a wide g
   assert.ok(!w.some((m) => /frá Sk1 að vegg/.test(m))); // a lone wall's end has no wall face to fill against
   const closed = { closed: true, roomHeightMm: 2600, walls: [0, 1, 2, 3].map((i) => ({ id: "w" + i, label: "Veggur " + (i + 1), lengthMm: 4000, turnAfter: "left", floor: i ? [] : [b("Sk1", 120)], wall: [] })) };
   w = K.fitWarnings(closed, { pro: true }).map((x) => x.msg);
-  assert.ok(w.some((m) => /Bil 101 mm frá Sk1 að vegg á vegg 1/.test(m)), w.join(" | ")); // 120 − the 19 mm áfella already kept free
+  assert.ok(w.some((m) => /Áfella 120 mm á vegg 1 við Sk1/.test(m)), w.join(" | ")); // (2026-10-30) the áfella takes the whole gap to the wall: above 100 mm it is worth a word
+  closed.walls[0].floor[0].gapMm = 90; // …and 90 mm is just a wide áfella: no hint
+  assert.ok(!K.fitWarnings(closed, { pro: true }).some((x) => /vegg/.test(x.msg) && /Sk1/.test(x.msg)), "90 mm áfella is quiet");
   assert.equal(K.fitWarnings(room([b("Sk1", 0), b("Sk2", 150)])).length, 0); // customers: unchanged
   w = K.fitWarnings(room([b("Sk1", 0), b("Sk2", 150)], { doors: [{ id: "d", wallId: "w0", offsetMm: 610, widthMm: 100, heightMm: 2100 }] }), { pro: true }).map((x) => x.msg);
   assert.ok(!w.some((m) => /Bil/.test(m)), w.join(" | "));

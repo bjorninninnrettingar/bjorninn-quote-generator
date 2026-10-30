@@ -1076,7 +1076,14 @@
   // A wall "end" is solid when the neighbouring wall turns inwards (left) and isn't an open edge. At the
   // start of a floor run that already begins after the previous wall's cabinets (corner clearance), the run
   // meets their side panel, not the wall — no áfella there.
-  var AFELLA_MM = 19;
+  // Round 1 of docs/spec-afella-2026-10-30.md: the width is the real gap between the last cabinet and the wall (never
+  // under 19 mm) or what was typed at that wall end (wall.afella = { start:{mm}, end:{mm} }; no field = 19 mm as before).
+  // Wider than AFELLA_MAX_MM is a gap, not an áfella (G6 already says so).
+  var AFELLA_MM = 19, AFELLA_MAX_MM = 300, AFELLA_WARN_MM = 100;
+  function afellaTypedMm(w, side){
+    var a = w && w.afella && w.afella[side], mm = a ? +a.mm : 0;
+    return mm >= AFELLA_MM && mm <= AFELLA_MAX_MM ? Math.round(mm) : 0;
+  }
   function realWallCount(walls){ var n = 0; while (n < walls.length && !walls[n].island && !walls[n].partition) n++; return n; }
   function afellaMm(walls, wallIndex, zoneKey){
     var w = walls[wallIndex], n = realWallCount(walls);
@@ -1086,7 +1093,29 @@
     var startSolid = !!prev && prev !== w && prev.turnAfter === "left" && !prev.open && turnAngle(prev) > 20; // a (nearly) straight joint isn't a corner
     var endSolid = !!next && next !== w && w.turnAfter === "left" && !next.open && turnAngle(w) > 20;
     if (startSolid && zoneKey === "floor" && cornerClearanceMm(walls, wallIndex, "floor") > 0) startSolid = false;
-    return { start:startSolid ? AFELLA_MM : 0, end:endSolid ? AFELLA_MM : 0 };
+    return { start:startSolid ? (afellaTypedMm(w, "start") || AFELLA_MM) : 0, end:endSolid ? (afellaTypedMm(w, "end") || AFELLA_MM) : 0 };
+  }
+
+  // The áfellur that actually exist on one wall zone: one per wall end where the first / last cabinet stands at (or
+  // beyond) the reserved width and within AFELLA_MAX_MM of the wall. mm = the real gap (that is the part to cut).
+  // An end panel (úthlið) at the end already closes it — no áfella there. Old drafts flush to the wall: none.
+  function afellaEndsOf(walls, wi, zoneKey){
+    var w = walls[wi], out = [];
+    if (!w || w.island || w.partition) return out;
+    var list = w[zoneKey] || [];
+    if (!list.length) return out;
+    var af = afellaMm(walls, wi, zoneKey), clear = zoneKey === "floor" ? cornerClearanceMm(walls, wi, "floor") : 0;
+    var starts = blockStartsMm(list, clear), li = list.length - 1;
+    function plain(b){ var c = CATALOG[b.type]; return !!c && !c.panel && !c.shelfStack; }
+    if (af.start && plain(list[0])){
+      var g0 = starts[0] - clear;
+      if (g0 >= af.start - 1 && g0 <= AFELLA_MAX_MM) out.push({ side:"start", zone:zoneKey, at:clear, mm:Math.round(g0), b:list[0] });
+    }
+    if (af.end && plain(list[li])){
+      var g1 = (w.lengthMm || 0) - (starts[li] + list[li].widthMm);
+      if (g1 >= af.end - 1 && g1 <= AFELLA_MAX_MM) out.push({ side:"end", zone:zoneKey, at:(w.lengthMm || 0) - Math.round(g1), mm:Math.round(g1), b:list[li] });
+    }
+    return out;
   }
 
   // Free positioning along a wall: each block may carry `gapMm` = empty space
@@ -1144,18 +1173,21 @@
           .map(function(o){ var v = obstacleVSpan(state, o), r = obstacleRect(o); return { kind:"hindrun", o:{ id:o.id, kind:o.kind, offsetMm:r.a0, widthMm:r.a1 - r.a0 }, lo:v.lo, hi:v.hi }; }));
       if (pro && !wall.partition && wall.floor.length){ // G6: gaps that need an áfella / fyllistykki — nothing in the Sögunarlisti covers them
         var cc = cornerClearanceMm(state.walls, wi, "floor"), af = afellaMm(surfs, wi, "floor"), lo = cc + af.start, hi = wall.lengthMm - af.end;
+        // (2026-10-30) at a wall the áfella takes the whole gap to the wall: only worth a word above AFELLA_WARN_MM (owner)
         var nm = function(b){ return b.sk || __(CATALOG[b.type].label); };
         var gaps = [];
-        if (cc > 0 || af.start > 0) gaps.push({ from:lo, to:fStarts[0], b:wall.floor[0], end:true }); // only where a wall / corner run meets it
+        if (af.start > 0) gaps.push({ from:cc, to:fStarts[0], b:wall.floor[0], end:true, af:true });
+        else if (cc > 0) gaps.push({ from:lo, to:fStarts[0], b:wall.floor[0], end:true }); // only where a wall / corner run meets it
         wall.floor.forEach(function(b, i){ if (i) gaps.push({ from:fStarts[i - 1] + wall.floor[i - 1].widthMm, to:fStarts[i], a:wall.floor[i - 1], b:b }); });
         var li = wall.floor.length - 1;
-        if (af.end > 0) gaps.push({ from:fStarts[li] + wall.floor[li].widthMm, to:hi, a:wall.floor[li], end:true });
+        if (af.end > 0) gaps.push({ from:fStarts[li] + wall.floor[li].widthMm, to:wall.lengthMm, a:wall.floor[li], end:true, af:true });
         gaps.forEach(function(g){
           var n = Math.round(g.to - g.from);
-          if (n < 5 || n >= GAP_HINT_MM) return;
+          if (n < 5 || n >= GAP_HINT_MM || (g.af && n <= AFELLA_WARN_MM)) return;
           if (ops.some(function(op){ return op.lo < 900 && op.o.offsetMm < g.to && op.o.offsetMm + op.o.widthMm > g.from; })) return; // a door/opening/radiator is the reason
           var one = g.a || g.b;
-          add(g.end ? __("Bil {n} mm frá {a} að vegg á {w} — áfella eða færa skápinn að?", { n:n, a:nm(one), w:acc(wall.label) })
+          add(g.af ? __("Áfella {n} mm á {w} við {a} — færa skápinn að eða setja fyllistykki?", { n:n, a:nm(one), w:acc(wall.label) })
+            : g.end ? __("Bil {n} mm frá {a} að vegg á {w} — áfella eða færa skápinn að?", { n:n, a:nm(one), w:acc(wall.label) })
                     : __("Bil {n} mm milli {a} og {b} á {w} — áfella, fyllistykki eða færa saman?", { n:n, a:nm(g.a), b:nm(g.b), w:acc(wall.label) }), [g.a, g.b].filter(Boolean).map(function(b){ return b.id; }));
         });
       }
@@ -5951,17 +5983,12 @@
     // cabinet's bottom, for wall units) to its top, the worktop running on over it
     function addAfellur(g, wall, wi, fStarts, wStarts){
       [["floor", fStarts, cornerClearanceMm(surfaces, wi, "floor")], ["wall", wStarts, 0]].forEach(function(z){
-        var list = wall[z[0]], starts = z[1], af = afellaMm(surfaces, wi, z[0]);
-        if (!list.length) return;
-        var ends = [];
-        if (af.start && Math.abs(starts[0] - z[2] - AFELLA_MM) < 1) ends.push({ b:list[0], at:z[2] });
-        var li = list.length - 1;
-        if (af.end && Math.abs(g.lenM * 1000 - AFELLA_MM - (starts[li] + list[li].widthMm)) < 1) ends.push({ b:list[li], at:g.lenM * 1000 - AFELLA_MM });
+        var ends = afellaEndsOf(surfaces, wi, z[0]);
         ends.forEach(function(e){
           var c = CATALOG[e.b.type];
           if (c.panel || c.shelfStack) return; // an end panel already closes it
           var hM = Math.min(e.b.heightMm || c.h, roomHeightMm) / 1000, dM = (e.b.depthMm || c.d) / 1000;
-          var y0 = z[0] === "wall" ? elevOf(e.b) / 1000 : 0, w = AFELLA_MM / 1000;
+          var y0 = z[0] === "wall" ? elevOf(e.b) / 1000 : 0, w = e.mm / 1000;
           var geo = new THREE.BoxGeometry(w - 0.002, hM, dM); // 1 mm off the wall and the cabinet: no shared planes
           panelUV(geo, w, hM, dM, frontMat.userData && frontMat.userData.tile);
           var m = new THREE.Mesh(geo, frontMat), along = e.at / 1000 + w / 2;
@@ -8426,7 +8453,7 @@
     HANDLE_FINISHES: HANDLE_FINISHES,
     handleFinishFor: handleFinishFor,
     wallGeometry3D: wallGeometry3D,
-    cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, AFELLA_MM: AFELLA_MM,
+    cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, afellaEndsOf: afellaEndsOf, afellaTypedMm: afellaTypedMm, AFELLA_MM: AFELLA_MM, AFELLA_MAX_MM: AFELLA_MAX_MM, AFELLA_WARN_MM: AFELLA_WARN_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
     rectCornersWorld: rectCornersWorld, setSpacious: setSpacious, isSpacious: function(){ return SPACIOUS; }, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,

@@ -36,7 +36,7 @@ const PROJECT_NAME = "Heiti tækifæris / verkefnis";
 const LINK_TO_PROJECT = "Tækifæri 📣 (projects)";
 const SMIDA = "Smíðagögn (JSON) 🔧";
 const REC_RE = /^rec[A-Za-z0-9]{14}$/;
-const KEY_RE = /^(Sk|UH|HU|BP|BV|BH)\d{1,3}$/; // cabinets Sk1…, room doors HU1… (2026-10-23), worktop BP1 + cutouts BV1/BH1 (2026-10-26)
+const KEY_RE = /^(Sk|UH|AF|HU|BP|BV|BH)\d{1,3}$/; // cabinets Sk1…, room doors HU1… (2026-10-23), worktop BP1 + cutouts BV1/BH1 (2026-10-26)
 // Materials + handles on the Tækifæri (2026-10-23): Airtable prices every line from these, but pro Vista never
 // wrote them — a front changed in the drawing kept the quote on the old front. Same idea as V1/V2/V3 below, one
 // rule: the drawing's value is written unless it is unchanged since the drawing last sent it AND Airtable has

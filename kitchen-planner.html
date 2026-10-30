@@ -3165,11 +3165,12 @@
     var next = histIdx + dir;
     if (next < 0 || next >= undoStack.length) return;
     histIdx = next;
-    var keep = { proSavedAt:state.proSavedAt, liSent:state.liSent, roomMats:state.roomMats }; // what Airtable has now, not what it had when the snapshot was taken (else the next Vista is a false 409)
+    var keep = { proSavedAt:state.proSavedAt, liSent:state.liSent, roomMats:state.roomMats, afKeys:state.afKeys }; // what Airtable has now, not what it had when the snapshot was taken (else the next Vista is a false 409)
     state = JSON.parse(undoStack[histIdx]);
     if (keep.proSavedAt) state.proSavedAt = keep.proSavedAt;
     if (keep.liSent) state.liSent = keep.liSent;
     if (keep.roomMats) state.roomMats = keep.roomMats;
+    if (keep.afKeys) state.afKeys = Object.assign({}, state.afKeys, keep.afKeys); // AF numbers are never taken back (they may already be in Airtable)
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
     if (selectedBlockId && !findBlock(selectedBlockId)) selectedBlockId = null;
     updateHistoryButtons();
@@ -6426,6 +6427,111 @@
   function runStartMm(wall, zoneKey){ return cornerClearance(wall, zoneKey) + afella(wall, zoneKey).start; }
   function runEndMm(wall, zoneKey){ return wall.lengthMm - afella(wall, zoneKey).end; }
 
+  // ---- áfella as a real part (round 1, docs/spec-afella-2026-10-30.md) ----
+  // Not a block in the row: derived from the geometry (KP3D.afellaEndsOf — real gap to the wall, 19 mm minimum) with
+  // the typed mm kept in wall.afella = { start:{mm}, end:{mm} } (no field = 19 mm, so old drafts are untouched).
+  // Its 🔑 AF1… is kept in state.afKeys and never reused (numbers must not shift when one is removed).
+  // AFELLA_UTFAERSLA_ID is the Útfærsla "Áfella" (kitchen-planner-linemap.js `afellaId`): while it is still the placeholder
+  // the planner emits NO AF lines, so nothing broken can be submitted.
+  var AFELLA_PLACEHOLDER = "PLACEHOLDER_AFELLA_UTFAERSLA_ID";
+  var AFELLA_UTFAERSLA_ID = (window.KP_LINEMAP && window.KP_LINEMAP.afellaId) || AFELLA_PLACEHOLDER;
+  function afellaLive(){ return /^rec[A-Za-z0-9]{14}$/.test(AFELLA_UTFAERSLA_ID); }
+  function afellaEnds(wall){
+    if (!wall || wall.island || wall.partition) return [];
+    var surfs = KP3D.surfacesOf(state), wi = state.walls.indexOf(wall);
+    return wi < 0 ? [] : KP3D.afellaEndsOf(surfs, wi, "floor").concat(KP3D.afellaEndsOf(surfs, wi, "wall"));
+  }
+  function afellaId(wall, e){ return "v:" + wall.id + ":" + e.side + (e.zone === "wall" ? ":wall" : ""); }
+  function afKeyOf(id){
+    var m = state.afKeys || (state.afKeys = {}), k = (SK_CAT || state.activeCategory || "") + "|" + id;
+    if (!m[k]){ var max = 0; Object.keys(m).forEach(function(x){ max = Math.max(max, +String(m[x]).slice(2) || 0); }); m[k] = "AF" + (max + 1); }
+    return m[k];
+  }
+  function afellaWhere(wall, e){
+    return "Áfella við " + String(wall.label).replace(/^Veggur/, "Vegg") + ", " + (e.side === "start" ? "vinstri" : "hægri") + (e.zone === "wall" ? " (efri skápar)" : "") + " (" + e.mm + " mm)";
+  }
+  // one Line Item per áfella (same shape as an úthlið's): Smíðagögn w = width, h = the cabinet's height, d = 19
+  function afLines(){
+    if (!afellaLive()) return [];
+    var out = [], fp = projectFrontPlan(), own = roomOwnMats();
+    state.walls.forEach(function(wall){
+      afellaEnds(wall).forEach(function(e){
+        var c = CATALOG[e.b.type], fields = { "Rými 🏡":state.intake.room || "Eldhús", "Magn":1, "🔑":afKeyOf(afellaId(wall, e)), "Vöru reitur 1":[AFELLA_UTFAERSLA_ID] };
+        fields["Skilaboð til skipulags"] = afellaWhere(wall, e);
+        fields["Smíðagögn (JSON) 🔧"] = JSON.stringify({ v:1, w:e.mm, h:proBodyMm(e.b, c, e.zone), d:19 });
+        var fid = e.b.front2 && state.look2 && LOOKS[state.look2] ? LOOKS[state.look2].efnislistiId : lookFrontId(state.look, state.handle);
+        fields["Frontaefni #2"] = !!(fp.fr2 && fid === fp.fr2);
+        fields["Skrokkaefni (lína) 🔲"] = own.carcass; fields["Borðplata (lína) 🍽️"] = own.top;
+        out.push(fields);
+      });
+    });
+    return out;
+  }
+  // Typed mm at a wall end (PRO): the first / last cabinet of each row that stands at that wall is moved so the gap to
+  // the wall is exactly that (the cabinets beside it follow while they are butted up; later ones are pushed as far as
+  // needed). When it does not fit — the run is too short, a unit of the other row is in the way — nothing changes and it
+  // says so. Empty / 0 = automatic again (the real gap, 19 mm at least); nothing moves then.
+  function setAfellaMm(wall, side, raw){
+    var mm = raw === "" || raw == null ? 0 : Math.round(parseFloat(raw));
+    if (isNaN(mm)) mm = 0;
+    var MAXA = KP3D.AFELLA_MAX_MM;
+    if (mm && (mm < 19 || mm > MAXA)){ toast("Áfella er 19–" + MAXA + " mm. Stærra bil þarf fyllistykki eða að skápurinn sé færður."); return false; }
+    var oldAf = JSON.stringify(wall.afella || null), oldGaps = {};
+    ["floor", "wall"].forEach(function(z){ oldGaps[z] = wall[z].map(function(b){ return b.gapMm; }); });
+    function undo(){
+      if (oldAf === "null") delete wall.afella; else wall.afella = JSON.parse(oldAf);
+      ["floor", "wall"].forEach(function(z){ wall[z].forEach(function(b, i){ if (oldGaps[z][i]) b.gapMm = oldGaps[z][i]; else delete b.gapMm; }); });
+    }
+    var next = Object.assign({}, wall.afella);
+    if (mm) next[side] = { mm:mm }; else delete next[side];
+    if (next.start || next.end) wall.afella = next; else delete wall.afella;
+    if (JSON.stringify(wall.afella || null) === oldAf) return true;
+    var ok = true;
+    if (mm) ["floor", "wall"].forEach(function(zone){
+      var list = wall[zone]; if (!ok || !list.length) return;
+      var clear = cornerClearance(wall, zone), sp = spansOf(wall, zone), n = list.length, st = sp.map(function(x){ return x.start; });
+      if (side === "start"){
+        if (zone === "floor" && clear > 0) return; // a corner run starts at the other wall's cabinets: no áfella there
+        var want = clear + mm, delta = want - st[0];
+        if (delta === 0 || (delta < 0 && st[0] - clear > MAXA)) return; // far from the wall: not an áfella row
+        if (delta > 0){ st[0] = want; for (var j = 1; j < n; j++) st[j] = Math.max(st[j], st[j - 1] + list[j - 1].widthMm); }
+        else for (var i = 0; i < n && (i === 0 || sp[i].start - sp[i - 1].end <= 2); i++) st[i] += delta;
+        if (st[n - 1] + list[n - 1].widthMm > runEndMm(wall, zone) + 0.5) ok = false;
+      } else {
+        var wantEnd = wall.lengthMm - mm, deltaE = wantEnd - sp[n - 1].end;
+        if (deltaE === 0 || (deltaE > 0 && wall.lengthMm - sp[n - 1].end > MAXA)) return;
+        if (deltaE < 0){ st[n - 1] = wantEnd - list[n - 1].widthMm; for (var m = n - 2; m >= 0; m--) st[m] = Math.min(st[m], st[m + 1] - list[m].widthMm); }
+        else for (var k = n - 1; k >= 0 && (k === n - 1 || sp[k + 1].start - sp[k].end <= 2); k--) st[k] += deltaE;
+        if (st[0] < runStartMm(wall, zone) - 0.5) ok = false;
+      }
+      if (!ok) return;
+      st.forEach(function(x, ix){ var g = Math.round(x - (ix ? st[ix - 1] + list[ix - 1].widthMm : clear)); if (g > 0) list[ix].gapMm = g; else delete list[ix].gapMm; });
+    });
+    if (ok) ["floor", "wall"].forEach(function(zone){ if (ok && wall[zone].some(function(x){ return crossOverlap(wall, zone, x); })) ok = false; });
+    if (!ok){ undo(); toast("Það kemst ekki fyrir — færðu skápana eða minnkaðu áfelluna. Ekkert breyttist."); return false; }
+    save(); refreshAfterEdit();
+    return true;
+  }
+
+  // PRO: the typed-mm fields for the wall ends this cabinet stands at (rows for the edit panel / the Smíða box editor)
+  function afellaEndsOfBlock(b){
+    var f = PRO ? findBlock(b.id) : null;
+    return f && !f.wall.island && !f.wall.partition ? afellaEnds(f.wall).filter(function(x){ return x.b === b; }) : [];
+  }
+  function afellaFieldsHtml(b, smida){
+    return afellaEndsOfBlock(b).map(function(e){
+      var lab = e.side === "start" ? "vinstri" : "hægri", inp = '<input type="number" step="1" min="19" max="' + KP3D.AFELLA_MAX_MM + '" value="' + e.mm + '" data-' + (smida ? 'pe' : 'role') + '="afmm" data-side="' + e.side + '" title="Enter staðfestir. Tómt = sjálfvirkt (bilið að veggnum, minnst 19)">';
+      return smida ? '<div class="pe-row">Áfella við vegg, ' + lab + ': ' + inp + ' mm</div>'
+        : '<div class="edit-field"><label>Áfella við vegg, ' + lab + ' (mm)</label><div class="dim-grid"><div class="dim-f">' + inp + '</div></div></div>';
+    }).join("");
+  }
+  function wireAfellaFields(host, b, after){
+    host.querySelectorAll('[data-role="afmm"],[data-pe="afmm"]').forEach(function(inp){
+      inp.addEventListener("keydown", function(ev){ ev.stopPropagation(); if (ev.key === "Enter"){ ev.preventDefault(); inp.blur(); } });
+      inp.addEventListener("change", function(){ var f = findBlock(b.id); if (f) setAfellaMm(f.wall, inp.dataset.side, inp.value); after(); });
+    });
+  }
+
   // ---------- free placement along a wall ----------
   // Cabinets may stand anywhere along a wall with gaps between them (b.gapMm =
   // free space before the block; 0/absent = butted up, i.e. the old packed
@@ -6963,7 +7069,8 @@
         if (!sp.length) return;
         var startCovered = !wall.island && (afella(wall, zone).start > 0 || cornerClearance(wall, zone) > 0);
         var endCovered = !wall.island && afella(wall, zone).end > 0;
-        var rs = runStartMm(wall, zone), re = runEndMm(wall, zone);
+        var rs = runStartMm(wall, zone), re = runEndMm(wall, zone), afE = afellaEnds(wall).filter(function(x){ return x.zone === zone; });
+        function hasAf(side, b){ return afE.some(function(x){ return x.side === side && x.b === b; }); } // an áfella (any width up to 300 mm) closes the wall side — no úthlið beside it
         sp.forEach(function(me, k){
           if (!bodyLike(me.b)) return;
           if (CATALOG[me.b.type].open) return; // an open unit is built in the front material all round — no úthlið (user, 2026-10-26)
@@ -6972,8 +7079,8 @@
           [[-1, sp[k - 1]], [1, sp[k + 1]]].forEach(function(pair){
             var dir = pair[0], nb = pair[1], exposed, bareLo = myLo; // bareLo: the visible part of the side starts here
             // (old drafts may stand flush to the wall itself, without an áfella — that side is covered too)
-            if (!nb) exposed = !(dir < 0 ? startCovered && (Math.abs(me.start - rs) < 2 || Math.abs(me.start - cornerClearance(wall, zone)) < 2)
-                                        : endCovered && (Math.abs(me.end - re) < 2 || Math.abs(me.end - wall.lengthMm) < 2));
+            if (!nb) exposed = !(hasAf(dir < 0 ? "start" : "end", me.b) || (dir < 0 ? startCovered && (Math.abs(me.start - rs) < 2 || Math.abs(me.start - cornerClearance(wall, zone)) < 2)
+                                        : endCovered && (Math.abs(me.end - re) < 2 || Math.abs(me.end - wall.lengthMm) < 2)));
             else {
               var gap = dir < 0 ? me.start - nb.end : nb.start - me.end;
               if (CATALOG[nb.b.type].panel && gap < 2) exposed = false;
@@ -12232,7 +12339,7 @@
     // PRO groups the fields below into Mál / Innvols / Annað tabs (one at a time, re-rendered on switch) —
     // customers keep the flat single-column layout, unchanged (user, 2026-10-14).
     var malHtml = '<div class="edit-field"><label>' + __("Mál ({u})", { u:uUnit() }) + '</label>' + dims +
-      '</div>' + elevField + stackField +
+      '</div>' + elevField + afellaFieldsHtml(b, false) + stackField +
       (c.panel ? '<div class="edit-field"><button type="button" class="iconbtn" data-role="match" title="' + __("Tekur hæð, dýpt og hæð frá gólfi af skápnum sem hún liggur að") + '">' + __("↔ Passa við skápinn") + '</button></div>' : '');
     // a wardrobe bay (customer): picture cards + doors + width up top, the rest under "Fleiri stillingar" without the
     // rows those already cover (Hillur/Skúffur, Rennur inn í hlið, Tegund) — user, 2026-10-26: the panel scrolled
@@ -12355,6 +12462,7 @@
       });
     });
     host.querySelectorAll("[data-hung-gap]").forEach(function(el){ el.addEventListener("click", function(){ setHungGap(wall, +el.dataset.hungGap); save(); refreshAfterEdit(); }); });
+    wireAfellaFields(host, b, function(){ renderEditPanel(); });
     var elevInp = host.querySelector('[data-role="elev"]');
     if (elevInp) elevInp.addEventListener("change", function(){
       var v = Math.round(parseFloat(elevInp.value)), max = Math.max(0, roomH - hNow);
@@ -14101,6 +14209,7 @@
     });
     if (bom && !driverPlaced && rows.length) rows[0]["Skilaboð til skipulags"] = ((rows[0]["Skilaboð til skipulags"] || "") + " " +
       LIGHT_PRODUCTS[bom.driver.code].label + " vantar í V3 — enginn upplýstur skápur með V1.").trim();
+    afLines().forEach(function(li){ rows.push(li); }); // áfellur (AF1…) — only once the Útfærsla "Áfella" is wired in
     (state.doors || []).forEach(function(d){ var li = doorLineOf(d); if (li) rows.push(li); });
     if (PRO) wtLines().forEach(function(li){ li["Borðplata (lína) 🍽️"] = roomOwnMats().top; rows.push(li); }); // the worktop: BP (m²) + BV/BH cutouts — PRO only, the customer keeps the simple choice
     return rows;
@@ -19540,7 +19649,7 @@
         '<div class="pe-row">Breidd: <input type="number" step="1" min="' + dW[0] + '" max="' + dW[1] + '" value="' + b.widthMm + '" data-pe="dimw"> mm</div>' +
         '<div class="pe-row">Hæð: <input type="number" step="1" min="' + dH[0] + '" max="' + dH[1] + '" value="' + carcassMm + '" data-pe="dimh"> mm</div>' +
         '<div class="pe-row">Dýpt: <input type="number" step="1" min="' + dD[0] + '" max="' + dD[1] + '" value="' + (b.depthMm || c.d) + '" data-pe="dimd"> mm</div>' +
-        '</div>';
+        afellaFieldsHtml(b, true) + '</div>';
     }
     var anyHinged = doors.some(function(d, i){ return proSpec(b, doors, i).type === "hinged"; }); // lift / sliding doors have no side hinges (C4)
     if (doors.length && anyHinged) right += bothHinges
@@ -19806,6 +19915,7 @@
       save(); refreshAfterEdit(); renderBoxEditor();
     }
     act('[data-pe="dimw"]', function(n){ setDim("widthMm", n.value); });
+    act('[data-pe="afmm"]', function(n){ setAfellaMm(fb.wall, n.dataset.side, n.value); renderBoxEditor(); }); // áfella at the wall (typed mm, round 1 2026-10-30)
     act('[data-pe="dimh"]', function(n){ // typed as carcass, validated and stored as the real overall height
       if (!applyCarcassHeightMm(b.id, fb.zone, fb.wall, c, n.value)){ renderBoxEditor(); return; }
       save(); refreshAfterEdit(); renderBoxEditor();
@@ -20216,6 +20326,7 @@
     var out = {};
     withEachCategory(function(){
       var o = proSmida(); Object.keys(o).forEach(function(k){ out[k] = o[k]; });
+      afLines().forEach(function(li){ out[li["🔑"]] = JSON.parse(li["Smíðagögn (JSON) 🔧"]); }); // áfellur
       (state.doors || []).forEach(function(d){ var li = doorLineOf(d); if (li) out[d.hu] = JSON.parse(li["Smíðagögn (JSON) 🔧"]); });
       wtLines().forEach(function(li){ out[li["🔑"]] = JSON.parse(li["Smíðagögn (JSON) 🔧"]); }); // the worktop's pieces/joints/cutouts (2026-10-26)
     });
@@ -21422,7 +21533,7 @@
       document.body.appendChild(a); a.click(); a.remove();
     }catch(e){}
   }
-  function proStateSig(){ var o = Object.assign({}, state); delete o.proSavedAt; delete o.liSent; delete o.roomMats; return JSON.stringify(o); } // roomMats: re-derived by every proSaveRun, never an edit
+  function proStateSig(){ var o = Object.assign({}, state); delete o.proSavedAt; delete o.liSent; delete o.roomMats; delete o.afKeys; return JSON.stringify(o); } // roomMats: re-derived by every proSaveRun, never an edit
   async function proSaveRun(resolve, force){
     var staleDoors = []; try{ staleDoors = proStaleDoorSpecs(); }catch(e){}
     try{ state.roomMats = projectRoomMats(); }catch(e){} // every room's materials → the quote PDF's EFNISVAL
@@ -21762,12 +21873,8 @@
       else tops.push({ x:fS[i], w:b.widthMm, y:y, t:tT, d:(b.depthMm || c.d) + 20 });
     });
     // áfella at a solid wall end the run reaches
-    var af = KP3D.afellaMm(surfs, wi, "floor"), afs = [];
-    if (wall.floor.length){
-      var b0 = wall.floor[0], bl = wall.floor[wall.floor.length - 1], c0 = CATALOG[b0.type], cl = CATALOG[bl.type];
-      if (af.start && Math.abs(fS[0] - af.start) < 2) afs.push({ x:0, w:af.start, y0:0, h:blockHeightMm(b0, c0) });
-      if (af.end && Math.abs(fS[fS.length - 1] + bl.widthMm - (wall.lengthMm - af.end)) < 2) afs.push({ x:wall.lengthMm - af.end, w:af.end, y0:0, h:blockHeightMm(bl, cl) });
-    }
+    // (2026-10-30) the real width: the gap to the wall, or what was typed there (KP3D.afellaEndsOf)
+    var afs = KP3D.afellaEndsOf(surfs, wi, "floor").map(function(e){ return { x:e.at, w:e.mm, y0:0, h:blockHeightMm(e.b, CATALOG[e.b.type]) }; });
     var openings = (state.windows || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:"window", x:o.offsetMm, w:o.widthMm, y0:o.sillHeightMm, h:o.heightMm }; })
       .concat((state.doors || []).filter(function(o){ return o.wallId === wall.id; }).map(function(o){ return { kind:o.gap ? "gap" : "door", x:o.offsetMm, w:o.widthMm, y0:0, h:o.heightMm }; }));
     var annos = (state.annotations || []).filter(function(a){ return a.wallId === wall.id; }).map(function(a){
@@ -21989,6 +22096,8 @@
     }
     return await doc.save();
   }
+  window.__af = { state:function(){ return state; }, ends:function(){ var o = []; state.walls.forEach(function(w){ afellaEnds(w).forEach(function(e){ o.push({ wall:w.id, side:e.side, zone:e.zone, mm:e.mm, b:e.b.id }); }); }); return o; },
+    set:setAfellaMm, lines:afLines, missing:function(){ return missingEndPanels().length; }, hash:function(id){ var f = findBlock(id); return smidaHash(smidaFor(f.block, CATALOG[f.block.type], f.zone)); }, live:function(){ return afellaLive(); } }; // devtools / tests (áfella round 1)
   window.__wdModels = wdModels; // devtools / tests
   window.__wdCabinetRows = wdCabinetRows;
   window.__wt = { result:function(){ return wtResult(); }, open:function(f){ proWtOpen(f); }, lines:function(){ return collectAllLineItems().filter(function(li){ return /^B[PVH]/.test(li["🔑"]); }); }, smida:function(){ return proSmidaAll(); }, check:function(){ return proCheckItems(); }, runDone:function(lines, synced, t0){ pr.t0 = t0; return proRunDone(lines, synced); }, state:function(){ return state; }, refresh:function(){ save(); refreshAfterEdit(); } }; // devtools / tests
