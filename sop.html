@@ -136,11 +136,12 @@
     <div class="sopname" id="itemName"></div>
     <div class="meta-badges" id="itemBadges"></div>
     <div class="owner-line hidden" id="itemOwner"></div>
-    <a class="video-link hidden" id="itemVideo" target="_blank" rel="noopener">🎬 Myndband / teiknuð útskýring</a>
+    <a class="video-link hidden" id="itemVideo" target="_blank" rel="noopener"><i data-ic=video></i> Myndband / teiknuð útskýring</a>
     <div class="steps" id="itemSteps"></div>
   </div>
 </div>
 
+<script src="/bjorninn-icons.js"></script>
 <script src="/floor-key.js"></script>
 <script>
 (function () {
@@ -257,7 +258,7 @@
   function renderGrid() {
     $("catGrid").innerHTML = cats.map(function (c) {
       return '<button class="catcard" style="--cc:' + colorForKey(c) + ';" data-cat="' + esc(c) + '">' +
-        '<span class="t">' + esc(c) + '</span><span class="count">' + byCat[c].length + " SOP</span></button>";
+        '<span class="t">' + esc(BJICON.strip(c)) + '</span><span class="count">' + byCat[c].length + " SOP</span></button>";
     }).join("");
     $("catGrid").querySelectorAll(".catcard").forEach(function (btn) {
       btn.addEventListener("click", function () { openCategory(btn.dataset.cat); });
@@ -272,7 +273,7 @@
 
   function openCategory(cat) {
     showOnly(catView);
-    $("catTitle").textContent = cat;
+    $("catTitle").textContent = BJICON.strip(cat);
     var list = byCat[cat] || [];
     $("sopList").innerHTML = list.map(function (rec) {
       var f = rec.fields;
@@ -305,8 +306,8 @@
     $("itemName").textContent = f[F_TITLE] || "(ónefnt)";
 
     var badges = [];
-    if (f[F_CAT]) badges.push('<span class="badge cat">' + esc(f[F_CAT]) + "</span>");
-    (f[F_SUB] || []).forEach(function (s) { badges.push('<span class="badge plain">' + esc(s) + "</span>"); });
+    if (f[F_CAT]) badges.push('<span class="badge cat">' + esc(BJICON.strip(f[F_CAT])) + "</span>");
+    (f[F_SUB] || []).forEach(function (s) { badges.push('<span class="badge plain">' + esc(BJICON.strip(s)) + "</span>"); });
     if (f[F_READ]) badges.push('<span class="badge req">' + esc(f[F_READ]) + "</span>");
     $("itemBadges").innerHTML = badges.join("");
 
@@ -346,7 +347,7 @@
     searchResults.innerHTML = hits.length
       ? hits.map(function (rec) {
           var f = rec.fields;
-          return '<button class="search-hit" data-id="' + esc(rec.id) + '"><span class="cat">' + esc(f[F_CAT] || "") + '</span><span class="t">' + esc(f[F_TITLE] || "") + "</span></button>";
+          return '<button class="search-hit" data-id="' + esc(rec.id) + '"><span class="cat">' + esc(BJICON.strip(f[F_CAT] || "")) + '</span><span class="t">' + esc(f[F_TITLE] || "") + "</span></button>";
         }).join("")
       : '<div class="search-empty">Ekkert fannst.</div>';
     searchResults.querySelectorAll(".search-hit").forEach(function (btn) {

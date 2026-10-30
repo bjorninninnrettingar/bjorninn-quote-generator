@@ -243,6 +243,7 @@
     <div class="units" id="units"></div>
   </div>
 
+<script src="/bjorninn-icons.js"></script>
 <script src="/floor-key.js"></script>
 <script>
 // ── CONFIGURATION ────────────────────────────────────────────────────────
@@ -264,9 +265,9 @@ const P_STADA_FRAM = "Staða í framleiðslu";
 // The project's own "watch out" notes, shown above the drawings — the
 // Fræsari one first since this is the CNC page. Hidden if all are empty.
 const PROJECT_NOTE_FIELDS = [
-  { field: "🔬📌 Það sem Fræsari þarf að hafa í huga", label: "Fræsari 🔬" },
-  { field: "🧠📌Það sem þarf að hafa í huga", label: "Hafa í huga 🧠" },
-  { field: "🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗", label: "Samsetning / uppsetning 🪛" },
+  { field: "🔬📌 Það sem Fræsari þarf að hafa í huga", label: "Fræsari" },
+  { field: "🧠📌Það sem þarf að hafa í huga", label: "Hafa í huga" },
+  { field: "🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗", label: "Samsetning / uppsetning" },
 ];
 
 // Reference PDFs shown at the top of the project card, hidden if empty.
@@ -491,7 +492,7 @@ function ledGrooveNote(u) {
   try { sm = JSON.parse(u.fields[U_SMIDA] || "null"); } catch (e) { sm = null; }
   const led = sm && sm.led;
   if (!led || !led.groove) return "";
-  return `💡 FRÆSA LED-RAUF (${led.strip || "6x6"} mm) í ${led.side === "vinstri" ? "VINSTRI" : "HÆGRI"} hlið, séð framan frá`;
+  return `FRÆSA LED-RAUF (${led.strip || "6x6"} mm) í ${led.side === "vinstri" ? "VINSTRI" : "HÆGRI"} hlið, séð framan frá`;
 }
 
 // ── INNIHALD — plain-language summary of what's in the box, for the
@@ -904,8 +905,8 @@ function renderProjectDocs(record) {
         ${g.files.map(f => {
           const name = f.filename || "skjal";
           return f.type === "application/pdf"
-            ? `<button type="button" class="doc-link" data-url="${escapeHtml(f.url)}" data-name="${escapeHtml(name)}">📄 ${escapeHtml(name)}</button>`
-            : `<a class="doc-link" href="${escapeHtml(f.url)}" target="_blank" rel="noopener">🖼️ ${escapeHtml(name)}</a>`;
+            ? `<button type="button" class="doc-link" data-url="${escapeHtml(f.url)}" data-name="${escapeHtml(name)}"><i data-ic=file></i> ${escapeHtml(name)}</button>`
+            : `<a class="doc-link" href="${escapeHtml(f.url)}" target="_blank" rel="noopener"><i data-ic=image></i> ${escapeHtml(name)}</a>`;
         }).join("")}
       </div>
     </div>
@@ -1017,7 +1018,7 @@ function renderUnits(visible) {
   container.innerHTML = "";
 
   if (!visible.length) {
-    container.innerHTML = `<div class="empty-msg">${filterUnfinished ? "Allt lokið 🎉" : "Engar einingar fundust."}</div>`;
+    container.innerHTML = `<div class="empty-msg">${filterUnfinished ? "Allt lokið <i data-ic=sparkle></i>" : "Engar einingar fundust."}</div>`;
     return;
   }
 
@@ -1078,7 +1079,7 @@ function renderUnits(visible) {
       ${u.innihald ? `<div class="unit-innihald">${escapeHtml(u.innihald)}</div>` : ""}
       ${u.hasHardware ? `
         <details class="hw-dropdown">
-          <summary>🔧 Hardware í hurðinni</summary>
+          <summary><i data-ic=wrench></i> Hardware í hurðinni</summary>
           <div class="hw-body">
             ${u.hardware.lamir ? `<div><span>Lamir</span>${escapeHtml(u.hardware.lamir)}</div>` : ""}
             ${u.hardware.skra ? `<div><span>Skrá</span>${escapeHtml(u.hardware.skra)}</div>` : ""}
@@ -1086,8 +1087,8 @@ function renderUnits(visible) {
           </div>
         </details>
       ` : ""}
-      ${u.isLagnaskapur ? `<div class="unit-warning">⚠️ Lagna - Ekki saga f. masoniti!</div>` : ""}
-      ${u.note ? `<div class="unit-note">📝 ${escapeHtml(u.note)}</div>` : ""}
+      ${u.isLagnaskapur ? `<div class="unit-warning"><i data-ic=alert></i> Lagna - Ekki saga f. masoniti!</div>` : ""}
+      ${u.note ? `<div class="unit-note"><i data-ic=pencil></i> ${escapeHtml(u.note)}</div>` : ""}
       <div class="pieces">${piecesHtml}</div>
     `;
     container.appendChild(div);
@@ -1096,7 +1097,7 @@ function renderUnits(visible) {
   if (!renderedCount) {
     container.innerHTML = selectedPartur
       ? `<div class="empty-msg">Engin ólokin ${escapeHtml(selectedPartur)} fundust.</div>`
-      : `<div class="empty-msg">Allt lokið 🎉</div>`;
+      : `<div class="empty-msg">Allt lokið <i data-ic=sparkle></i></div>`;
   }
 }
 

@@ -257,7 +257,8 @@
 
   <div id="quickfix-bar"></div>
 
-  <script>
+  <script src="/bjorninn-icons.js"></script>
+<script>
     // ── CONFIGURATION ─────────────────────────────────────────────────────────
     // Requests go through /api/airtable — a server-side proxy that holds the
     // Personal Access Token as a Vercel env var. Never embed the token here:
@@ -383,7 +384,7 @@
         const cd = diff !== null ? countdown(diff) : null;
 
         const priority = f[FIELD_PRIORITY] || "";
-        const medal = priority.startsWith("1") ? "🥇" : priority.startsWith("2") ? "🥈" : priority.startsWith("3") ? "🥉" : "";
+        const medal = priority.startsWith("1") ? '<i data-ic=medal style="color:#ffd60a"></i>' : priority.startsWith("2") ? '<i data-ic=medal style="color:#c9ccd1"></i>' : priority.startsWith("3") ? '<i data-ic=medal style="color:#d08a4a"></i>' : "";
 
         const card = document.createElement("div");
         card.className = "card";
@@ -391,7 +392,7 @@
           <div>
             <div class="card-name">${escHtml(name)}</div>
             <div style="display:flex;align-items:center;gap:10px;">
-              <div class="card-status ${statusClass(status)}">${escHtml(status)}</div>
+              <div class="card-status ${statusClass(status)}">${escHtml(BJICON.strip(status))}</div>
               ${medal ? `<span style="font-size:1.4rem;">${medal}</span>` : ""}
             </div>
           </div>
@@ -463,14 +464,14 @@
         const owner = f[QF_FIELD_OWNER] || "";
         return `
           <div class="quickfix-item">
-            <span class="quickfix-flag">❗</span>
+            <span class="quickfix-flag"><i data-ic=alert></i></span>
             <span class="quickfix-name">${escHtml(name)}</span>
             ${issue ? `<span class="quickfix-issue">${escHtml(issue)}</span>` : ""}
-            ${owner ? `<span class="quickfix-owner">${escHtml(owner)}</span>` : ""}
+            ${owner ? `<span class="quickfix-owner">${escHtml(BJICON.strip(owner))}</span>` : ""}
           </div>
         `;
       }).join("");
-      bar.innerHTML = items + `<div class="quickfix-note">Ath. upplýsingar á AIRTABLE ℹ️</div>`;
+      bar.innerHTML = items + `<div class="quickfix-note">Ath. upplýsingar á AIRTABLE <i data-ic=info></i></div>`;
       bar.style.display = "flex";
       document.body.style.paddingBottom = `${bar.offsetHeight + 20}px`;
     }

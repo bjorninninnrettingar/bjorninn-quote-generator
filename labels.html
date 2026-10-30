@@ -241,7 +241,7 @@
 
   <div class="modal-overlay hidden" id="cuttyWarningOverlay">
     <div class="modal-box">
-      <h2>⚠️ Skurðarlisti (Cutty) hefur ekki verið keyrt</h2>
+      <h2><i data-ic=alert></i> Skurðarlisti (Cutty) hefur ekki verið keyrt</h2>
       <p>Engin stykki í þessu verkefni eru komin í skurðarskrá (CUTLST). Ef Skurðarlisti er ekki keyrður fyrst flokkast stykki hér bara eftir efnisheiti — ekki þykkt — og ólík þykkt (t.d. 19mm og 38mm af sama efni) getur birst saman í listanum.</p>
       <p>Ath að láta ábyrgðarmann keyra cutty á USB kubbinn til að halda áfram.</p>
       <div class="modal-actions">
@@ -298,6 +298,7 @@
     <div id="log"></div>
   </div>
 
+<script src="/bjorninn-icons.js"></script>
 <script src="/floor-key.js"></script>
 <script>
 // ── CONFIGURATION ────────────────────────────────────────────────────────
@@ -707,12 +708,12 @@ async function printGroup(groupKey) {
 
       for (let i = 0; i < copiesForThisRecord && !r.lokid; i++) {
         try {
-          log(`🖨️  Prenta: ${g.partur} ${g.h}×${g.b} — ${roomLabel}`);
+          log(`Prenta: ${g.partur} ${g.h}×${g.b} — ${roomLabel}`);
           const result = await printOneCycle(r.id);
           if (result.lokid) {
             r.lokid = true;
             delete printProgress[r.id];
-            log(`✅ Lokið: ${g.partur} — ${roomLabel}`);
+            log(`Lokið: ${g.partur} — ${roomLabel}`);
           } else {
             printProgress[r.id] = (printProgress[r.id] || 0) + 1;
             log(`   ${printProgress[r.id]}/${r.m} prentað (${roomLabel})`);
@@ -720,7 +721,7 @@ async function printGroup(groupKey) {
           remainingToPrint--;
           renderRows();
         } catch (e) {
-          log(`❌ Villa (${roomLabel}): ${e.message}`);
+          log(`Villa (${roomLabel}): ${e.message}`);
           return; // stop the group here rather than pushing on after a failure
         }
       }
@@ -920,7 +921,7 @@ function renderRows() {
 
   if (!visible.length) {
     const msg = searchQuery ? "Ekkert stykki passar við leitina."
-      : filterUnfinished ? "Allt lokið 🎉" : "Engar færslur fundust.";
+      : filterUnfinished ? "Allt lokið" : "Engar færslur fundust.";
     container.innerHTML = `<div class="empty-msg">${msg}</div>`;
     return;
   }
@@ -963,7 +964,7 @@ function renderRows() {
       <div class="status-text ${statusClass}">${statusText}</div>
       <button class="print-btn ${status === 'done' ? 'done' : ''}" id="btn-${g.key}"
         ${disabled ? 'disabled' : ''}
-        onclick="printGroup('${g.key}')">${status === 'done' ? '✓' : '🖨️'}</button>
+        onclick="printGroup('${g.key}')">${status === 'done' ? '✓' : '<i data-ic=printer></i>'}</button>
     `;
     container.appendChild(div);
   }

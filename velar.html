@@ -174,12 +174,13 @@
       <button class="modal-close" id="modalClose">✕</button>
     </div>
     <h2 id="iTitle"></h2>
-    <a class="video-link hidden" id="iVideo" target="_blank" rel="noopener">🎬 Myndband</a>
+    <a class="video-link hidden" id="iVideo" target="_blank" rel="noopener"><i data-ic=video></i> Myndband</a>
     <div class="photos" id="iPhotos"></div>
     <div class="steps" id="iBody"></div>
   </div>
 </div>
 
+<script src="/bjorninn-icons.js"></script>
 <script>
 (function () {
   "use strict";
@@ -198,11 +199,11 @@
   // key = what ?kafli= uses; label doubles as the Flokkur choice name; colour
   // is shared by the chip, the item's left border and the popup's accent.
   var SECTIONS = [
-    { key: "raesing", label: "Ræsing", ic: "▶️", color: "var(--green)" },
-    { key: "notkun",  label: "Notkun",  ic: "📖", color: "var(--blue)" },
-    { key: "drepa",   label: "Drepa á", ic: "⏹️", color: "var(--red)" },
-    { key: "bilanir", label: "Bilanir", ic: "🛠️", color: "var(--orange)" },
-    { key: "oryggi",  label: "Öryggi",  ic: "⚠️", color: "var(--amber)" },
+    { key: "raesing", label: "Ræsing", ic: "<i data-ic=play></i>", color: "var(--green)" },
+    { key: "notkun", label: "Notkun", ic: "<i data-ic=book></i>", color: "var(--blue)" },
+    { key: "drepa", label: "Drepa á", ic: "<i data-ic=stop></i>", color: "var(--red)" },
+    { key: "bilanir", label: "Bilanir", ic: "<i data-ic=hammer></i>", color: "var(--orange)" },
+    { key: "oryggi", label: "Öryggi", ic: "<i data-ic=alert></i>", color: "var(--amber)" },
   ];
   function sectionByKey(key) { return SECTIONS.find(function (s) { return s.key === key; }); }
   function sectionByLabel(label) { return SECTIONS.find(function (s) { return s.label === label; }); }
@@ -305,14 +306,14 @@
 
   function renderList() {
     if (!machineNames.length) {
-      $("mList").innerHTML = '<div class="search-empty">Engar vélar skráðar enn — bættu við leiðbeiningu í Airtable-töflunni „Vélaleiðbeiningar 📋“ og veldu eða skráðu vélarheiti í „Vél“.</div>';
+      $("mList").innerHTML = '<div class="search-empty">Engar vélar skráðar enn — bættu við leiðbeiningu í Airtable-töflunni „Vélaleiðbeiningar“ og veldu eða skráðu vélarheiti í „Vél“.</div>';
       return;
     }
     $("mList").innerHTML = machineNames.map(function (name) {
       var thumb = machineThumb(name);
       var n = (itemsByMachine[name] || []).length;
       return '<button class="mrow" data-name="' + esc(name) + '">' +
-        (thumb ? '<img class="thumb" src="' + esc(thumb) + '" alt="" loading="lazy">' : '<span class="thumb">⚙️</span>') +
+        (thumb ? '<img class="thumb" src="' + esc(thumb) + '" alt="" loading="lazy">' : '<span class="thumb"><i data-ic=gear></i></span>') +
         '<div class="txt"><div class="t">' + esc(name) + "</div>" +
         '<div class="sub">' + n + " leiðbeining" + (n === 1 ? "" : "ar") + "</div></div>" +
         '<span class="arrow">→</span></button>';
@@ -375,7 +376,7 @@
     if (!it) return;
     var s = sectionByLabel(it.fields[L_CAT]) || SECTIONS[0];
     $("modal").style.setProperty("--cc", s.color);
-    $("iCat").textContent = s.ic + " " + s.label;
+    $("iCat").innerHTML = s.ic + " " + esc(s.label);
     $("iTitle").textContent = it.fields[L_TITLE] || "(ónefnt)";
     $("iVideo").classList.toggle("hidden", !it.fields[L_VIDEO]);
     if (it.fields[L_VIDEO]) $("iVideo").href = it.fields[L_VIDEO];
@@ -447,9 +448,9 @@
     });
     searchResults.innerHTML = hits.length
       ? hits.map(function (h, i) {
-          var cat = h.item ? h.sec.ic + " " + h.sec.label : "Vél";
+          var cat = h.item ? h.sec.ic + " " + esc(h.sec.label) : "Vél";
           var title = h.item ? h.item.fields[L_TITLE] : h.machine;
-          return '<button class="search-hit" data-i="' + i + '"><span class="cat">' + esc(cat) + "</span>" +
+          return '<button class="search-hit" data-i="' + i + '"><span class="cat">' + cat + "</span>" +
             '<span class="t">' + esc(title || "") + "</span>" +
             (h.snip ? '<div class="snip">' + esc(h.snip) + "</div>" : "") + "</button>";
         }).join("")

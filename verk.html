@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
 <title>Verk — Björninn</title>
+<script src="/bjorninn-icons.js"></script>
 <script>
 // Carry over the light-theme choice made on /app (Mín síða → Stillingar) —
 // same localStorage key, same data-theme attribute, applied before first
@@ -362,7 +363,7 @@
     </section>
 
     <section id="sogSec" class="hidden">
-      <div class="sec-h"><span>🪚 Sögunarlisti</span><span class="sog-count" id="sogCount"></span></div>
+      <div class="sec-h"><span><i data-ic=saw></i> Sögunarlisti</span><span class="sog-count" id="sogCount"></span></div>
       <div class="sog-tools">
         <input type="search" class="usearch" id="sogSearch" placeholder="Leita: partur, eining, mál eða efni…" autocomplete="off" style="margin-bottom:0">
         <div class="chips" role="group" aria-label="Sía">
@@ -375,12 +376,12 @@
     </section>
 
     <section id="notesSec" class="hidden">
-      <div class="sec-h">⚠️ Muna</div>
+      <div class="sec-h"><i data-ic=alert></i> Muna</div>
       <div id="notes"></div>
     </section>
 
     <section id="buildSec" class="hidden">
-      <div class="sec-h">🔧 Smíðaupplýsingar</div>
+      <div class="sec-h"><i data-ic=wrench></i> Smíðaupplýsingar</div>
       <div class="build" id="build"></div>
     </section>
 
@@ -583,20 +584,20 @@
     if (goal || pep) {
       var wrap = document.createElement("div");
       wrap.className = "pep";
-      if (goal) wrap.innerHTML += '<div class="note"><div class="note-k">🎯 Markmið</div><div class="note-v">'+esc(goal)+'</div></div>';
-      if (pep)  wrap.innerHTML += '<div class="note"><div class="note-k">🚀 Pepp</div><div class="note-v">'+esc(pep)+'</div></div>';
+      if (goal) wrap.innerHTML += '<div class="note"><div class="note-k"><i data-ic=target></i> Markmið</div><div class="note-v">'+esc(goal)+'</div></div>';
+      if (pep) wrap.innerHTML += '<div class="note"><div class="note-k"><i data-ic=rocket></i> Pepp</div><div class="note-v">'+esc(pep)+'</div></div>';
       box.appendChild(wrap);
     }
 
     // The floor's own notes (Fræsari / Hafa í huga / Uppsetning) were cut in
     // ece7c10 and then nobody on the floor saw them at all — brought back
     // 2026-10-27, first in the list since they're the "watch out" ones.
-    note(box, "Hafa í huga 🧠", f[F.nGeneral], {warn:true});
-    note(box, "Fræsari 🔬", f[F.nFraes], {warn:true});
-    note(box, "Uppsetning / samsetning 🪛", f[F.nUpp], {warn:true});
-    note(box, "Spónlagning 🪵", f[F.nSpon], {warn:true});
-    note(box, "Verklýsing teiknara 📝", f[F.nTeikn]);
-    note(box, "Verkfundur 🗒️", f[F.nMeeting], {md:true});
+    note(box, "Hafa í huga ", f[F.nGeneral], {warn:true});
+    note(box, "Fræsari ", f[F.nFraes], {warn:true});
+    note(box, "Uppsetning / samsetning ", f[F.nUpp], {warn:true});
+    note(box, "Spónlagning ", f[F.nSpon], {warn:true});
+    note(box, "Verklýsing teiknara ", f[F.nTeikn]);
+    note(box, "Verkfundur ", f[F.nMeeting], {md:true});
 
     if (box.children.length) show($("notesSec"));
   }
@@ -651,7 +652,7 @@
   // both /verk and /eining on request. They're not shown anywhere anymore;
   // say so if you ever need them back.
   function renderDraws(f){
-    drawRow("📋", "Lokateikningar", f[F.dFinal]);
+    drawRow("<i data-ic=clipboard></i>", "Lokateikningar", f[F.dFinal]);
     if ($("draws").children.length || $("imgs").children.length) show($("drawsSec"));
   }
 
@@ -834,14 +835,14 @@
   function renderTools(t, f, piecesP){
     $("tools").innerHTML =
       '<a class="tool2 c-purple" href="#progSec">'+
-        '<span class="t2-ic">📊</span><span class="t2-t">Framvinda</span>'+
+        '<span class="t2-ic"><i data-ic=chart></i></span><span class="t2-t">Framvinda</span>'+
         '<span class="t2-sub" id="framvindaStat">Sæki…</span></a>'+
       '<a class="tool2 c-blue" href="/labels?recordId='+encodeURIComponent(t)+'">'+
-        '<span class="t2-ic">🏷️</span><span class="t2-t">F6 – Cutty</span></a>'+
+        '<span class="t2-ic"><i data-ic=tag></i></span><span class="t2-t">F6 – Cutty</span></a>'+
       '<a class="tool2 c-green" href="/fraesing?recordId='+encodeURIComponent(t)+'">'+
-        '<span class="t2-ic">🔬</span><span class="t2-t">Yfirfr.</span></a>'+
+        '<span class="t2-ic"><i data-ic=search></i></span><span class="t2-t">Yfirfr.</span></a>'+
       '<a class="tool2 c-blue" href="/saga?recordId='+encodeURIComponent(t)+'">'+
-        '<span class="t2-ic">🪚</span><span class="t2-t">F2 – Vígindi</span></a>';
+        '<span class="t2-ic"><i data-ic=saw></i></span><span class="t2-t">F2 – Vígindi</span></a>';
 
     loadFramvindaStat(piecesP);
   }
@@ -868,8 +869,8 @@
           if (!rf["Lokið"]) { sawDone = false; unsawn.push(r); }
           if (rf["Yfirfr."]) { needsMill = true; if (!rf["Fræst"]) millDone = false; }
         });
-        var sawIc = recs.length ? (sawDone ? "✅" : "□") : "–";
-        var milIc = !needsMill ? "–" : (millDone ? "✅" : "□");
+        var sawIc = recs.length ? (sawDone ? "✓" : "□") : "–";
+        var milIc = !needsMill ? "–" : (millDone ? "✓" : "□");
         var target = $("framvindaStat");
         if (target) target.textContent = "SÖG "+sawIc+" · Fræs "+milIc;
         if (stageState.t) renderUnsawn(unsawn);
@@ -947,8 +948,8 @@
     var saw = pct(f[F.pgSaw]) || 0, mill = Math.round(millRatio(f) * 100);
     var hint = "", btn = $("stageBtn"), next = null;
     if (idx <= 1) hint = "Fer sjálfkrafa í samsetningu þegar sögun nær "+(SAW_TARGET*100)+"% og fræsing "+(MILL_TARGET*100)+"% (núna "+saw+"% / "+mill+"%).";
-    if (idx >= 0 && idx <= 2) next = { to:STAGES[3].key, text:"🚚 Allt pakkað — má afhenda", cls:"deliver", done:"Verkið má afhenda — skrifstofan fær að vita" };
-    else if (idx === 3) { next = { to:STAGES[4].key, text:"✅ Verkið er afhent", cls:"", done:"Verkið er merkt afhent" }; hint = "Ýttu þegar verkið er komið til kúnnans."; }
+    if (idx >= 0 && idx <= 2) next = { to:STAGES[3].key, text:"Allt pakkað — má afhenda", cls:"deliver", done:"Verkið má afhenda — skrifstofan fær að vita" };
+    else if (idx === 3) { next = { to:STAGES[4].key, text:"Verkið er afhent", cls:"", done:"Verkið er merkt afhent" }; hint = "Ýttu þegar verkið er komið til kúnnans."; }
     else if (idx === 4) hint = "Verkinu er lokið.";
     else hint = "Staðan færist sjálfkrafa þegar skipulag er klárt.";
     // A QR-scan link (piece token) can't change the project's stage — open /verk from the app for that.
@@ -978,7 +979,7 @@
     if (!rows.length) { hide(box); return; }
     function title(){
       var left = rows.filter(function(r){ return !r._done; }).length;
-      $("unsawnTitle").textContent = "🪚 Ósagaðir hlutar ("+left+")";
+      $("unsawnTitle").textContent = "Ósagaðir hlutar ("+left+")";
     }
     list.innerHTML = "";
     rows.sort(function(a, b){ return String(a.fields.Partur||"").localeCompare(String(b.fields.Partur||""), "is"); });
@@ -1021,7 +1022,7 @@
   function pieceHTML(r){
     var f = r.fields || {};
     var pills = (f["Lokið"] ? '<span class="pill ok">Sagað ✓</span>' : '<span class="pill todo">Ósagað</span>') +
-      (f["Yfirfr."] ? (f["Fræst"] ? ' <span class="pill ok">Fræst ✓</span>' : ' <span class="pill mill">🔬 Fræsa</span>') : '');
+      (f["Yfirfr."] ? (f["Fræst"] ? ' <span class="pill ok">Fræst ✓</span>' : ' <span class="pill mill"><i data-ic=search></i> Fræsa</span>') : '');
     var dims = [f.H, f.B, f["Þ"]].filter(function(x){ return x != null && x !== ""; }).join(" × ");
     var kl = txt(f["KL🔄"]);
     var note = String(txt(f.Athugasemd)).split("|").slice(1).join("|").trim();
@@ -1135,7 +1136,7 @@
 
     var prio = txt(f[F.prio]);
     if (prio) {
-      $("prioVal").textContent = prio;
+      $("prioVal").textContent = BJICON.strip(prio);
       $("prioVal").classList.toggle("prio-hot", /^1/.test(prio));
       show($("prioField"));
     }

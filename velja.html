@@ -107,9 +107,9 @@
     <div class="mill hidden" id="millCard">
       <span class="flabel">Skannaður hlutur · þarf að fræsa</span>
       <div class="mill-piece" id="millPiece"></div>
-      <button type="button" class="mill-btn" id="millBtn">🔬 Merkja fræst</button>
+      <button type="button" class="mill-btn" id="millBtn"><i data-ic=search></i> Merkja fræst</button>
       <div class="mill-done hidden" id="millDone">
-        <span class="ok" id="millOk">✅ Fræst</span>
+        <span class="ok" id="millOk"><i data-ic=check></i> Fræst</span>
         <button type="button" class="mill-undo" id="millUndo">Afturkalla</button>
       </div>
       <div class="mill-err hidden" id="millErr"></div>
@@ -117,17 +117,18 @@
 
     <div class="choices">
       <a class="choice eining" id="btnEining">
-        <div class="ic">📦</div>
+        <div class="ic"><i data-ic=box></i></div>
         <div><div class="t">EINING</div><div class="d">Skurðarlisti, vörur og allt um þessa einingu</div></div>
       </a>
       <a class="choice verk" id="btnVerk">
-        <div class="ic">⚙️</div>
+        <div class="ic"><i data-ic=gear></i></div>
         <div><div class="t">Verkefnið</div><div class="d">Teikningar, athugasemdir og framvinda verkefnisins</div></div>
       </a>
     </div>
   </div>
 </div>
 
+<script src="/bjorninn-icons.js"></script>
 <script>
 (function () {
   "use strict";
@@ -209,10 +210,10 @@
     function render(state){
       hide($("millErr"));
       $("millBtn").disabled = state === "saving";
-      $("millBtn").textContent = state === "saving" ? "Vista…" : "🔬 Merkja fræst";
+      $("millBtn").textContent = state === "saving" ? "Vista…" : "Merkja fræst";
       if (state === "done" || state === "already") {
         hide($("millBtn")); show($("millDone"));
-        $("millOk").textContent = "✅ Fræst";
+        $("millOk").textContent = "Fræst";
       } else {
         show($("millBtn")); hide($("millDone"));
       }
@@ -286,9 +287,9 @@
         .then(function(prec){
           // 2026-10-28 (G15): the same floor notes /verk shows, only the ones that have text.
           var pf = prec.fields || {}, nb = $("floorNotes");
-          [["Hafa í huga 🧠", pf["🧠📌Það sem þarf að hafa í huga"]],
-           ["Fræsari 🔬", pf["🔬📌 Það sem Fræsari þarf að hafa í huga"]],
-           ["Uppsetning / samsetning 🪛", pf["🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗"]]].forEach(function(n){
+          [["Hafa í huga", pf["🧠📌Það sem þarf að hafa í huga"]],
+           ["Fræsari", pf["🔬📌 Það sem Fræsari þarf að hafa í huga"]],
+           ["Uppsetning / samsetning", pf["🪛📌 Það sem uppsetningaraðili þarf að hafa í huga❗"]]].forEach(function(n){
             var v = txt(n[1]); if (!v) return;
             var d = document.createElement("div"); d.className = "fnote";
             d.innerHTML = '<div class="fnote-k">' + esc(n[0]) + '</div><div class="fnote-v">' + esc(v) + '</div>';
