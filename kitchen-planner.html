@@ -2758,7 +2758,7 @@
       <div class="field" id="field-netfang">
         <label for="cNetfang"><span data-i18n>Netfang</span> <span class="cf-req" aria-hidden="true">*</span></label>
         <input type="email" id="cNetfang" autocomplete="email" required aria-required="true">
-        <span class="field-error" data-i18n>Netfang lítur ekki rétt út</span>
+        <span class="field-error" data-i18n>Vantar netfang</span>
       </div>
       <div class="field" id="field-simi">
         <label for="cSimi"><span data-i18n>Símanúmer</span> <span class="cf-req" aria-hidden="true">*</span></label>
@@ -13547,18 +13547,24 @@
   }
 
   function validateContact(){
-    var ok = true;
+    var ok = true, firstBad = null;
+    // msgs: [empty, filled-but-wrong]; the span is rewritten each time so "123" is not reported as "missing" (sweep studio2 #3)
     var checks = [
       { id:"fornafn", el:document.getElementById("cFornafn"), test:function(v){ return v.trim().length > 0; } },
-      { id:"netfang", el:document.getElementById("cNetfang"), test:function(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()); } },
-      { id:"simi", el:document.getElementById("cSimi"), test:function(v){ return v.trim().length >= 6; } }
+      { id:"netfang", el:document.getElementById("cNetfang"), test:function(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()); }, msgs:["Vantar netfang", "Netfang lítur ekki rétt út"] },
+      { id:"simi", el:document.getElementById("cSimi"), test:function(v){ return v.trim().length >= 6; }, msgs:["Vantar símanúmer", "Símanúmer lítur ekki rétt út"] }
     ];
     checks.forEach(function(c){
       var field = document.getElementById("field-" + c.id);
       var valid = c.test(c.el.value);
       field.classList.toggle("invalid", !valid);
-      if (!valid) ok = false;
+      if (!valid){
+        ok = false; if (!firstBad) firstBad = c.el;
+        var err = field.querySelector(".field-error");
+        if (err && c.msgs) err.textContent = __(c.msgs[c.el.value.trim() ? 1 : 0]);
+      }
     });
+    if (firstBad) try{ firstBad.focus(); }catch(e){}
     return ok;
   }
 

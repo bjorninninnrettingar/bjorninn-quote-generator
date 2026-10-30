@@ -117,6 +117,8 @@
     "Vantar eftirnafn": "Last name is missing",
     "Netfang lítur ekki rétt út": "That email doesn't look right",
     "Vantar símanúmer": "Phone number is missing",
+    "Vantar netfang": "Email is missing",
+    "Símanúmer lítur ekki rétt út": "That phone number doesn't look right",
     "Eitthvað sem söluaðili ætti að vita? <span class=\"cf-opt\">Valfrjálst</span>": "Anything our sales advisor should know? <span class=\"cf-opt\">Optional</span>",
     "T.d. hvenær best er að hafa samband, eða sérstakar óskir": "E.g. the best time to contact you, or special wishes",
     "Við notum upplýsingarnar eingöngu til að hafa samband við þig vegna skipulagsins. Engin binding.": "We only use your details to contact you about your layout. No commitment.",
