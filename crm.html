@@ -672,7 +672,21 @@
     return fetch(u, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields: fields })
-    }).then(function (r) { return r.json(); });
+    }).then(function (r) {
+      // a refused/failed write rejects (and says so) instead of looking saved; the card snaps back
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok || (d && d.error)) throw new Error("patch");
+        return d;
+      });
+    }).catch(function (e) { errToast("Tókst ekki að vista — breytingin fór ekki í gegn. Reyndu aftur."); throw e; });
+  }
+  function errToast(msg) {
+    var t = document.createElement("div");
+    t.setAttribute("role", "alert");
+    t.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#b3261e;color:#fff;padding:10px 16px;border-radius:8px;font-size:14px;z-index:9999;max-width:90vw";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 6000);
   }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
   function kr(n) { return n == null ? "—" : Math.round(n).toLocaleString("is-IS") + " kr."; }
@@ -1034,6 +1048,8 @@
     if (CLOSED_STAGES.indexOf(next) !== -1 && !confirm('Færa í "' + next + '"? Þetta er lokastaða og kveikir á tengdum automationum (t.d. tölvupóstum).')) {
       return;
     }
+    // "Tilboð sent" starts the 3- and 15-day follow-up reminders (chat) — never by a stray drag
+    if (next === "📤 Tilboð sent" && !confirm('Hefur tilboðið verið sent viðskiptavini? Þetta kveikir á eftirfylgni (áminningar eftir 3 og 15 daga).')) return;
     var patch = { "Staða í söluferli": next };
     // Næstu skref auto-default (2026-10-18, user's own per-stage table) — moving into a stage
     // always refreshes Næsta skref to that stage's default, so a deal is never left without one.
@@ -1047,7 +1063,7 @@
       Object.assign(f, patch);
       load();
       return true;
-    });
+    }, function () { load(); return false; }); // toast already shown by apiPatch; redraw so the card is back where it was
   }
 
   // ---- Næstu skref — every open deal with a Næsta skref dags. set, soonest/overdue first ----
