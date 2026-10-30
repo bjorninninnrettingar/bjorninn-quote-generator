@@ -1330,6 +1330,6 @@ window.KP_LINEMAP = {
 };
 
 // Útfærsla "Áfella" (Vörunúmer AF, docs/spec-afella-2026-10-30.md). NOT generated: the generator for this file lives outside the repo
-// — add this line to its output. While it is the placeholder the planner emits no AF Line Items (afLines() checks the shape).
-// Drop the real record id in here once the owner has approved and created the Útfærsla, then run `npm run test:live`.
-window.KP_LINEMAP.afellaId = "PLACEHOLDER_AFELLA_UTFAERSLA_ID";
+// — add this line to its output. afLines() emits nothing unless this is a real record id.
+// Real id of Útfærsla 'Áfella' (AF) created 2026-10-30; run `npm run test:live` after changing it. (Was PLACEHOLDER_AFELLA_UTFAERSLA_ID.)
+window.KP_LINEMAP.afellaId = "recKiurbbZTkXpzmp";

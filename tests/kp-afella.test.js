@@ -94,7 +94,7 @@ test("afKeyOf: numbers are handed out once, per room, and never reused (even aft
 
 test("Line Item: one AF line per áfella, Magn 1, V1 = the Útfærsla, Smíðagögn {v:1,w,h,d:19}; no line while the id is the placeholder", () => {
   const f = fnBody("afLines");
-  assert.ok(/if \(!afellaLive\(\)\) return \[\]/.test(f), "gated on a real record id");
+  assert.ok(/if \(!afellaLive\(\) || /.test(f), "gated on a real record id");
   assert.ok(/"Magn":1/.test(f) && /"Vöru reitur 1":\[AFELLA_UTFAERSLA_ID\]/.test(f));
   assert.ok(/JSON\.stringify\(\{ v:1, w:e\.mm, h:proBodyMm\(e\.b, c, e\.zone\), d:19 \}\)/.test(f), "same shape as an úthlið's Smíðagögn");
   assert.ok(/afKeyOf\(afellaId\(wall, e\)\)/.test(f));
@@ -109,11 +109,12 @@ test("Line Item: one AF line per áfella, Magn 1, V1 = the Útfærsla, Smíðag�
   assert.equal(ctx.w({ label: "Veggur 2" }, { side: "end", zone: "wall", mm: 60 }), "Áfella við Vegg 2, hægri (efri skápar) (60 mm)");
 });
 
-test("the linemap carries the placeholder as a plain string (never a record-id object) until the real Útfærsla exists", () => {
+test("the linemap carries the Áfella Útfærsla id as a plain string (never an id object)", () => {
   const ctx = { window: {} };
   vm.runInNewContext(fs.readFileSync(new URL("../kitchen-planner-linemap.js", import.meta.url), "utf8"), ctx);
   const id = ctx.window.KP_LINEMAP.afellaId;
-  assert.ok(id === "PLACEHOLDER_AFELLA_UTFAERSLA_ID" || /^rec[A-Za-z0-9]{14}$/.test(id), id);
+  assert.equal(id, "recKiurbbZTkXpzmp"); // the real Útfærsla "Áfella" (AF)
+  assert.match(id, /^rec[A-Za-z0-9]{14}$/);
 });
 
 test("Smíða ack / Klár hash: smidaFor and smidaHash never read the áfella (typed mm moves cabinets, not what is built)", () => {
@@ -133,4 +134,9 @@ test("typed mm: Enter confirms; nothing changes (and it says so) when it does no
   assert.ok(/mm < 19 \|\| mm > MAXA/.test(f));
   assert.ok(/ev\.key === "Enter"/.test(fnBody("wireAfellaFields")));
   assert.ok(/var f = PRO \? findBlock/.test(fnBody("afellaEndsOfBlock")), "Studio shows no field");
+});
+
+test("Studio submit stays byte-identical: AF lines only from PRO unless AFELLA_LINES_IN_STUDIO_SUBMIT is flipped", () => {
+  assert.match(html, /var AFELLA_LINES_IN_STUDIO_SUBMIT = false;/);
+  assert.match(fnBody("afLines"), /if \(!afellaLive\(\) \|\| \(!PRO && !AFELLA_LINES_IN_STUDIO_SUBMIT\)\) return \[\];/);
 });

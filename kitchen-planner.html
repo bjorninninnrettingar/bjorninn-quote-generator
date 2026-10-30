@@ -6436,6 +6436,9 @@
   var AFELLA_PLACEHOLDER = "PLACEHOLDER_AFELLA_UTFAERSLA_ID";
   var AFELLA_UTFAERSLA_ID = (window.KP_LINEMAP && window.KP_LINEMAP.afellaId) || AFELLA_PLACEHOLDER;
   function afellaLive(){ return /^rec[A-Za-z0-9]{14}$/.test(AFELLA_UTFAERSLA_ID); }
+  // SAFETY (owner, 2026-10-30): until one AF line has been checked end to end on T-32 (Vista -> Keyra skipulag -> Sögunarlisti),
+  // AF lines go out only from PRO; the customer Studio submit stays byte-identical to before. Flip to true to include them there.
+  var AFELLA_LINES_IN_STUDIO_SUBMIT = false;
   function afellaEnds(wall){
     if (!wall || wall.island || wall.partition) return [];
     var surfs = KP3D.surfacesOf(state), wi = state.walls.indexOf(wall);
@@ -6452,7 +6455,7 @@
   }
   // one Line Item per áfella (same shape as an úthlið's): Smíðagögn w = width, h = the cabinet's height, d = 19
   function afLines(){
-    if (!afellaLive()) return [];
+    if (!afellaLive() || (!PRO && !AFELLA_LINES_IN_STUDIO_SUBMIT)) return [];
     var out = [], fp = projectFrontPlan(), own = roomOwnMats();
     state.walls.forEach(function(wall){
       afellaEnds(wall).forEach(function(e){

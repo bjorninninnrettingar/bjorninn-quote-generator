@@ -219,3 +219,6 @@ Kostur B: breyta mínútureitunum í `10, 10, 0, 5, 3` (í sömu röð og að of
 ```
 
 Eftir að Útfærslan er til: id hennar (`rec…`) fer í `kitchen-planner-linemap.js` (`window.KP_LINEMAP.afellaId`), `npm run test:live` athugar að hún sé í Útfærslum, og áfellur byrja að fara með Line Items.
+
+
+**Skapað 30.10.2026:** vara `recLmy7flOx6p061Z`, Útfærsla `recKiurbbZTkXpzmp` (`afellaId`). **Öryggi:** AF-línur fara aðeins úr PRO Vista þar til T-32 er staðfest; til að opna fyrir Studio-innsendingu breyttu `AFELLA_LINES_IN_STUDIO_SUBMIT` í `true` í `kitchen-planner.html` (við `afellaLive`).
