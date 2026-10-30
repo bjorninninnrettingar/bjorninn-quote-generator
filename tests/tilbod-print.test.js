@@ -64,7 +64,8 @@ test("appendPdf: the drawings' pages follow the quote's own; quoteFile picks the
 test("kp-drawings: with the office key an older Tækifæri's drawing is replaced; without it, still refused", async () => {
   const realFetch = globalThis.fetch, calls = [];
   globalThis.fetch = async (url, o = {}) => { calls.push((o.method || "GET") + " " + url);
-    return { ok: true, status: 200, json: async () => ({ id: REC, createdTime: "2026-01-01T00:00:00Z", fields: { "Teikningar úr skipuleggjara 📐": [{ url: "x" }] } }), text: async () => "" }; };
+    const atts = String(url).includes("uploadAttachment") ? [{ id: "attOld1", url: "x" }, { id: "attNew1", url: "y" }] : [{ id: "attOld1", url: "x" }]; // upload appends, then the old one is dropped
+    return { ok: true, status: 200, json: async () => ({ id: REC, createdTime: "2026-01-01T00:00:00Z", fields: { "Teikningar úr skipuleggjara 📐": atts, fldO6cbhBV2FQTmLx: atts } }), text: async () => "" }; };
   try {
     const pdf = Buffer.from("%PDF-1.7\n" + "x".repeat(200));
     let res = mockRes();
@@ -74,6 +75,7 @@ test("kp-drawings: with the office key an older Tækifæri's drawing is replaced
     await drawings({ method: "POST", query: { recordId: REC, k: "secret" }, body: pdf }, res);
     assert.equal(res.statusCode, 200);
     assert.ok(calls.some((c) => c.startsWith("PATCH")) && calls.some((c) => c.includes("uploadAttachment")), calls.join(" | "));
+    assert.ok(calls.findIndex((c) => c.includes("uploadAttachment")) < calls.findIndex((c) => c.startsWith("PATCH")), "upload before the PATCH");
   } finally { globalThis.fetch = realFetch; }
 });
 
