@@ -2,7 +2,7 @@
 
 2026-10-30. Bara forskrift, enginn kóði skrifaður. Eigandi les, leiðréttir, svo eru umferðir smíðaðar og prófaðar á T-32.
 **Útlit og pláss eingöngu.** Engin borgögn, CAD eða CNC í þessari umferð.
-**Bið:** ekki smíða fyrr en `build-beams` hefur pushað (sömu skrár: `kitchen-planner-3d.js`, `kitchen-planner.html`).
+**Staða: Umferð 1 byggð 2026-10-30** (á main). Byggt: `kitchen-planner-pocket.js` (`KPPOCKET`, hrein stærðfræði + próf `tests/kp-pocket.test.js`): 5 útgáfur á kerfi (Revego uno, uno+uno, duo, uno+duo, duo+duo; Hawa 1 hurð, 2×1, 2 felli, 2×2 felli, 2 felli+1), vasinn innan breiddar (100/150, Hawa 55/110 sem nefnd fasti `HAWA_CONNECTOR_MM`), stærðarmörk sem íslensk villuboð (á spjaldinu strax + `proIssues` í Smíða), pláss-texti („Vasinn tekur 100 mm af 600 mm. Innanmál: 500 mm“, opin hurð stendur X mm fram), skref „Hvaða útgáfu?“ í Ný eining (Tækjaskápar → Vasahurð og Flóknari kerfi → Vasahurðir; Studio og PRO) með grunnmyndar-spjöldum í réttum mm, Smíða-flögur fyrir útgáfu/hlið, 3D: vasaplötur, hurð í yfirlögn með 6 mm rauf + álbraut, engin handföng, kyrrstæð opin staða með hurðina í vasanum, sökkull af/á borðplötu, draugur í Ofanmynd. Nýir valfrjálsir reitir á `b.smida.doors[i]`: `pocketVer`, `pocketSide`, `toeKick:false`, `onWorktop:true` (aðeins skrifaðir þegar valið). **Ekki byggt (umferð 2):** renna/felling-hreyfing (aðeins sama gamla snúning+renna), tákn á Veggur/Smíða-teikningum, nákvæm Hawa-felli-rými (`HAWA_FOLD_EXTRA_MM` = 0, texti segir „áætlun“), borðplötuútgáfan er aðeins mörk + engin sökkull (einingin stendur þar sem hún er sett), Smíða-hæðir miða enn við sökkul þótt hann sé af, þyngdarmörk (35 kg) vantar.
 
 ## 1. Hvað er til í dag
 

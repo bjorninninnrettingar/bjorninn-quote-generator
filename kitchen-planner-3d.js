@@ -8376,6 +8376,15 @@
       if (thin){
         svg += '<polygon data-wall-id="' + wallId + '" data-zone="' + zone + '" data-block-id="' + bl.id + '" points="' + poly + '" fill="none" stroke="transparent" stroke-width="14" style="cursor:pointer;pointer-events:stroke;"/>';
       }
+      // Vasahurðir (2026-10-30): the pocket's footprint as a dark grey dashed ghost inside the unit, so the plan shows what room goes to it
+      var pkG = !thin && window.KPPOCKET && !c.corner && !c.fridge && !c.oven && Array.isArray(bl.smida && bl.smida.doors) ? bl.smida.doors.find(function(d){ return d && d.type === "pocket"; }) : null;
+      if (pkG){
+        var pkR = window.KPPOCKET.resolve(pkG, { widthMm:bl.widthMm, bodyMm:2300, depthMm:bl.depthMm || c.d }, bl.swing === "haegri" ? "right" : "left");
+        pkR.pockets.forEach(function(pp){
+          var pc = rectCornersWorld(g, offsetMm + pp.x0, pp.x1 - pp.x0, bl.depthMm || c.d);
+          svg += '<polygon data-pocket-ghost="' + bl.id + '" points="' + pc.map(function(q){ return X(q.x) + "," + Y(q.z); }).join(" ") + '" fill="#6d6d69" fill-opacity="0.28" stroke="#3a3a37" stroke-width="1" stroke-dasharray="4,3" style="pointer-events:none;"/>';
+        });
+      }
       // front edge in the kitchen's front colour
       if (!isWallRow && c.counter){
         svg += '<line x1="' + X(corners[3].x) + '" y1="' + Y(corners[3].z) + '" x2="' + X(corners[2].x) + '" y2="' + Y(corners[2].z) + '" stroke="#1a1a1a" stroke-width="1.8" style="pointer-events:none;"/>';
