@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="robots" content="noindex" />
 <title>Smíða — Björninn</title>
+<link rel="stylesheet" href="/bjorninn-tokens.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   /* smida.html (/smida) — "Smíða úr Eyðublöðum": Smíða for a project planned the OLD way in Airtable (Eyðublöð +
      Sögunarlisti, no PRO drawing). One cabinet per Eyðublað, built from the same Sögunarlisti rows /cnc plans from
@@ -14,9 +18,9 @@
      is the hero and is edited directly (drag shelves/hinges, click a door for its hinge side, click a number to type),
      the right side asks only what is still open, everything settled is one quiet line. See docs/pro-finish.md. */
   :root {
-    --bg:#f5f5f7; --surface:#ffffff; --line:#e5e5ea; --line2:#d2d2d7; --text:#1d1d1f; --muted:#6e6e73; --dim:#a1a1a6;
-    --blue:#0071e3; --blue-soft:#e8f1fc; --green:#248a3d; --green-soft:#e9f6ec; --amber:#b25000; --amber-soft:#fff4e5; --red:#d70015;
-    --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --bg:var(--bj-panel); --surface:var(--bj-surface); --line:var(--bj-line); --line2:#d9d3b3; --text:var(--bj-ink); --muted:var(--bj-muted); --dim:var(--bj-dim);
+    --blue:var(--bj-blue); --blue-soft:var(--bj-blue-soft); --green:var(--bj-good); --green-soft:var(--bj-good-soft); --amber:var(--bj-warn); --amber-soft:var(--bj-warn-soft); --red:var(--bj-bad);
+    --font:var(--bj-font);
     --warn-bg:#fdf2d9; --warn-line:#f0d78c; --good-bg:#e5f6ea; --good-line:#b7e3c2; --bad-bg:#fbe4e1; --bad-line:#f0b8b0;
     --bw-title1:#5c4a2e; --bw-title2:#9c8a6b; --bw-chrome:#d6d3c6; --bw-chrome-dark:#9b9686;
     --bw-list-bg:#e2dfd2; --bw-row-line:#cac6b6; --bw-canvas:#eeede6; --bw-ink:#333;
@@ -29,7 +33,7 @@
   button { cursor:pointer; background:none; border:none; }
   button:disabled { cursor:default; }
   input[type=number] { width:76px; border:1px solid var(--line2); border-radius:8px; padding:5px 8px; background:#fff; text-align:right; font-variant-numeric:tabular-nums; }
-  input[type=number]:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px #0071e333; }
+  input[type=number]:focus { outline:none; border-color:var(--blue); box-shadow:0 0 0 3px #3d61c133; }
   .shell { height:100vh; display:grid; grid-template-rows:56px 1fr; }
 
   /* top bar */
@@ -93,7 +97,7 @@
   #canvas.both .cncv { padding-top:44px; } #canvas.both .cnccap { flex-wrap:wrap; gap:6px 12px; } #canvas.both .frsec { display:none; }
   #canvas svg { display:block; touch-action:none; user-select:none; overflow:visible; }
   .door { cursor:pointer; }
-  .door:hover .door-r { fill:#0071e30d; }
+  .door:hover .door-r { fill:#3d61c10d; }
   .lbl { cursor:text; }
   .lbl rect { fill:#fff; stroke:var(--line2); }
   .lbl:hover rect { stroke:var(--blue); }
@@ -110,7 +114,7 @@
   .cnccap .cs { width:4px; height:4px; border-radius:50%; background:var(--text); box-shadow:6px 0 0 var(--text); margin-right:6px; }
   .cnccap .cf { width:14px; height:2px; background:var(--text); }
   .bpp-calm-svg .cz[data-type="shelf"], .bpp-calm-svg .cz[data-type="inner"], .bpp-calm-svg .cz[data-type="hinge"] { cursor:ns-resize; }
-  .cnccap .cd { width:14px; height:9px; border:1.1px solid #6e6e73; border-radius:2px; box-shadow:inset 0 -1.6px 0 #6e6e73; }
+  .cnccap .cd { width:14px; height:9px; border:1.1px solid #6f6d66; border-radius:2px; box-shadow:inset 0 -1.6px 0 #6f6d66; }
   .cnccap svg { display:block; }
   .bpp-calm-svg .cz[data-type] { cursor:pointer; }
   .pick { cursor:pointer; }
@@ -169,7 +173,7 @@
   .check li { list-style:none; font-size:13px; color:var(--amber); padding:4px 0 4px 16px; position:relative; }
   .check li::before { content:""; position:absolute; left:2px; top:11px; width:6px; height:6px; border-radius:50%; background:var(--amber); }
   .tip { position:relative; display:inline-flex; color:var(--dim); cursor:help; vertical-align:middle; }
-  .tip:hover::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 6px); right:-8px; width:240px; background:#1d1d1f; color:#fff; font-size:12px; line-height:1.4; padding:8px 10px; border-radius:8px; z-index:30; font-weight:400; white-space:normal; }
+  .tip:hover::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 6px); right:-8px; width:240px; background:#191919; color:#fff; font-size:12px; line-height:1.4; padding:8px 10px; border-radius:8px; z-index:30; font-weight:400; white-space:normal; }
   .pf { padding:14px 26px 18px; border-top:1px solid var(--line); }
   #nextBtn { width:100%; height:46px; border-radius:12px; background:var(--blue); color:#fff; font-size:15px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:10px; }
   #nextBtn:disabled { background:#e8e8ed; color:var(--dim); }
@@ -180,7 +184,7 @@
   .msg { max-width:520px; margin:80px auto; text-align:center; }
   .msg h2 { font-size:22px; font-weight:600; margin-bottom:8px; } .msg p { color:var(--muted); margin-bottom:16px; }
   .msg button { color:var(--blue); }
-  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(8px); background:#1d1d1f; color:#fff; padding:9px 16px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; z-index:40; }
+  .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(8px); background:#191919; color:#fff; padding:9px 16px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; z-index:40; }
   .toast.show { opacity:1; transform:translateX(-50%); }
   /* BiesseWorks card (cnc-bpp.js) — same look as /cnc and /bpp */
   .bpp-card { background:none; border:none; padding:0; }
@@ -481,7 +485,7 @@
     // a rail lift (Emuca / Toplift): its footprint as a band across the cabinet at the real height range, the macro's own limits for Toplift
     // (min 44 from the bottom), red when CNC finds it running into a shelf / hinge plate / runner (plan.liftEnv)
     (p.liftEnv || []).forEach(function (le) {
-      var bad = le.hits.length, col = bad ? "#d70015" : "#0071e3", ya = Y(Math.min(H, le.x1)), yb = Y(Math.max(0, le.x0));
+      var bad = le.hits.length, col = bad ? "#d70015" : "#3d61c1", ya = Y(Math.min(H, le.x1)), yb = Y(Math.max(0, le.x0));
       s += '<g><rect x="' + (X(0) + 2) + '" y="' + ya + '" width="' + (W * sc - 4) + '" height="' + Math.max(2, yb - ya) + '" fill="' + col + '" fill-opacity=".08" stroke="' + col + '" stroke-width="1" stroke-dasharray="4 3"/>' +
         '<text x="' + (X(0) + 6) + '" y="' + (ya + 11) + '" font-size="10" fill="' + col + '">' + le.name + (bad ? " — rekst á " + esc(le.hits.join(", ")) : "") + '</text><title>' + le.name + " — " + mm(le.x0) + "–" + mm(le.x1) + " mm frá botni, " + mm(H - le.x) + " mm frá toppi" + '</title></g>';
       if (le.type === "toplift") s += '<line x1="' + X(0) + '" x2="' + X(W) + '" y1="' + Y(44) + '" y2="' + Y(44) + '" stroke="#d70015" stroke-width=".9" stroke-dasharray="5 3"/><text x="' + (X(0) + 4) + '" y="' + (Y(44) - 2) + '" font-size="9" fill="#d70015">min 44</text>';
@@ -519,20 +523,20 @@
       else if (hs === "baedi") mark = "M" + x0 + " " + y0 + " L" + mx + " " + my + " L" + x0 + " " + y1 + " M" + x1 + " " + y0 + " L" + mx + " " + my + " L" + x1 + " " + y1;
       else if (hs === "vinstri") mark = "M" + x0 + " " + y0 + " L" + x1 + " " + my + " L" + x0 + " " + y1;
       else if (hs === "haegri") mark = "M" + x1 + " " + y0 + " L" + x0 + " " + my + " L" + x1 + " " + y1;
-      s += '<g class="door" data-door="' + i + '"><rect class="door-r" x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + (y1 - y0) + '" rx="2" fill="transparent" stroke="#0071e3" stroke-width="1.3"/>' +
-        (hs === "baedi" && leaves ? '<line x1="' + mx + '" x2="' + mx + '" y1="' + y0 + '" y2="' + y1 + '" stroke="#0071e3" stroke-width="1"/>' : "") +
-        (mark ? '<path d="' + mark + '" fill="none" stroke="#0071e3" stroke-width="1" stroke-dasharray="6 5" opacity=".7"/>' : "") +
+      s += '<g class="door" data-door="' + i + '"><rect class="door-r" x="' + x0 + '" y="' + y0 + '" width="' + (x1 - x0) + '" height="' + (y1 - y0) + '" rx="2" fill="transparent" stroke="#3d61c1" stroke-width="1.3"/>' +
+        (hs === "baedi" && leaves ? '<line x1="' + mx + '" x2="' + mx + '" y1="' + y0 + '" y2="' + y1 + '" stroke="#3d61c1" stroke-width="1"/>' : "") +
+        (mark ? '<path d="' + mark + '" fill="none" stroke="#3d61c1" stroke-width="1" stroke-dasharray="6 5" opacity=".7"/>' : "") +
         "<title>" + (leaves ? "Vænghurð — lamir báðum megin" : "Smelltu til að skipta um lamahlið") + "</title></g>";
       if (d.vert && gripEff(c) > 0) { var vg = gripEff(c) * sc, vx = hs === "haegri" ? x0 : x1 - vg; s += '<rect class="pick" data-pick="jey" x="' + vx + '" y="' + y0 + '" width="' + vg + '" height="' + (y1 - y0) + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll á hlið (' + Math.round(c.gripMm) + ' mm)</title></rect>'; }
       if (d.g > 0.5) s += '<rect class="pick" data-pick="jey" x="' + (x0 + 2) + '" y="' + (d.gb ? Y(d.from) : Y(d.to + d.g)) + '" width="' + (x1 - x0 - 4) + '" height="' + d.g * sc + '" fill="#c7c7cc" stroke="#aeaeb2" stroke-width=".6"><title>Gripprófíll ' + Math.round(d.g) + ' mm ' + (d.gb ? "neðan á" : "ofan á") + ' hurðinni</title></rect>';
       if (lift) { // lift-up door: its hinges sit in the TOP board — two cups on the door's top edge (illustration: 100 mm in from each side)
-        [x0 + 100 * sc, x1 - 100 * sc].forEach(function (cx) { s += '<g><circle cx="' + cx + '" cy="' + (y0 + 17.5 * sc + 2) + '" r="' + Math.max(17.5 * sc, 4) + '" fill="#0071e3" fill-opacity=".14" stroke="#0071e3" stroke-width="1.2"/><title>Löm í toppborðinu (lyftihurð)</title></g>'; });
+        [x0 + 100 * sc, x1 - 100 * sc].forEach(function (cx) { s += '<g><circle cx="' + cx + '" cy="' + (y0 + 17.5 * sc + 2) + '" r="' + Math.max(17.5 * sc, 4) + '" fill="#3d61c1" fill-opacity=".14" stroke="#3d61c1" stroke-width="1.2"/><title>Löm í toppborðinu (lyftihurð)</title></g>'; });
         return;
       }
       var sides = hs === "baedi" ? [0, W] : hs === "vinstri" ? [0] : hs === "haegri" ? [W] : [0, W];
       (d.hinges || []).forEach(function (h, k) {
         sides.forEach(function (sx) {
-          s += '<g class="drag" data-k="hinge" data-i="' + i + '" data-j="' + k + '">' + cupSvg(sx ? x1 : x0, sx ? -1 : 1, Y(d.from + h), sc, hs ? "#0071e3" : "#aeaeb2") + "<title>Löm — dragðu</title></g>";
+          s += '<g class="drag" data-k="hinge" data-i="' + i + '" data-j="' + k + '">' + cupSvg(sx ? x1 : x0, sx ? -1 : 1, Y(d.from + h), sc, hs ? "#3d61c1" : "#aeaeb2") + "<title>Löm — dragðu</title></g>";
         });
       });
     });
@@ -710,7 +714,7 @@
         var m = /^([\d.]+), 0, "([\d,]+)"/.exec(o.params); if (!m) return;
         var mmv = +m[1], ends = m[2].split(","), cx = hinge === "haegri" ? W - 22.5 : 22.5;
         ends.forEach(function (end) { var y = end === "2" ? mmv : H - mmv;
-          g += "<g>" + cupSvg(hinge === "haegri" ? X(W) : X(0), hinge === "haegri" ? -1 : 1, Y(y), s, "#0071e3") + "<title>Lamaskál Ø35 + 2 × Ø8 — " + mmv + " mm frá " + (end === "2" ? "neðri" : "efri") + " enda</title></g>"; });
+          g += "<g>" + cupSvg(hinge === "haegri" ? X(W) : X(0), hinge === "haegri" ? -1 : 1, Y(y), s, "#3d61c1") + "<title>Lamaskál Ø35 + 2 × Ø8 — " + mmv + " mm frá " + (end === "2" ? "neðri" : "efri") + " enda</title></g>"; });
       }
     });
     (f.led || []).forEach(function (l) { // a shelf's LED rout: runs along the width at Y mm from the front edge (bottom of the card)

@@ -360,7 +360,7 @@
   }
   function renderCalm(LPX, LPY, features, opts) {
     opts = opts || {};
-    var acc = opts.accent || {}, BLUE = "#0071e3", INK = "#1d1d1f", SOFT = "#8e8e93", RED = "#d70015";
+    var acc = opts.accent || {}, BLUE = "#3d61c1", INK = "#1d1d1f", SOFT = "#8e8e93", RED = "#b3432f";
     var maxH = opts.maxH || 560, maxW = opts.maxW || 360, s = Math.min(maxH / LPX, maxW / LPY);
     var fr = opts.fronts && opts.fronts.length, colW = fr ? 12 : 0, gap = fr ? 7 : 0;
     // opts.mirror: the right side drawn as the mirror image of the left (front edge to the right) — the two sides face each other
@@ -467,7 +467,7 @@
         // Guide lines for placing it (2026-10-29): distance from the top edge and from the front edge to POSITION_X / POSITION_Y,
         // and — Toplift — the macro's own limits ("minimum 44" on X, "minimum 241" on Y, from KESSEBOHMER_TOPLIFT_FATASLA.ini; the far
         // limit LPY−241 is the same arm reach (±220 + 21) on the back side).
-        var GC = "#0071e3", gl = function (x1, y1, x2, y2, dash, col) { elf.appendChild(svgEl("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: col || GC, "stroke-width": .9, "stroke-dasharray": dash || "", opacity: .85 })); },
+        var GC = "#3d61c1", gl = function (x1, y1, x2, y2, dash, col) { elf.appendChild(svgEl("line", { x1: x1, y1: y1, x2: x2, y2: y2, stroke: col || GC, "stroke-width": .9, "stroke-dasharray": dash || "", opacity: .85 })); },
           gt = function (x, y, t, col, anchor) { var tx = svgEl("text", { x: x, y: y, "font-size": 9, fill: col || GC, "text-anchor": anchor || "start" }); tx.textContent = t; elf.appendChild(tx); };
         var gx = X(Math.max(0, Math.min(LPY, f.ly)));
         gl(gx, Y(LPX), gx, Y(f.lx), "3 2"); gt(gx + 3, Y((LPX + f.lx) / 2), Math.round(LPX - f.lx) + " frá toppi");
@@ -493,8 +493,8 @@
   }
   var CALM_CSS = ".bpp-calmv{background:#fff;border:1px solid #e5e5ea;border-radius:12px;padding:12px 14px 10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1d1d1f}" +
     ".bpp-calm-h{display:flex;align-items:center;gap:10px;margin-bottom:6px;font-size:13px}.bpp-calm-h b{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-    ".bpp-calm-h button{font:inherit;font-size:12px;color:#0071e3;background:none;border:none;cursor:pointer;padding:2px 0}" +
-    ".bpp-calm-body{display:flex;justify-content:center}.bpp-calm-svg .cz{cursor:default}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover path,.bpp-calm-svg .cz[data-type=hinge]:hover rect,.bpp-calm-svg .cz[data-type=hinge]:hover circle{stroke:#0071e3;fill:#fff}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover rect[rx='2']{stroke:#0071e3}.bpp-calm-svg .cz:hover circle{fill:#0071e3}.bpp-calm-svg .cz:hover text{fill:#0071e3}" +
+    ".bpp-calm-h button{font:inherit;font-size:12px;color:#3d61c1;background:none;border:none;cursor:pointer;padding:2px 0}" +
+    ".bpp-calm-body{display:flex;justify-content:center}.bpp-calm-svg .cz{cursor:default}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover path,.bpp-calm-svg .cz[data-type=hinge]:hover rect,.bpp-calm-svg .cz[data-type=hinge]:hover circle{stroke:#3d61c1;fill:#fff}.bpp-calm-svg .cz:hover line,.bpp-calm-svg .cz:hover rect[rx='2']{stroke:#3d61c1}.bpp-calm-svg .cz:hover circle{fill:#3d61c1}.bpp-calm-svg .cz:hover text{fill:#3d61c1}" +
     ".bpp-card.bpp-calm>.bw-window,.bpp-card.bpp-calm>.bpp-raw,.bpp-card.bpp-calm .bpp-note.info{display:none}.bpp-card:not(.bpp-calm)>.bpp-calmv .bpp-calm-body{display:none}" +
     ".bpp-card:not(.bpp-calm)>.bpp-calmv{border:none;background:none;padding:0 0 6px}";
   function ensureCalmCss() {
