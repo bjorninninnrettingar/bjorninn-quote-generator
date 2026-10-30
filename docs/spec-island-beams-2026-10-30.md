@@ -1,6 +1,6 @@
 # Spec: eyjar, bitar í lofti, loftun (2026-10-30)
 
-Þetta er texti til að lesa og leiðrétta. Enginn kóði er skrifaður. Tilvísanir í skrár og línur eru aftast.
+**Staða: Umferð 1 byggð 2026-10-30 (bitar, C).** Umferðir 2 og 3 ekki byrjaðar. Eldri texti: þetta var spec til að lesa og leiðrétta. Tilvísanir í skrár og línur eru aftast.
 Prófað á T-32 (prufuverkið) eftir hverja umferð. Skýring: PRO = Pro-hamur (Rakel), Studio = það sem viðskiptavinur sér.
 
 ## A. Hár skápur í eyju
@@ -60,6 +60,26 @@ Prófað á T-32 (prufuverkið) eftir hverja umferð. Skýring: PRO = Pro-hamur 
 7. **Sjá bitann:** hnappur "Sýna loft" (myndavél upp á við / ofanmynd) svo bitinn sé alltaf í mynd; valmöguleiki: dráttur og snúningur líka í 2D Ofanmynd (ekki kannað hvort það sé til í ritli, sjá spurningu 4).
 8. **Laga leiðinlegt:** fylgja `ang` við stöðuleit; ekki flytja bita á annan vegg nema bendill fari yfir hann; ef utan herbergis, segja það.
 **Prófun á 5 mínútum:** T-32 → Hindranir → Biti → "Sýna loft". Dragðu bitann 100 punkta (ætti að færast um ca 150–300 mm með 10 mm skrefum, ekki stökk). Shift-dragðu (fínt). Dragðu snúningshandfangið: festist á 0/45/90, Shift = frjálst. Sláðu 30 í Snúningur. Esc í miðjum drætti. Ctrl+Z. Færðu hann að vegg og sjáðu segulinn grípa.
+
+### Umferð 1 byggð (2026-10-30): hvað var gert og 5 mínútna prófið
+
+Skrár: `kitchen-planner-beam.js` (ný: hrein stærðfræði, `window.KPBEAM`, prófuð í `tests/kp-beam.test.js`), `kitchen-planner-3d.js` (dráttur, snúningshandfang, blár rammi, fjarlægðir, `viewCeiling`, `beamPoseFor`/`beamMetaFor`, `wireBeamPlan` fyrir Ofanmynd), `kitchen-planner.html` (spjald, `beamSetPose`, `beamSnapTargets`, `onObstacleFloorEnd`/`onObstacleTurnEnd`). Vistuð gögn eru óbreytt (`offsetMm/outMm/widthMm/depthMm/rot/ang`); snúningur upp á nákvæmlega 90° er vistaður sem `rot: 90`, annað sem `ang`.
+
+Frávik frá textanum að ofan: (1) hraðatakmörkun er ekki bein hlutföll heldur `s²(1+s²)/2` með `s = sin(halli)/sin(20°)`, því 1 punktur vex um 1/sin² nær láréttu; aðeins hreyfing að/frá myndavél er hægð, til hliðar er óbreytt (hámark 60 mm á hverja hreyfingu gildir áfram). (2) "Sýna loft" er í spjaldi bitans (ofanmynd úr lofti, ekki horft upp). (3) Auk þess lagað: gripkassi bitans tapaði valinu fyrir skáphurð fyrir aftan hann í sömu sjónlínu (`pickMeshAt`), ein ástæða þess að erfitt var að ná honum.
+
+Mælt (T-32-líkt herbergi, sjálfgefin sýn, plan í hæð bitans): áður 59 mm á punkt (halli 8°), lág sýn (2,2°) 245 mm á punkt; nú 9–11 mm á punkt og 1,4 mm á punkt í sömu röð (til hliðar óbreytt ~9 mm á punkt, bitinn fylgir bendlinum).
+
+**Prófun á 5 mínútum (T-32):**
+1. Opnaðu T-32 í ritlinum. Hindranir → Biti í lofti → spjald opnast. Smelltu "Sýna loft": myndavélin fer upp og lítur niður, bitinn er í mynd með bláum ramma, bláum snúningspunkti á öðrum enda og fjarlægðum til veggja (Ofanmynd: "Ofanmynd" hnappurinn, sami dráttur og snúningur).
+2. Farðu aftur í 3D (hnappur "Endurstilla sýn"). Dragðu bitann 100 punkta: hann færist mjúkt, í 10 mm skrefum, ekki stökk. Shift-dragðu: 1 mm skref. Haltu Alt: engir seglar.
+3. Dragðu bitann að vegg eða vegg-enda þar til hann er innan 5 cm: hann gripur (fjarlægðarmerkið verður blátt/0).
+4. Dragðu snúningspunktinn: skref 5°, festist við 0/45/90 (3° segull); Shift = 1°. Snúningur 90° gefur "Snúningur 90" í spjaldinu.
+5. Sláðu 30 í "Snúningur (°)", svo "Staða frá horni" og "Bil frá vegg": bitinn færist, aðrir reitir breytast ekki.
+6. Esc í miðjum drætti: bitinn fer til baka, ekkert vistað. Ctrl+Z (eða örin): einn afturkallar eina hreyfingu.
+7. Dragðu bitann út fyrir herbergið: skilaboð "Bitinn lenti utan herbergis" og hann fer til baka.
+8. Smelltu á auðan flöt við bitann: velur ekki bitann ranglega; myndavélin snýst ekki meðan haldið er á bitanum eða punktinum.
+
+Ekki sannreynt: raunveruleg tilfinning músar/snertiflatar (prófað með hermdum atburðum í Browser-rúðunni), Studio-flæðið sérstaklega (sami kóði, ekki opnað sem viðskiptavinur), fjarlægðarmerki í Ofanmynd (ekki gerð).
 
 ## D. Loftunarhillur
 
