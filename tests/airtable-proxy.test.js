@@ -202,3 +202,14 @@ test("Fjarvistir: approving a vacation request needs the key and only Samþykkt/
   assert.equal(ok.statusCode, 200);
   assert.deepEqual(f.calls.at(-1).body.fields, { "Staða": "Samþykkt" });
 });
+
+test("SOP's: unreadable without a key, readable with the key (internal reference library)", async () => {
+  const SOP = "tblPMeNUQirwdNlYf";
+  assert.equal((await get({ path: SOP })).statusCode, 403);
+  assert.equal((await get({ path: SOP, k: "wrong" })).statusCode, 403);
+  assert.equal((await get({ path: `${SOP}/rec1` })).statusCode, 403);
+  const ok = await get({ path: SOP, k: "verk-secret" });
+  assert.equal(ok.statusCode, 200);
+  const url = f.calls[f.calls.length - 1].url;
+  assert.ok(decodeURIComponent(url).includes("Lýsing á skrefum"), "fields come through with the key");
+});

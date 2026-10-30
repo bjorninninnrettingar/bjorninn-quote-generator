@@ -238,16 +238,7 @@ const ALLOWED_FIELDS = {
     "Klst",
     "Stimplun ⏱️",
   ],
-  "tblPMeNUQirwdNlYf": [ // SOP's 🤓 — read-only reference library for /sop
-    "Heiti SOP (standard operating procedure)",
-    "Cover mynd 🖼️",
-    "Eigandi SOP's",
-    "Myndbands eða teiknuð útskýring 🔗",
-    "Lýsing á skrefum ✍️",
-    "Lesa eða ekki 🤓",
-    "Flokkur 🗂️",
-    "Undirflokkur 📁",
-  ],
+  "tblPMeNUQirwdNlYf": [], // SOP's 🤓 — internal (employee numbers, HR procedure): every field is behind the floor key, see SOP_FIELDS + KEY_REQUIRED_READ
   // Vörur per eining 📦 — purely internal per-unit product review data, no public
   // use case, so the base set is empty and every field lives behind VERK_KEY
   // (see VERK_ONLY_FIELDS below) rather than the usual "baseline + more" split.
@@ -286,6 +277,19 @@ const ALLOWED_FIELDS = {
   "tbljdg6uxEfHE7uCU": [], // Orlofsbeiðnir (vacation requests)
 };
 
+// SOP's 🤓 (/sop, staff only, 2026-10-30): readable only with ?k= (full key or a paired floor token).
+const SOP_FIELDS = [
+  "Heiti SOP (standard operating procedure)",
+  "Cover mynd 🖼️",
+  "Eigandi SOP's",
+  "Myndbands eða teiknuð útskýring 🔗",
+  "Lýsing á skrefum ✍️",
+  "Lesa eða ekki 🤓",
+  "Flokkur 🗂️",
+  "Undirflokkur 📁",
+];
+const KEY_REQUIRED_READ = new Set(["tblPMeNUQirwdNlYf"]);
+
 // Extra Tækifæri fields the internal floor page (/verk, verk.html) needs —
 // drawings, the "þarf að hafa í huga" notes, meeting notes, progress. These
 // are deliberately NOT in ALLOWED_FIELDS: the customer portal and every other
@@ -293,6 +297,7 @@ const ALLOWED_FIELDS = {
 // merged in only when the request carries ?k= matching VERK_KEY (the key the
 // shop printer bakes into the QR on each Zebra label).
 const VERK_ONLY_FIELDS = {
+  "tblPMeNUQirwdNlYf": SOP_FIELDS,
   "tblPPMTlFhW0snk24": [ // Virkni 🔔 — activity feed, /skrifstofa dashboard. Same internal/VERK_KEY
     // pattern as Pöntunarlisti/ÚRVINNSLA (ALLOWED_FIELDS stays [] above) — this entry was simply
     // missing, so automations had been writing real records since 2026-10-19 but every GET came back
@@ -727,7 +732,7 @@ const FLOOR_VERK_FIELDS = {
   ],
 };
 // Tables whose whole VERK_ONLY set is floor-safe (unit build detail, Quick Fix drawings, material codes).
-const FLOOR_FULL_VERK_TABLES = new Set(["tbl0WcyHhz63pSzZX", "tblDQWuf4OSjUv2XI", "tbl8CrVWKF8CuI7HD"]);
+const FLOOR_FULL_VERK_TABLES = new Set(["tbl0WcyHhz63pSzZX", "tblDQWuf4OSjUv2XI", "tbl8CrVWKF8CuI7HD", "tblPMeNUQirwdNlYf"]);
 export function floorVerkFields(tableId) {
   if (FLOOR_VERK_FIELDS[tableId]) return FLOOR_VERK_FIELDS[tableId];
   if (FLOOR_FULL_VERK_TABLES.has(tableId)) return VERK_ONLY_FIELDS[tableId] || [];
@@ -1034,6 +1039,7 @@ export default async function handler(req, res) {
     }
     const kLevel = params.k != null && !pieceScope ? keyLevel(String(params.k)) : null; // "full" | "floor" | null
     const keyValid = kLevel === "full";
+    if (KEY_REQUIRED_READ.has(tableId) && !kLevel) return res.status(403).json({ error: "Key required" });
     const fml = String(params.filterByFormula || "");
     if (!recordId && STRICT_FILTERS[tableId] && !STRICT_FILTERS[tableId].test(fml) && !pieceScope &&
         !(keyValid && KEYED_STRICT_FILTERS[tableId] && KEYED_STRICT_FILTERS[tableId].test(fml))) {

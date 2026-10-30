@@ -23,7 +23,7 @@
   // ---- part A: markup + start / intake / room shape step ----
   add({
     "Best á tölvu": "Best on a computer",
-    "Þetta skipulagstól er hannað fyrir stærri skjái — opnaðu þessa síðu á fartölvu eða borðtölvu til að teikna og raða upp eldhúsinu þínu.": "This planner is made for larger screens — open this page on a laptop or desktop to draw and lay out your kitchen.",
+    "Þetta skipulagstól er hannað fyrir stærri skjái — opnaðu þessa síðu á fartölvu eða borðtölvu til að hanna heimilið þitt.": "This planner is made for larger screens — open this page on a laptop or desktop to design your home.",
     "Ekkert týnist — komdu bara aftur á tölvu.": "Nothing gets lost — just come back on a computer.",
     "Hannaðu eldhúsið þitt": "Design your kitchen",
     "Hjálp": "Help",
@@ -859,7 +859,7 @@
     "Settu inn að minnsta kosti einn skáp.": "Place at least one cabinet.",
     "Lýstu því sem gerðist — því nákvæmar því betra (t.d. \"skápurinn hvarf þegar ég ýtti á ...\"):": "Describe what happened — the more detail the better (e.g. \"the cabinet disappeared when I clicked ...\"):",
     "Takk — sent til okkar. ": "Thanks — sent to us. ",
-    "⚠️ Villa / hugmynd": "⚠️ Bug / idea",
+    "Villa / hugmynd": "Bug / idea",
     "Villa eða hugmynd? Segðu okkur — tekur hálfa mínútu": "A bug or an idea? Tell us — takes half a minute",
     "Eitthvað virkar ekki": "Something is broken",
     "Mig vantar / hugmynd": "I'd like / idea",

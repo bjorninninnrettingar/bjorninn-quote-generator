@@ -1300,6 +1300,7 @@
     .wrap.wide .stepper .st{ padding:3px 8px; font-size:12px; }
     .wrap.wide .stepper .st i{ width:18px; height:18px; font-size:10.5px; }
     .wrap.wide .stepper .bar{ height:3px; }
+    @media (max-width:1240px){ .wrap.wide .top .kicker{ display:none; } } /* 1024px: kicker + title ran under the centred stepper */
     .editor{ grid-template-columns:minmax(0,1fr); position:relative; overflow:hidden; }
     /* the side panel slides in OVER the designer (2026-10-11): the 3D view keeps its size, nothing jumps */
     .ed-props{ position:absolute !important; top:var(--tb-h, 52px); right:0; bottom:0; width:372px; height:auto !important; z-index:30; background:var(--panel); box-shadow:-10px 0 30px rgba(0,0,0,.10); transform:translateX(0); transition:transform .22s cubic-bezier(.2,.7,.2,1), opacity .18s; }
@@ -2324,7 +2325,7 @@
   <div class="mobile-gate-box">
     <div class="mobile-gate-icon"><svg class="ico" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="5" width="15" height="10.5" rx="1"/><path d="M2.5 19h19"/></svg></div>
     <h1 data-i18n>Best á tölvu</h1>
-    <p data-i18n>Þetta skipulagstól er hannað fyrir stærri skjái — opnaðu þessa síðu á fartölvu eða borðtölvu til að teikna og raða upp eldhúsinu þínu.</p>
+    <p data-i18n>Þetta skipulagstól er hannað fyrir stærri skjái — opnaðu þessa síðu á fartölvu eða borðtölvu til að hanna heimilið þitt.</p>
     <p class="mobile-gate-sub" data-i18n>Ekkert týnist — komdu bara aftur á tölvu.</p>
   </div>
 </div>
@@ -2343,7 +2344,7 @@
     <div class="top-actions">
       <div id="proBar" hidden></div>
       <button class="help-btn" id="homeBtn" type="button" hidden data-i18n>Rýmin þín</button>
-      <button class="help-btn" id="reportTopBtn" type="button" title="Villa eða hugmynd? Segðu okkur — tekur hálfa mínútu" data-i18n>⚠️ Villa / hugmynd</button>
+      <button class="help-btn" id="reportTopBtn" type="button" style="display:inline-flex;align-items:center;gap:6px" title="Villa eða hugmynd? Segðu okkur — tekur hálfa mínútu" data-i18n="attrs"><svg class="ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l9 16H3z"/><path d="M12 10v4.5"/><path d="M12 17.2h.01"/></svg><span data-i18n>Villa / hugmynd</span></button>
       <div class="help-wrap">
         <button class="help-btn" id="helpBtn" type="button" aria-haspopup="true" aria-expanded="false" data-i18n>Hjálp</button>
         <div class="help-menu" id="helpMenu" hidden>
@@ -2351,7 +2352,6 @@
           <button type="button" id="helpRefBtn" data-i18n>Hvernig…? — öll svör</button>
           <button type="button" id="askBtn" hidden data-i18n>Spyrja</button>
           <button type="button" id="tourBtn" hidden data-i18n>Sýna leiðsögnina</button>
-          <button type="button" id="reportBtn" data-i18n>⚠️ Villa / hugmynd</button>
           <button type="button" id="resetBtn" data-i18n>Byrja upp á nýtt</button>
           <button type="button" class="help-lang" data-setlang="en" lang="en">English</button>
           <button type="button" class="help-lang" data-setlang="is" lang="is">Á íslensku</button>
@@ -4637,7 +4637,6 @@
   }
   function askSuggestion(){
     if (PRO || state.step !== "editor" || state.suggestAsk !== "ask" || document.getElementById("fitAsk")) return;
-    setTimeout(function(){ hintOnce("tillaga", __("<b>Tillagan er bara byrjun</b> — þú breytir öllu eins og þú vilt, eða afturkallar.")); }, 400);
     askChoice("<b>" + __("Viltu fá tillögu að innréttingu?") + "</b> " + __("Við röðum upp algengri innréttingu fyrir þig. Þú breytir henni eins og þú vilt."),
       __("Já, sýna tillögu"), __("Nei, ég byrja sjálf/ur"),
       function(){ applySuggestion(true); },
@@ -4652,6 +4651,7 @@
     suggestFull = true; try{ seedSink(); } finally { suggestFull = false; }
     save(); refreshAfterEdit();
     if (had) undoToast(__("Tillagan er komin."), function(){ state = JSON.parse(before); save(); refreshAfterEdit(); });
+    else if (state.step === "editor") hintOnce("tillaga", __("<b>Tillagan er bara byrjun</b> — þú breytir öllu eins og þú vilt, eða afturkallar.")); // after the card is gone, never on top of it
   }
   // A new kitchen starts as a real run, not one lonely sink (round 3, B1, 2026-10-26): along the water wall (or the longest
   // wall) — uppþvottavél + a drawer unit on one side of the sink, a drawer unit + the ísskápsturn on the other, efri
@@ -11407,7 +11407,6 @@
         // which wall (morning scan 2026-10-27: "Allt rýmið" has four, the question didn't say)
         var wn = byWall.map(function(g){ return state.walls.indexOf(g.wall) + 1; }), wlen = byWall.length === 1 ? byWall[0].wall.lengthMm : 0;
         offer.classList.toggle("fit-ask", !PRO); // one suggestion card in every room (owner, 2026-10-27)
-        if (!PRO && state.step === "editor") setTimeout(function(){ if (!offer.hidden) hintOnce("tillaga", __("<b>Tillagan er bara byrjun</b> — þú breytir öllu eins og þú vilt, eða afturkallar.")); }, 400);
         document.getElementById("cfoYes").textContent = PRO ? __("Fylla vegginn") : __("Já, sýna tillögu");
         document.getElementById("cfoNo").textContent = PRO ? __("Ég raða sjálf/ur") : __("Nei, ég byrja sjálf/ur");
         offer.querySelector("b").textContent = !PRO ? __("Viltu fá tillögu?") : PRO || state.walls.filter(function(x){ return !x.open; }).length < 2 ? __("Fylla vegginn með skápum?") :
@@ -13498,7 +13497,7 @@
     var ov = document.createElement("div");
     ov.id = "rpOv"; ov.className = "help-ref";
     ov.innerHTML = '<div class="rp-card" role="dialog" aria-modal="true">' +
-      '<h3>' + __("⚠️ Villa / hugmynd") + '</h3>' +
+      '<h3>' + __("Villa / hugmynd") + '</h3>' +
       '<div class="rp-kinds"><button type="button" data-k="Notandi tilkynnti" class="on">' + __("Eitthvað virkar ekki") + '</button><button type="button" data-k="Hugmynd">' + __("Mig vantar / hugmynd") + '</button></div>' +
       '<textarea id="rpText" placeholder="' + __("Hvað gerðist, eða hvað viltu sjá? Skrifaðu eins og þér dettur í hug.") + '"></textarea>' +
       '<input id="rpWho" type="text" placeholder="' + __("Nafn eða netfang (má sleppa)") + '">' +
@@ -15899,7 +15898,7 @@
       '<button type="button" class="hi-big" data-hi="tpl"><strong>' + __("Byrja með sniðmát") + '</strong><span>' + __("Tilbúið heimili sem þú lagar að þínu.") + '</span></button>' +
       '<button type="button" class="hi-big" data-hi="blank"><strong>' + __("Teikna frá grunni") + '</strong><span>' + __("Byrjaðu á útlínunum og dragðu veggina inn.") + '</span></button></div>' +
       '<div class="hi-tpl" id="homeTpl" hidden>' + Object.keys(T).map(function(k){ return '<button type="button" class="hi-big hi-thumb" data-htpl="' + k + '">' + wizThumb(T[k]) + '<strong>' + __(T[k].label) + '</strong><span>' + __(T[k].sub) + '</span></button>'; }).join("") + '</div>' +
-      '<p class="hi-links">' + __("Teikningar af húsinu finnur þú yfirleitt á teikningavef sveitarfélagsins:") + ' <a href="https://reykjavik.is/byggingarmal/teikningavefur" target="_blank" rel="noopener">Reykjavík</a> · <a href="https://www.gardabaer.is/en/kortavefur" target="_blank" rel="noopener">Garðabær</a> · <a href="https://island.is/s/thjodskjalasafn/leit-ad-gognum-eignir/teikningar" target="_blank" rel="noopener">' + __("Þjóðskjalasafnið") + '</a>. ' + __("Önnur sveitarfélög: leitaðu að „teikningar“ á vef sveitarfélagsins.") + '</p>' +
+      '<p class="hi-links">' + __("Teikningar af húsinu finnur þú yfirleitt á teikningavef sveitarfélagsins:") + ' <a href="https://reykjavik.is/byggingarmal/teikningavefur" target="_blank" rel="noopener">Reykjavík</a> · <a href="https://www.gardabaer.is/kortavefur" target="_blank" rel="noopener">Garðabær</a> · <a href="https://island.is/s/thjodskjalasafn/leit-ad-gognum-eignir/teikningar" target="_blank" rel="noopener">' + __("Þjóðskjalasafnið") + '</a>. ' + __("Önnur sveitarfélög: leitaðu að „teikningar“ á vef sveitarfélagsins.") + '</p>' +
       '<input type="file" accept="image/*,application/pdf" id="homePlanFile" hidden></div>';
     host.onclick = function(e){
       var b = e.target.closest("[data-hi], [data-htpl]"); if (!b) return;
@@ -17230,8 +17229,7 @@
     if (e.key === "Escape"){ if (measurePend){ measurePend = null; measureRender(); } else setMeasureMode(false); }
     else if ((e.key === "Backspace" || e.key === "Delete") && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "")){ if (measurePend) measurePend = null; else measureList.pop(); measureRender(); e.preventDefault(); }
   });
-  document.getElementById("reportBtn").addEventListener("click", openReportPop);
-  document.getElementById("reportTopBtn").addEventListener("click", openReportPop);
+    document.getElementById("reportTopBtn").addEventListener("click", openReportPop);
 
   document.getElementById("warnChip").addEventListener("click", function(){ // the warnings as a list (the right-hand overview is gone)
     var pop = document.getElementById("warnPop");
@@ -20986,7 +20984,7 @@
   // PRO polish (2026-10-28 audit): no emoji in the header's report button (a line icon instead), Cmd/Ctrl+S = Vista, and
   // a warning before the tab closes while "● óvistað" shows (the local copy survives, but only in this browser).
   function proDeEmoji(){
-    ["reportTopBtn", "reportBtn"].forEach(function(id){ var b = document.getElementById(id); if (b){ b.removeAttribute("data-i18n"); b.innerHTML = icon("info", 15) + " Villa / hugmynd"; b.style.display = "inline-flex"; b.style.alignItems = "center"; b.style.gap = "6px"; } });
+    ["reportTopBtn"].forEach(function(id){ var b = document.getElementById(id); if (b){ b.removeAttribute("data-i18n"); b.innerHTML = icon("info", 15) + " Villa / hugmynd"; b.style.display = "inline-flex"; b.style.alignItems = "center"; b.style.gap = "6px"; } });
   }
   document.addEventListener("keydown", function(e){
     if (!PRO || !(e.metaKey || e.ctrlKey) || e.altKey || String(e.key).toLowerCase() !== "s") return;
@@ -21578,11 +21576,21 @@
   }
 
   // ---------- init ----------
-  // Checked once at load, not on resize — a desktop window getting
-  // resized narrow mid-session shouldn't yank a real in-progress draft out
-  // from under someone; this is about keeping phones from ever loading the
-  // untested drag UI in the first place, not policing window width live.
+  // Checked at load and again on resize / rotate (debounced): a window that was transiently narrow at load, a
+  // maximised small window or a rotated tablet no longer stays stuck on the gate. A draft is never touched —
+  // shrinking only hides the editor behind the gate, widening shows it again (or boots it if it never started).
+  var gateBooted = false, gateTimer = null;
+  function gateRecheck(){
+    clearTimeout(gateTimer);
+    gateTimer = setTimeout(function(){
+      var small = checkMobileGate();
+      if (!small && !gateBooted) location.reload();
+    }, 200);
+  }
+  window.addEventListener("resize", gateRecheck);
+  window.addEventListener("orientationchange", gateRecheck);
   if (!checkMobileGate()){
+    gateBooted = true;
     if (PRO) proBoot();
     else if (PRO_HOME){
       document.body.classList.add("pro"); // same dark staff theme as proBoot()

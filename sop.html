@@ -140,11 +140,14 @@
   </div>
 </div>
 
+<script src="/floor-key.js"></script>
 <script>
 (function () {
   "use strict";
   var PROXY_URL = "/api/airtable";
   var SOP_TABLE = "tblPMeNUQirwdNlYf"; // SOP's 🤓
+  // internal table: the proxy only answers with the floor key (paired device token, else the shared workshop key)
+  var VERK_KEY = (window.FloorKey ? window.FloorKey.get("XpxfZw1Cc9APLSlDGhm1AM4NdU1j") : "XpxfZw1Cc9APLSlDGhm1AM4NdU1j");
 
   var F_TITLE = "Heiti SOP (standard operating procedure)";
   var F_COVER = "Cover mynd 🖼️";
@@ -222,7 +225,7 @@
   }
 
   async function airtableFetchAll(table, params) {
-    var qs = ["path=" + encodeURIComponent(table)];
+    var qs = ["path=" + encodeURIComponent(table), "k=" + encodeURIComponent(VERK_KEY)];
     Object.keys(params || {}).forEach(function (k) {
       var v = params[k];
       (Array.isArray(v) ? v : [v]).forEach(function (x) { qs.push(encodeURIComponent(k) + "=" + encodeURIComponent(x)); });

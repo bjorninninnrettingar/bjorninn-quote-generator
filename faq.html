@@ -216,31 +216,25 @@
   @media (max-width:480px){
     .cta{ flex-direction:column; align-items:flex-start; }
 
-    /* Compact mode — triggered by narrow WIDTH, not device type, so it
-       activates inside the chatbot widget's iframe (fixed ~340px panel on
-       desktop, up to ~460px in its mobile bottom sheet — both always under
-       this breakpoint) while leaving the page's normal spacious look
-       untouched on a direct /adstod visit or the wider Wix embed. A side
-       effect, not the point, but a welcome one: a phone visiting /adstod
-       directly gets the same tightened-up layout too, since this page had
-       no mobile-specific sizing at all before. */
-    .wrap{ padding:10px 14px 24px; }
-    h1{ font-size:16px; line-height:1.2; margin:4px 0 3px; }
-    .lede{ font-size:10.5px; margin:0 0 9px; }
-    .search{ margin-bottom:9px; }
+    /* Compact mode — only when framed (the chatbot widget's iframe, ~340-460px): the page adds html.framed when
+       window.self !== window.top, so a phone visiting /adstod directly keeps the normal layout. */
+    html.framed .wrap{ padding:10px 14px 24px; }
+    html.framed h1{ font-size:16px; line-height:1.2; margin:4px 0 3px; }
+    html.framed .lede{ font-size:10.5px; margin:0 0 9px; }
+    html.framed .search{ margin-bottom:9px; }
     /* font-size stays >=16px — iOS Safari force-zooms the page on focus
        for anything smaller, which would fight the chatbot widget's own
        mobile-stability work when this runs inside its FAQ tab iframe. */
-    .search-box input{ padding:7px 10px 7px 30px; font-size:16px; }
-    .search-box svg{ left:9px; width:14px; height:14px; }
-    .search-results{ margin-top:5px; }
-    .search-hit{ padding:8px 2px; font-size:12.5px; }
-    .search-hit .cat{ font-size:9.5px; margin-bottom:2px; }
-    .search-empty{ font-size:12px; padding:8px 2px; }
-    .popular{ margin:0 0 10px; }
-    .popular .label{ font-size:9px; margin:0 0 5px; }
-    .chiprow{ gap:5px; }
-    .chip{ padding:4.5px 9px; font-size:10.5px; }
+    html.framed .search-box input{ padding:7px 10px 7px 30px; font-size:16px; }
+    html.framed .search-box svg{ left:9px; width:14px; height:14px; }
+    html.framed .search-results{ margin-top:5px; }
+    html.framed .search-hit{ padding:8px 2px; font-size:12.5px; }
+    html.framed .search-hit .cat{ font-size:9.5px; margin-bottom:2px; }
+    html.framed .search-empty{ font-size:12px; padding:8px 2px; }
+    html.framed .popular{ margin:0 0 10px; }
+    html.framed .popular .label{ font-size:9px; margin:0 0 5px; }
+    html.framed .chiprow{ gap:5px; }
+    html.framed .chip{ padding:4.5px 9px; font-size:10.5px; }
     /* Category cards were still icon-on-top/title/count stacked in three
        lines — fine at the original card size, way too tall once the card
        itself got smaller (still ~140px each, so only ~2 fit on screen).
@@ -249,22 +243,22 @@
        one line regardless of how long a category name is), then the
        count as a small fixed-width trailing label. ~37px per row means 6+
        categories are visible without scrolling, which was the actual ask. */
-    .grid{ display:flex; flex-direction:column; gap:0; }
-    .card{ flex-direction:row; align-items:center; gap:10px; padding:9px 2px;
+    html.framed .grid{ display:flex; flex-direction:column; gap:0; }
+    html.framed .card{ flex-direction:row; align-items:center; gap:10px; padding:9px 2px;
       border:none; border-bottom:1px solid var(--line); border-radius:0; }
-    .card .icon svg{ width:16px; height:16px; }
-    .card h3{ font-size:13px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .card .count{ font-size:10px; flex:none; white-space:nowrap; }
-    .back{ padding:7px 12px 7px 9px; font-size:13px; margin-bottom:12px; }
-    .cathead{ margin-bottom:4px; gap:8px; }
-    .cathead h2{ font-size:17px; }
-    .cathead .icon svg{ width:16px; height:16px; }
-    .qlist{ margin-top:4px; }
-    .qbtn{ padding:11px 2px; font-size:13px; gap:8px; }
-    .qanswer p{ font-size:12.5px; margin:0 2px 12px; }
-    .cta{ margin-top:20px; padding:14px 0 0; }
-    .cta p{ font-size:12.5px; }
-    .cta a{ font-size:12.5px; padding:8px 14px; }
+    html.framed .card .icon svg{ width:16px; height:16px; }
+    html.framed .card h3{ font-size:13px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    html.framed .card .count{ font-size:10px; flex:none; white-space:nowrap; }
+    html.framed .back{ padding:7px 12px 7px 9px; font-size:13px; margin-bottom:12px; }
+    html.framed .cathead{ margin-bottom:4px; gap:8px; }
+    html.framed .cathead h2{ font-size:17px; }
+    html.framed .cathead .icon svg{ width:16px; height:16px; }
+    html.framed .qlist{ margin-top:4px; }
+    html.framed .qbtn{ padding:11px 2px; font-size:13px; gap:8px; }
+    html.framed .qanswer p{ font-size:12.5px; margin:0 2px 12px; }
+    html.framed .cta{ margin-top:20px; padding:14px 0 0; }
+    html.framed .cta p{ font-size:12.5px; }
+    html.framed .cta a{ font-size:12.5px; padding:8px 14px; }
   }
   @media (prefers-reduced-motion: reduce){
     *{ transition-duration:.001ms !important; }
@@ -272,6 +266,7 @@
 </style>
 </head>
 <body>
+<script>if (window.self !== window.top) document.documentElement.classList.add("framed");</script>
 
 <div class="wrap">
 
@@ -348,7 +343,7 @@ const DATA = [
     { q:"Get ég komið við án þess að bóka tíma?",
       a:"Nei, allar heimsóknir eru eftir bókun. Þannig getum við tryggt að einhver sé laus til að taka á móti þér og fara yfir verkefnið með þér." },
     { q:"Hvernig byrja ég ferlið hjá ykkur?",
-      a:"Fyrsta skrefið er að bóka tíma í hönnun og ráðgjöf eða senda ýtarlegan tölvupóst. Þar förum við yfir hugmyndir, rýmið og það sem þú þarft." },
+      a:"Fyrsta skrefið er að bóka tíma í hönnun og ráðgjöf eða senda ítarlegan tölvupóst. Þar förum við yfir hugmyndir, rýmið og það sem þú þarft." },
     { q:"Þarf ég að vera með teikningu eða hugmynd áður en ég hef samband?",
       a:"Nei. Gott er þó að koma með skissur, teikningar eða myndir ef þú getur. Ef ekki, byrjum við bara frá grunni." },
     { q:"Hver er munurinn á hönnun og ráðgjöf og hönnunarpakka?",
@@ -581,7 +576,19 @@ document.getElementById('backBtn').addEventListener('click', ()=>{
   reportHeight();
 });
 
-function norm(s){ return s.toLowerCase(); }
+// Fold case + diacritics (verð = verd, eldhús = eldhus, þ = th) and match each word by its stem, so „skápur“ also finds
+// skápar / skápa / skápinn.
+function norm(s){
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ð/g,'d').replace(/þ/g,'th').replace(/æ/g,'ae');
+}
+function stem(w){
+  if (w.length <= 4) return w;
+  const m = w.match(/^(.{3,}?)(ur|ar|ir|um|an|in|a|i|u|s|r|n)$/);
+  return m ? m[1] : w;
+}
+function matches(hay, val){
+  return val.split(/\s+/).filter(Boolean).every(w => hay.includes(stem(w)));
+}
 
 searchInput.addEventListener('input', ()=>{
   const val = norm(searchInput.value.trim());
@@ -601,7 +608,7 @@ searchInput.addEventListener('input', ()=>{
   const hits = [];
   DATA.forEach(cat=>{
     cat.questions.forEach((item,i)=>{
-      if(norm(item.q).includes(val) || norm(item.a).includes(val)){
+      if(matches(norm(item.q + ' ' + item.a), val)){
         hits.push({cat: cat.id, catTitle: cat.title, i, q:item.q});
       }
     });
