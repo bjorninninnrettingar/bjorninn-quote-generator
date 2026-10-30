@@ -279,6 +279,8 @@
   #intro{ display:none; position:fixed; inset:0; z-index:1000; align-items:center; justify-content:center; cursor:pointer;
     --t-brand:.12s; --d-brand:1.1s; --t-studio:.7s; --d-studio:.95s; --t-3d:1.25s; --d-3d:1.35s; --ease:cubic-bezier(.16,1,.3,1); --ease-io:cubic-bezier(.65,0,.35,1); }
   html[data-intro] #intro{ display:flex; }
+  #intro .intro-skip{ position:absolute; left:0; right:0; bottom:28px; text-align:center; font-size:13px; letter-spacing:.04em; color:#9a958a; pointer-events:none; animation:introSkipIn .6s ease both; }
+  @keyframes introSkipIn{ from{ opacity:0; } to{ opacity:1; } }
   #intro .intro-bg{ position:absolute; inset:0; background:#fff; will-change:opacity; }
   #intro .intro-lock{ position:relative; display:flex; flex-direction:column; align-items:center; gap:.35em; font-size:clamp(30px, 8.6vw, 128px); font-weight:700; letter-spacing:.03em; line-height:1; text-align:center; user-select:none; transform-origin:50% 50%; will-change:transform; backface-visibility:hidden; }
   #intro .brand{ position:relative; color:#ceb163; will-change:transform; }
@@ -14523,11 +14525,16 @@
       // after STUDIO has turned, with a timer only as the net if animationend never comes
       studio.addEventListener("animationend", function(e){ if (e.animationName === "intro-turn" && introOn && !introOn.gliding){ clearTimeout(introOn.timer); introOn.timer = setTimeout(function(){ introGlide(850); }, 260); } });
       ov.classList.add("play"); introOn.timer = setTimeout(function(){ introGlide(850); }, 7000);
+      setTimeout(function(){ // first visit: a small "Sleppa" after ~1.5 s (click / any key already skip — customer sweep #8)
+        if (!introOn || introOn.gliding) return;
+        var sk = document.createElement("div"); sk.className = "intro-skip"; sk.textContent = __("Sleppa"); ov.appendChild(sk);
+      }, 1500);
     }
   }
   function introGlide(dur){
     if (!introOn || introOn.gliding) return;
     introOn.gliding = true; clearTimeout(introOn.timer);
+    var sk0 = document.querySelector("#intro .intro-skip"); if (sk0) sk0.remove();
     document.removeEventListener("keydown", introOn.skip);
     var root = document.documentElement, ov = document.getElementById("intro"), lock = document.getElementById("introLock");
     var studio = document.getElementById("introStudio"), ext = document.getElementById("introExt"), reveal = lock.querySelector(".reveal");
