@@ -183,3 +183,43 @@ test("Vinnuteikningar: the Borðplata sheet — exact numbers for an in-house to
   const stone = globalThis.KPWD.worktopSheet({ project: "T-1 | P" }, model(W.compute(s, K)), 7, 7);
   assert.match(stone, /Steinn — mál tekin af steinsmið/);
 });
+
+// PRO audit 2026-10-30 #4: piece overrides were keyed by the run's first cabinet id — deleting/replacing that cabinet
+// silently reset the piece's depth/overhang/cutout/joint to auto. They now follow the piece (same surface + run position).
+function overridden() {
+  const s = L(), r0 = W.compute(s, K);
+  W.setPiece(s, r0.pieces[0].id, { depthMm: 650, ovR: 30 });
+  W.setPiece(s, r0.pieces[1].id, { depthMm: 640 });
+  W.setJoint(s, r0.joints[0].id, { type: "beint", through: "b" });
+  W.setCut(s, "v:" + s.walls[0].floor.find((b) => b.type === "vaskaskapur").id, { dx: 40 });
+  const r1 = W.compute(s, K); // an edit round-trip: the overrides are in place (and each remembers where its piece is)
+  assert.equal(r1.pieces[0].depth, 650);
+  return { s, sink1: r1.pieces[0].cutouts.find((o) => o.kind === "vaskur") };
+}
+
+test("replacing the first cabinet of a run (new id) keeps the piece's depth, overhang, cutout move and corner-joint choice", () => {
+  const { s, sink1 } = overridden();
+  s.walls[0].floor[0] = B("grunnskapur", 600, { gapMm: 19 });
+  const r2 = W.compute(s, K);
+  assert.equal(r2.pieces.length, 2);
+  assert.equal(r2.pieces[0].depth, 650, "depth override survived");
+  assert.equal(r2.pieces[1].depth, 640, "the other piece's override survived");
+  assert.equal(r2.pieces[0].cfg.ovR, 30, "overhang survived");
+  const sink2 = r2.pieces[0].cutouts.find((o) => o.kind === "vaskur");
+  assert.equal(sink2.moved, true, "cutout move survived");
+  assert.equal(sink2.x - sink2.autoX, sink1.x - sink1.autoX);
+  assert.equal(r2.joints[0].chosen, true, "joint choice survived");
+  assert.equal(r2.joints[0].type, "beint");
+  assert.deepEqual(Object.keys(s.worktop.pieces).sort(), r2.pieces.map((p) => p.id).sort(), "no orphan key left behind");
+});
+
+test("removing the first cabinet of a run keeps the piece's depth, overhang and cutout move", () => {
+  const { s } = overridden();
+  s.walls[0].floor.shift();
+  const r2 = W.compute(s, K);
+  assert.equal(r2.pieces[0].depth, 650);
+  assert.equal(r2.pieces[0].cfg.ovR, 30);
+  assert.equal(r2.pieces[0].cutouts.find((o) => o.kind === "vaskur").moved, true);
+  assert.equal(r2.pieces[1].depth, 640);
+  assert.deepEqual(Object.keys(s.worktop.pieces).sort(), r2.pieces.map((p) => p.id).sort());
+});

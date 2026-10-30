@@ -70,9 +70,40 @@
 
   function cfgOf(state){ var w = state.worktop; return w && typeof w === "object" ? w : {}; }
 
+  // Piece overrides are stored under "p:<first cabinet id>" (joints under "j:<pieceA>|<pieceB>"), so removing or replacing a
+  // run's first cabinet used to orphan them and reset the piece to auto (PRO audit 2026-10-30 #4). Every override entry
+  // therefore also remembers WHERE its piece is (surface id + run position, `at`); when its key no longer matches a piece
+  // but that place has a piece without an entry, the entry moves there and the joint keys follow. Returns [{from,to,label}].
+  function runKeys(state, K){
+    var surfs = K.surfacesOf(state), out = [];
+    surfs.forEach(function(w, si){ runsOf(K, surfs, si).forEach(function(r, i){ out.push({ id:"p:" + r.blocks[0].b.id, at:w.id + "#" + i, label:letter(out.length) }); }); });
+    return out;
+  }
+  function reconcile(state, K){
+    var cfg = state && state.worktop, moved = [];
+    if (!cfg || typeof cfg !== "object" || !cfg.pieces || typeof cfg.pieces !== "object") return moved;
+    var cur = runKeys(state, K), have = {};
+    cur.forEach(function(c){ have[c.id] = c; var e = cfg.pieces[c.id]; if (e && typeof e === "object" && e.at !== c.at) e.at = c.at; });
+    var ren = {};
+    Object.keys(cfg.pieces).forEach(function(k){
+      var e = cfg.pieces[k]; if (have[k] || !e || typeof e !== "object" || !e.at) return;
+      var tgt = cur.find(function(c){ return c.at === e.at && !cfg.pieces[c.id]; });
+      if (!tgt) return;
+      cfg.pieces[tgt.id] = e; delete cfg.pieces[k]; ren[k] = tgt.id; moved.push({ from:k, to:tgt.id, label:tgt.label });
+    });
+    if (moved.length && cfg.joints){
+      Object.keys(cfg.joints).forEach(function(jk){
+        var parts = jk.replace(/^j:/, "").split("|"), np = parts.map(function(x){ return ren[x] || x; });
+        if (np.join("|") !== parts.join("|")){ var v = cfg.joints[jk]; delete cfg.joints[jk]; if (!cfg.joints["j:" + np.join("|")]) cfg.joints["j:" + np.join("|")] = v; }
+      });
+    }
+    return moved;
+  }
+
   // ── the whole room ──
   function compute(state, K, opts){
     opts = opts || {};
+    reconcile(state, K);
     var topKey = state.top || null, kind = kindOf(K, topKey), info = topInfo(K, topKey), cfg = cfgOf(state);
     var surfs = K.surfacesOf(state), geoms = K.surfaceGeoms(state), C = K.CATALOG;
     var nReal = 0; while (nReal < surfs.length && !surfs[nReal].island && !surfs[nReal].partition) nReal++;
@@ -579,7 +610,7 @@
     };
   }
 
-  var API = { compute:compute, smida:smida, lines:lines, cabinetRows:cabinetRows, planSvg:planSvg, kindOf:kindOf, cutText:cutText, cutLabel:cutLabel,
+  var API = { compute:compute, reconcile:reconcile, smida:smida, lines:lines, cabinetRows:cabinetRows, planSvg:planSvg, kindOf:kindOf, cutText:cutText, cutLabel:cutLabel,
     jointText:jointText, edgeText:edgeText, openEditor:openEditor, closeEditor:closeEditor, isOpen:function(){ return !!ed; }, rerender:function(){ renderEditor(); }, setJoint:setJoint, setPiece:setPiece, setCut:setCut, setHob:setHob, PRODUCTS:PRODUCTS, HOB_CUT:HOB_CUT, JOINT_LABELS:JOINT_LABELS, FRONT_OV:FRONT_OV, BOARD_MAX_MM:BOARD_MAX_MM, TAP_DIA:TAP_DIA };
   if (typeof module !== "undefined" && module.exports) module.exports = API;
   root.KPWT = API;
