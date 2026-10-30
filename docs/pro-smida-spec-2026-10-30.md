@@ -73,7 +73,7 @@ Gerðaval (trén) er **ekki** vandamálið: `FATASKAPAR_TREE_PRO` er yfirsett St
 | Myndaspjöld „Tilbúnar lausnir / Stakir hlutir“ (PAX-stíll), „Skúffurnar undir hurð / aftan hurðar“ og fjöldi rennihurða | Skilyrðið `(!PRO \|\| uw.smida)` — PRO fær gömlu stepparana í stað þeirra; spjöldin birtast aðeins í Smíða-hlutanum Innvols eftir „Setja inn“ | Sýna spjöldin líka í Ný eining (sami kóði, `closetBayHtml`) |
 | „Rennihurðir“ og „Fellihurðir“ (`doorSys`) fá enga hurðar-/hurðafjöldaspurningu fyrr en í Smíða | Sama skilyrði; `slideDoorsHtml` er aðeins í spjaldagreininni | Sama lagfæring |
 | Myndavélin svífur að því sem er valið (Breidd framan á, Hæð 45°, Dýpt frá hlið) | `uwLockView` og `uwAimCamera` fara snemma út með `PRO && !uw.smida` | Nota Smíða-myndavélina líka í Ný eining |
-| Herbergið (gólf og veggur) á bað og þvottahús, og ljós bakgrunnur eins og í Studio (PRO notar dökkan fyrir Ný eining) | `previewRoom:!PRO && …`, `darkBg:!!PRO && …` | Kveikja líka í PRO ef þú vilt (spurning, sjá viðauka) |
+| Herbergið (gólf og veggur) á bað og þvottahús, og ljós bakgrunnur eins og í Studio (PRO notar dökkan fyrir Ný eining) | `previewRoom:!PRO && …`, `darkBg:!!PRO && …` | Valkvætt, ekki í umferð 1 nema þú viljir það |
 | Skúffur dregnar til í forskoðun í öllum herbergjum | `drawerDragAll:!!uw.b && !PRO` | Fjarlægja `!PRO` |
 | Bað: „Skúffur eða hurðir“ myndaskrefið | `bathFrontsWiz` er `!PRO` | Sama skref í PRO |
 | Eldhús: Hæð / Dýpt / Innvols hverfa úr Ný eining | `uwShort` (viljandi: Smíða tekur við) | Hverfur af sjálfu sér þegar Ný eining og Smíða verða eitt (kafli 5) |
@@ -96,6 +96,30 @@ Hvað? (öll gerðaspjöld Studio + PRO-aukin) -> Breidd -> [skápurinn settur �
 - „Klár“ → næsti óklári skápur (`smNext`/`smGo`), óbreytt, líka milli herbergja.
 - Röðin er áfram: einn gangur um allt herbergið.
 
+## 5b. Rýmin í þessu verki (yfirlit herbergja í PRO)
+**Krafa frá þér:** PRO heldur (eða fær) yfirlitssíðu eins og „Rýmin þín“ í Studio, hér kölluð **„Rýmin í þessu verki“**. Hún á að vera heimastöð Rakelar.
+
+**Hvað er til í dag (athugað í kóða, ekki prófað í PRO sjálfu):**
+- Studio-síðan (`step "heimili"`, `renderHomeList`) er til, og `hlRows` sér þegar um PRO á einum stað. En í PRO er hún **ekki aðalleiðin**: herbergjaskipti eru flipar efst (`ps-room`, :13261) og skrefið „1. Rými“ (`byrja`) til að bæta við / fjarlægja. Hnappurinn „Rýmin þín“ (`homeBtn`) sést aðeins ef `state.home` er til, og í PRO er hann sjaldan stilltur. Þess vegna veit ég ekki hvort hnappurinn og hjálparleiðin (þ.m.t. lagfæringin `cf4bfdc` frá í dag, sem var ekki í mínu útdrætti) virkar fullkomlega í PRO. **Þetta þarf að prófa á T-32 áður en byggt er.**
+- Gallar fyrir PRO í kóðanum: `openHome` setur `homeBackTo` aðeins fyrir `!PRO` (:15584), svo „← Til baka“ úr síðunni fer á forsíðu en ekki í herbergið; kortin sýna „Klárt“ ef eining er til, **ekki** hversu margir skápar eru Klár; engar villur sjást; „Áfram →“ fer í Spurningar (Studio-leið).
+
+**Hvað hvert herbergi sýnir í PRO (tillaga):**
+1. Nafn og tegund (Eldhús, Bað 2 …), mynd (grunnmynd eða smámynd, eins og Studio).
+2. **Einingar og framvinda: „7 / 12 Klár“** (sama tala og Yfirferð og haus Smíða, úr `proSkList`) og mjó stika.
+3. **Villur: „3 með villur“** (`st:"err"`, úr `proIssues`) í rauðu, annars „allt stemmir“.
+4. Hnappur: **„Halda áfram“** (fer í fyrsta óklára skáp) eða **„Opna“** (teikning).
+5. Röð eins og í herbergjaröðinni (`categoryQueue`), ekki raðað upp á nýtt.
+
+**Hvernig maður færir sig:** kort → „Halda áfram“ opnar herbergið og Smíða-töframanninn beint á fyrsta óklára skáp. Flipar efst eru áfram sem flýtileið (sama virkni).
+
+**Tenging við eitt flæði og herbergjaröðina:**
+- Í dag þýðir herbergjaskipti í Smíða: loka töframanni, `openRoom`, bíða 500 ms, opna aftur (`smGo`, :18867). Tillagan: þegar röðin klárar herbergi fer **yfirlitið** upp („Eldhús klárt · Bað 2 af 5 Klár“) með einum hnappi **„Næsta herbergi“**, í stað þess að stökkva þegjandi milli herbergja. Rakel sér þá framvinduna og velur.
+- Ný eining og Smíða eru nú eitt flæði, svo „Bæta við rými“ á yfirlitinu fer í sama „Hvað?“-skjáinn og rými sem Studio.
+- Sama herbergjaskiptaleið (`openRoom` + `openSmidaWizard`) er notuð úr kortinu, flipanum og „Næsta herbergi“; ein kóðaleið.
+- **Gögn óbreytt:** `state.home` er aðeins viðmótsgeymsla (nöfn, staðsetning); `smidaFor`/`smidaAck` eru ekki snert.
+
+**Hvað myndi breytast (lítið):** (a) sýna `homeBtn` í PRO og láta heita „Rýmin í þessu verki“; (b) `homeBackTo` virkar líka í PRO; (c) kortin í PRO sýna „X / Y Klár“ og villufjölda; (d) „Áfram →“ í PRO fer í Yfirferð í stað Spurninga; (e) „Næsta herbergi“ á skjánum þegar herbergi klárast. Þetta bætist við **umferð 1**.
+
 ## 6. Áhætta og samhæfni
 - **Gögn óbreytt.** Skjáirnir fylla sömu reiti og áður. Staðfesting er áfram `smidaAck.mal/inn/pos/hw` með sömu lyklum, svo skápar sem eru þegar klárir haldast klárir.
 - **`smInnSig`** þarf að ná yfir nýju sjálfvöldu gildin (t.d. tilbúna lausn) svo staðfesting detti ekki út óvart og detti út þegar hún á.
@@ -106,7 +130,7 @@ Hvað? (öll gerðaspjöld Studio + PRO-aukin) -> Breidd -> [skápurinn settur �
 - **Hætta við hálfklárað nýtt skáp:** hann situr þá sem „óklár“ í Yfirferð, sem er rétt hegðun.
 
 ## 7. Umferðir
-**Umferð 1 — Ný eining jafnast á við Studio + eitt flæði.** Skrár: `kitchen-planner.html`, prófið, þetta skjal. *5 mín. próf á T-32:* PRO → Ný eining → Fataskápur: lausnaspjöld og stakir hlutir sjást strax, Rennihurðir spyrja um fjölda, myndavélin svífur, skápurinn birtist í herberginu eftir breidd, Smíða heldur áfram í sama glugga, Klár fer á næsta. *Ekki með:* einn hlutur í einu, lamir.
+**Umferð 1 — Ný eining jafnast á við Studio + eitt flæði + Rýmin í þessu verki.** Skrár: `kitchen-planner.html`, prófið, þetta skjal. *5 mín. próf á T-32:* PRO → Ný eining → Fataskápur: lausnaspjöld og stakir hlutir sjást strax, Rennihurðir spyrja um fjölda, myndavélin svífur, skápurinn birtist í herberginu eftir breidd, Smíða heldur áfram í sama glugga, Klár fer á næsta; „Rýmin í þessu verki“ sýnir 7/12 Klár á hverju korti og „Halda áfram“ opnar rétt herbergi. *Ekki með:* einn hlutur í einu, lamir.
 
 **Umferð 2 — Lamir (tilraun).** Skrár: `kitchen-planner.html`, `cnc-sides.js` aðeins lesið. *5 mín.:* opna skáp með 2 hurðum og hillum, löm á hillugati verður rauð, „Færa“ lagar, myndavélin hoppar milli lama, Klár virkar, /smida sýnir sömu lamarstaði og áður (smidaHash óbreytt fyrir óbreytta skápa). *Ekki með:* aðrir hlutar.
 
@@ -117,7 +141,7 @@ Hvað? (öll gerðaspjöld Studio + PRO-aukin) -> Breidd -> [skápurinn settur �
 2. Skápurinn settur í herbergið strax eftir breidd (Til baka tekur hann út) — **Já** eða **Nei**?
 3. Enter í tómum reit = Rétt (aðeins þegar bendill er í reitnum) — **Já** eða **Nei**?
 4. Hillur: ein hilla á skjá, eða allar hillur saman en ein tala í einu — **Ein** eða **Saman**?
-5. Herbergismynd (gólf og veggur) og ljós bakgrunnur í PRO eins og Studio — **Já** eða **Nei**?
+5. Þegar herbergi klárast: yfirlit herbergja með „Næsta herbergi“ (í stað þess að stökkva beint) — **Yfirlit** eða **Stökk**?
 
 ---
 
@@ -140,6 +164,8 @@ Hvað? (öll gerðaspjöld Studio + PRO-aukin) -> Breidd -> [skápurinn settur �
 **Fataskápsviðmót:** `closetDoorsHtml` :12084 (síun á pocket :12086) · `closetBayHtml` :12103 · `closetDrawerModeHtml` :12100 · `slideDoorsHtml` :13700 · `renderEditPanelInto` :12133 · PRO-flipar :12286
 
 **Lamir og reglur:** `proHingeMin` :17951 · `proShelfRows` :17953 · `proIssues` :17964 · `proSpec` :18039 · `proDefaultHinges` :18045 · `proAutoHinges` :18057 · `proSkList` :18338 · `proNextUnready` :18352 · `proReady` :19763 · `cnc-sides.js:70–81` (`HINGE_CLEAR = 30`), `cnc-sides.js:537` (viðvörun)
+
+**Rýmin í þessu verki:** `openHome` :15583 · `homeRooms` :15562 · `hlRows` :16451 · `hlUnits` :16413 · `renderHomeList` :16557 · `homeBackBtn`/`homeBtn` :16380–16390 · `homeBtn` sýnileiki :13326 · PRO herbergjaflipar `ps-room` :13261, `data-psroom` :14651 · `openRoom` :16686 · `proSkList` :18338 · stepper-lagfæring `.wrap.wide .stepper` :1302
 
 **Hurða-töframaðurinn (fyrirmynd):** `openDoors` :15111 · `DW_SEC_LABEL` :15024 · `dwSecs` :15067 · Opnun :15363 · Lamir :15374
 
