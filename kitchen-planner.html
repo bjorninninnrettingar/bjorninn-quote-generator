@@ -13695,9 +13695,10 @@
     if (c.tofrahornIds){ var tid = tofraIdsFor(b, c)[b.swing === "vinstri" ? "vinstri" : "haegri"][state.carcass]; if (tid) out.push(tid); }
     if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) out.push(AVENTOS_PRODUCTS[b.aventos].id);
     if (b.doorSys && DOOR_SYSTEMS[b.doorSys] && b.type === "harskapur") out.push(doorSysRec(b).id);
-    if (b.smida && Array.isArray(b.smida.doors)){
+    var smDoors = proSmidaDoors(b, c);
+    if (smDoors){
       var pocketSys = null;
-      b.smida.doors.forEach(function(d){ if (d && d.type === "pocket" && !pocketSys) pocketSys = d.pocketSys || "revego"; });
+      smDoors.forEach(function(d){ if (d && d.type === "pocket" && !pocketSys) pocketSys = d.pocketSys || "revego"; });
       if (pocketSys){ var pid = (POCKET_PRODUCTS[pocketSys] || {})[pocketLeafOf(b, c)]; if (pid) out.push(pid); }
     }
     return out;
@@ -13860,8 +13861,9 @@
           notes.push("Vaskaskápur með skúffum (vaskur ~" + SINK_DEPTH_MM + " mm djúpur): efst " + (sinkFixedTop(b, c) ? "fastur frontur yfir vaskinum" : "lág skúffa undir vaskinum") +
             "; ruslafötur í neðstu skúffu" + (window.KP_LINEMAP && window.KP_LINEMAP.rusl[String(widthFamily(b.widthMm))] ? "" : " — engin ruslafötu-vara í þessari breidd, veldu handvirkt") + ".");
         }
-        if (b.smida && Array.isArray(b.smida.doors) && b.smida.doors.some(function(d){ return d && d.type === "pocket"; })){
-          var pSysNote = (b.smida.doors.filter(function(d){ return d && d.type === "pocket"; })[0] || {}).pocketSys || "revego";
+        var smDoorsN = proSmidaDoors(b, c);
+        if (smDoorsN && smDoorsN.some(function(d){ return d && d.type === "pocket"; })){
+          var pSysNote = (smDoorsN.filter(function(d){ return d && d.type === "pocket"; })[0] || {}).pocketSys || "revego";
           notes.push("Rennihurð í hlið í stað lama (" + (pSysNote === "revego" ? "Blum Revego, INNVAL" : "Hawa Concepta III, Járn og gler") + ", " +
             (pocketLeafOf(b, c) === "duo" ? "tvöfalt kerfi" : "einfalt kerfi") + ") — staðfestu að breiddin passi við kerfið og athuga verð hjá birgi, verðið í grunninum er nokkra mánaða gamalt.");
         }
@@ -17977,6 +17979,25 @@
     save(); refreshAfterEdit();
     return "Skúffur: " + what.join(", ") + " mm";
   }
+  // b.smida.doors only counts while it still matches the cabinet's door count — the same rule proSpec/smidaFor apply. A pocket
+  // (Rennihurð) spec left over from before "Skipting fronta" changed must not keep the Revego/Concepta product + quote note
+  // while /cnc drills hinges (audit 2026-10-30 #7).
+  function proSmidaDoors(b, c){
+    var sd = b && b.smida && Array.isArray(b.smida.doors) ? b.smida.doors : null;
+    if (!sd) return null;
+    var fb = findBlock(b.id), n;
+    try{ n = proDoorsOf(b, c, fb ? fb.zone : (c && c.zone) || "floor").length; }catch(e){ return sd; }
+    return sd.length === n ? sd : null;
+  }
+  // Sk numbers whose Smíða door settings (hinges / pocket door) no longer fit their door count, across all rooms
+  function proStaleDoorSpecs(){
+    var out = [];
+    withEachCategory(function(){ state.walls.forEach(function(w){ (w.floor || []).concat(w.wall || []).forEach(function(b){
+      var c = CATALOG[b.type]; if (!c || !b.smida || !Array.isArray(b.smida.doors) || !b.smida.doors.length) return;
+      if (!proSmidaDoors(b, c)) out.push(b.sk || b.id);
+    }); }); });
+    return out;
+  }
   function proSpec(b, doors, i){
     var mine = b.smida && b.smida.doors && b.smida.doors.length === doors.length ? b.smida.doors[i] : null;
     if (mine) return JSON.parse(JSON.stringify(mine));
@@ -20131,7 +20152,7 @@
       state.walls.forEach(function(w){ (w.floor || []).concat(w.wall || []).forEach(function(b){
         var c = CATALOG[b.type]; if (!c) return;
         if (b.doorSys && DOOR_SYSTEMS[b.doorSys]) add(doorSysRec(b).label);
-        else if (b.smida && Array.isArray(b.smida.doors) && b.smida.doors.some(function(d){ return d && d.type === "pocket"; })) add("Vasahurðir / rennihurð í hlið (Blum Revego)");
+        else if ((proSmidaDoors(b, c) || []).some(function(d){ return d && d.type === "pocket"; })) add("Vasahurðir / rennihurð í hlið (Blum Revego)");
         if (b.aventos && AVENTOS_PRODUCTS[b.aventos]) add("Lyftihurð (" + AVENTOS_PRODUCTS[b.aventos].label + ")");
         if (b.closetInner) add("Innskúffur fyrir aftan hurð");
         if (b.mirrorFront) add("Spegilskápur");
@@ -20915,6 +20936,7 @@
   // the drawing as the server sees it, minus what a save itself rewrites (proSavedAt, liSent from the response; roomMats before it)
   function proStateSig(){ var o = Object.assign({}, state); delete o.proSavedAt; delete o.liSent; delete o.roomMats; return JSON.stringify(o); } // roomMats: re-derived by every proSaveRun, never an edit
   async function proSaveRun(resolve, force){
+    var staleDoors = []; try{ staleDoors = proStaleDoorSpecs(); }catch(e){}
     try{ state.roomMats = projectRoomMats(); }catch(e){} // every room's materials → the quote PDF's EFNISVAL
     var bt = document.getElementById("proSave"); if (bt) bt.disabled = true;
     proBar("Vista…"); pc.saving = true; if (pc.open) proCheckRender();
@@ -20965,6 +20987,7 @@
       d.updated + " " + plural(d.updated, "lína uppfærð", "línur uppfærðar") + ", " + d.unchanged + " óbreyttar" +
       (d.projectUpdated && d.projectUpdated.length ? "; á Tækifærinu: " + d.projectUpdated.map(function(f){ return f.replace(/ (🔲|🖼️|🍽️|✊|🎨)| viðskiptavinar/g, ""); }).join(", ") : "") +
       (d.removed && d.removed.length ? ". " + d.removed.join(", ") + " " + plural(d.removed.length, "er", "eru") + " ekki lengur í teikningunni — eyddu línunni (og Eyðublaðinu) í Airtable ef skápurinn á að fara." : ".") +
+      (staleDoors.length ? " Hurðafjöldi breyttist á " + staleDoors.join(", ") + " — lamir/rennihurð sem þú valdir í Smíða gilda ekki lengur og voru ekki vistaðar; opnaðu Smíða og veldu aftur." : "") +
       (editedMeanwhile ? " Þú breyttir teikningunni á meðan — sú breyting er enn óvistuð, ýttu aftur á Vista." : ""));
     tp.last = null; proTilbodRefresh(true); // Airtable's own total just changed
     return true;
