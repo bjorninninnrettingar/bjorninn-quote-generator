@@ -53,6 +53,44 @@ export function skrifstofaDayToken(secret, employeeId, offsetDays = 0) {
   return crypto.createHmac("sha256", secret).update("skrifstofa-emp:" + employeeId + ":" + d.toISOString().slice(0, 10)).digest("hex").slice(0, 40);
 }
 
+// Brute-force damper (2026-10-30). A 3-4 digit PIN is ~10 000 guesses and a correct one returns
+// the master VERK_KEY, so failures are counted per IP, per PIN and globally, and 429 once over the
+// limit. In-memory = per warm serverless instance (best effort, same approach as floor-token.js);
+// the Vercel Firewall rate-limit rule on this path is the real backstop (see docs/api.md).
+// The PIN itself is matched by Airtable's formula (no secret is compared in this code), so there is
+// no string compare here to make constant-time.
+const WINDOW_MS = 15 * 60 * 1000;
+const MAX_FAILS_IP = 5;
+const MAX_FAILS_PIN = 5;
+const MAX_FAILS_ALL = 60;
+const FAIL_DELAY_MS = 300;
+const fails = new Map(); // key -> [timestamps]
+export function _resetLoginLimiter() { fails.clear(); }
+function recent(key, now) {
+  const arr = (fails.get(key) || []).filter((t) => now - t < WINDOW_MS);
+  if (arr.length) fails.set(key, arr); else fails.delete(key);
+  return arr;
+}
+function clientIp(req) {
+  return String((req.headers && (req.headers["x-forwarded-for"] || req.headers["x-real-ip"])) || "anon").split(",")[0].trim();
+}
+function pinHash(pin) { return crypto.createHash("sha256").update("skrifstofa-pin:" + pin).digest("hex").slice(0, 16); }
+function lockedFor(keys, now) {
+  const lim = { ip: MAX_FAILS_IP, pin: MAX_FAILS_PIN, all: MAX_FAILS_ALL };
+  let wait = 0;
+  for (const k of keys) {
+    const arr = recent(k, now);
+    const max = lim[k.split(":")[0]];
+    if (arr.length >= max) wait = Math.max(wait, Math.ceil((arr[arr.length - max] + WINDOW_MS - now) / 1000));
+  }
+  return wait;
+}
+function noteFail(keys, now) {
+  for (const k of keys) { const arr = recent(k, now); arr.push(now); fails.set(k, arr); }
+  if (fails.size > 2000) for (const k of fails.keys()) recent(k, now);
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function atFetch(token, url) {
   const r = await fetch(url.toString().replace(/\+/g, "%20"), { headers: { Authorization: `Bearer ${token}` } });
   const data = await r.json().catch(() => ({}));
@@ -68,7 +106,17 @@ export default async function handler(req, res) {
 
   const q = { ...(req.query || {}), ...(req.body || {}) };
   const pin = String(q.pin || "").replace(/\D/g, "");
-  if (pin.length < 3 || !/[1-9]/.test(pin)) return res.status(400).json({ error: "BAD_PIN" });
+  const now = Date.now();
+  const ipKey = "ip:" + clientIp(req);
+  const baseKeys = [ipKey, "all:*"];
+  const preWait = lockedFor(baseKeys.concat(pin ? ["pin:" + pinHash(pin)] : []), now);
+  if (preWait) {
+    res.setHeader("Retry-After", String(preWait));
+    return res.status(429).json({ error: "TOO_MANY_ATTEMPTS", retryAfter: preWait });
+  }
+  // Length rule unchanged on purpose: 3-digit PINs may be in real use (the keypad accepts up to 4).
+  if (pin.length < 3 || !/[1-9]/.test(pin)) { noteFail(baseKeys, now); return res.status(400).json({ error: "BAD_PIN" }); }
+  const failKeys = baseKeys.concat(["pin:" + pinHash(pin)]);
 
   const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE}/${STARFSMENN_TABLE}`);
   url.searchParams.set("filterByFormula", `AND({PIN 🔢}=${pin},{Er starfandi? ✅}=1)`);
@@ -77,7 +125,12 @@ export default async function handler(req, res) {
   const { ok, data } = await atFetch(airtableToken, url);
   if (!ok) return res.status(502).json({ error: "AIRTABLE_ERROR" });
   const rec = (data.records || [])[0];
-  if (!rec) return res.status(401).json({ error: "BAD_PIN" });
+  if (!rec) {
+    noteFail(failKeys, Date.now());
+    await sleep(FAIL_DELAY_MS);
+    return res.status(401).json({ error: "BAD_PIN" });
+  }
+  fails.delete(ipKey);
 
   // Airtable's real REST API returns a singleSelect field as a plain string
   // (not {name} — that's how the Airtable MCP research tool normalizes it,

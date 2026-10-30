@@ -504,7 +504,7 @@
       .then(function (res) {
         if (!res.ok) {
           var code = (res.data && res.data.error) || ("HTTP " + (res.status || "?"));
-          errEl.textContent = code === "BAD_PIN" ? "Rangt PIN" : "Villa: " + code;
+          errEl.textContent = code === "BAD_PIN" ? "Rangt PIN" : code === "TOO_MANY_ATTEMPTS" ? "Of margar tilraunir — reyndu aftur eftir " + Math.max(1, Math.ceil(((res.data && res.data.retryAfter) || 60) / 60)) + " mín." : "Villa: " + code;
           shake(); pin = ""; renderDots();
           return;
         }

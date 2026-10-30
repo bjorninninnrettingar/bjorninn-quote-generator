@@ -39,3 +39,28 @@ test("missing VERK_KEY server config is refused up front, same as the other two 
   const res = await call("1234");
   assert.equal(res.statusCode, 500);
 });
+
+test("brute force: 5 wrong PINs from one IP -> 429 + Retry-After, even for the right PIN; other IPs unaffected", async () => {
+  const { _resetLoginLimiter } = await import("../api/skrifstofa-login.js");
+  _resetLoginLimiter();
+  let calls = 0;
+  globalThis.fetch = fakeFetch(() => { calls++; return { status: 200, body: { records: [] } }; });
+  const mk = (ip, pin) => { const res = mockRes(); return handler({ method: "POST", query: {}, headers: { "x-forwarded-for": ip }, body: { pin } }, res).then(() => res); };
+  for (let i = 0; i < 5; i++) assert.equal((await mk("1.1.1.1", "10" + i + "1")).statusCode, 401);
+  const blocked = await mk("1.1.1.1", "1234");
+  assert.equal(blocked.statusCode, 429);
+  assert.equal(blocked.body.error, "TOO_MANY_ATTEMPTS");
+  assert.equal(calls, 5, "blocked request must not reach Airtable");
+  assert.equal((await mk("2.2.2.2", "5551")).statusCode, 401);
+  _resetLoginLimiter();
+});
+
+test("brute force: the same PIN tried from 5 different IPs gets locked per PIN", async () => {
+  const { _resetLoginLimiter } = await import("../api/skrifstofa-login.js");
+  _resetLoginLimiter();
+  globalThis.fetch = fakeFetch(() => ({ status: 200, body: { records: [] } }));
+  const mk = (ip, pin) => { const res = mockRes(); return handler({ method: "POST", query: {}, headers: { "x-forwarded-for": ip }, body: { pin } }, res).then(() => res); };
+  for (let i = 0; i < 5; i++) await mk("9.9.9." + i, "4242");
+  assert.equal((await mk("9.9.9.99", "4242")).statusCode, 429);
+  _resetLoginLimiter();
+});
