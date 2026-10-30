@@ -2918,9 +2918,13 @@
       p.group.scale.x = 1 - 0.5 * e;
       return;
     } // AVENTOS: the front swings up and out over the cabinet
-    if (p.kind === "pocket"){ // Revego: out to 90°, then back into the pocket beside the carcass
-      p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * Math.PI / 2 * smooth01(p.cur / 0.5);
-      p.group.position.z = p.z0 - p.pocketIn * smooth01((p.cur - 0.5) / 0.5);
+    if (p.kind === "pocket"){ // Revego / Concepta: out to 90°, then back into the pocket beside the opening
+      p.group.rotation.y = (p.hinge === "left" ? -1 : 1) * Math.PI / 2 * smooth01(p.cur / (p.pk ? 0.4 : 0.5));
+      if (p.pk){ // KPPOCKET layout: sideways into the pocket's own slot while it slides back until its far end is at the back of the cabinet
+        var ps = smooth01((p.cur - 0.4) / 0.6);
+        p.group.position.x = p.x0 + p.pk.dx * ps;
+        p.group.position.z = p.z0 - (p.z0 - p.pk.backTo) * ps;
+      } else p.group.position.z = p.z0 - p.pocketIn * smooth01((p.cur - 0.5) / 0.5);
       return;
     }
     if (p.kind === "drawer") p.group.position.z = p.slide * e;
@@ -2958,6 +2962,7 @@
     if (p.host){ var hp2 = (THREE_STATE.scene.userData.parts || []).find(function(x){ return x.key === p.host; }); if (hp2 && !hp2.target) return; } // behind a closed drawer: nothing to open
     p.target = p.target ? 0 : 1;
     PART_STATE[key] = p;
+    if (p.unitKey) (THREE_STATE.scene.userData.parts || []).forEach(function(q){ if (q !== p && q.unitKey === p.unitKey){ q.target = p.target; PART_STATE[q.key] = q; } }); // a duo / folding pair is one door
   }
 
   // Open (1) or close (0) every drawer and door in the scene at once ("Opna allt" in inspect mode)
@@ -2981,6 +2986,45 @@
     return list.length;
   }
 
+  // Vasahurðir (2026-10-30): the resolved pocket layout of a cabinet, or null when it has no pocket doors (every other
+  // cabinet is untouched). Same gates as `doorMove === "pocket"` below; the spec's side defaults to the old hinge side.
+  function pocketResOf(meta, widthM, bodyH, depthM){
+    var K = window.KPPOCKET, mb = meta && meta.shelfBlock;
+    if (!K || !mb || meta.corner || meta.fridge || meta.oven || mb.doorSys === "renni" || mb.doorSys === "felli") return null;
+    var sd = mb.smida && Array.isArray(mb.smida.doors) ? mb.smida.doors : null; if (!sd) return null;
+    if (meta.zone === "wall" && (mb.aventos || sd.some(function(d){ return d && d.type === "lift"; }))) return null;
+    var sp = null; sd.forEach(function(d){ if (d && d.type === "pocket" && !sp) sp = d; });
+    return sp ? K.resolve(sp, { widthMm:Math.round(widthM * 1000), bodyMm:Math.round(bodyH * 1000), depthMm:Math.round(depthM * 1000) }, meta.hingeRight ? "right" : "left") : null;
+  }
+  // "Sökkull: nei" / "Á borðplötu" on a pocket-door unit (spec 2026-10-30): the unit stands without the recessed plinth
+  function pocketNoToe(b){
+    var sd = b && b.smida && Array.isArray(b.smida.doors) ? b.smida.doors : null;
+    return !!(sd && sd.some(function(d){ return d && d.type === "pocket" && (d.toeKick === false || d.onWorktop); }));
+  }
+  var RAIL_ALU = null; // neutral grey metal for the pocket rails (same family as the hinges)
+  // the pocket's boards + rails, in the cabinet's frame: an inner partition per pocket (the carcass side is the outer wall), a dark
+  // back so the open pocket reads as a slot, and a thin aluminium rail along the top and bottom of each door slot
+  function addPocketBoxes(THREE, frame, pk, widthM, bodyH, bodyBase, CD, meta, pickables){
+    var T = CARCASS_T, partMat = meta.openMat, darkMat = new THREE.MeshStandardMaterial({ color:0x3a3a3d, roughness:0.95 });
+    if (!RAIL_ALU) RAIL_ALU = new THREE.MeshStandardMaterial({ color:0xc3c7cc, metalness:0.85, roughness:0.32 });
+    pk.pockets.forEach(function(p){
+      var pw = (p.x1 - p.x0) / 1000, cx = (p.x0 + p.x1) / 2000 - widthM / 2, left = p.side === "left";
+      var pt = new THREE.Mesh(new THREE.BoxGeometry(T, bodyH - 2 * T, CD - BACK_T), partMat);       // the inner board of the pocket
+      pt.position.set(left ? p.x1 / 1000 - T / 2 - widthM / 2 : p.x0 / 1000 + T / 2 - widthM / 2, bodyBase + bodyH / 2, BACK_T + (CD - BACK_T) / 2);
+      pt.castShadow = true; pt.receiveShadow = true; pt.userData = meta; frame.add(pt); if (pickables) pickables.push(pt);
+      var bk = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.01, pw - 2 * T), bodyH - 2 * T - 0.004, 0.002), darkMat);   // the dark slot the door vanishes into
+      bk.position.set(cx, bodyBase + bodyH / 2, BACK_T + 0.002); frame.add(bk);
+      [bodyBase + bodyH - T - 0.003, bodyBase + T + 0.003].forEach(function(yy){                       // rail along the door's slot, top and bottom
+        var rl = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.003, CD - BACK_T - 0.01), RAIL_ALU);
+        rl.position.set(cx, yy, BACK_T + (CD - BACK_T) / 2); frame.add(rl);
+      });
+    });
+    [bodyBase + bodyH - 0.0045, bodyBase + 0.0045].forEach(function(yy){                               // rail hint in the 6 mm reveal at the front, closed state
+      var st = new THREE.Mesh(new THREE.BoxGeometry(widthM - 0.004, 0.003, 0.012), RAIL_ALU);
+      st.position.set(0, yy, CD + 0.008); frame.add(st);
+    });
+  }
+
   // The parts of a locked cabinet, in its own frame (x along the wall, z out of it):
   // shelves, then per front a 20 mm slab + handle that slides out (drawer, with a
   // real-height Legra/Merivo box behind it) or swings on its hinge (door).
@@ -2991,6 +3035,13 @@
     frame.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(geom.axis.x, 0, geom.axis.z), new THREE.Vector3(0, 1, 0), new THREE.Vector3(geom.normal.x, 0, geom.normal.z)));
     group.add(frame);
     var drawers = interior && interior.mode === "skuffur" ? interior.count : 0;
+    // Vasahurðir (2026-10-30, KPPOCKET): the pocket sits INSIDE the width — partitions, rails and the open pose come from the resolved layout
+    var pk = pocketResOf(meta, widthM, bodyH, depthM);
+    var pkL = pk ? (pk.pockets[0].side === "left" ? pk.pockets[0].x1 / 1000 : CARCASS_T) : CARCASS_T;                                   // where the opening starts / ends (m from the left edge)
+    var pkR = pk ? widthM - (pk.pockets[pk.pockets.length - 1].side === "right" ? (pk.pockets[pk.pockets.length - 1].x1 - pk.pockets[pk.pockets.length - 1].x0) / 1000 : CARCASS_T) : widthM - CARCASS_T;
+    if (pk && pk.pockets.length === 1 && pk.pockets[0].side === "right") pkL = CARCASS_T;
+    if (pk && pk.pockets.length === 1 && pk.pockets[0].side === "left") pkR = widthM - CARCASS_T;
+    var innerW = pk ? pkR - pkL : widthM - 2 * CARCASS_T, innerX = pk ? (pkL + pkR) / 2 - widthM / 2 : 0; // what the shelves and rails span
     // shelves where Rakel put them in Smíða (or spread evenly); the oven and the búrskápur draw their own below.
     // A tall drawer unit's door-above-drawers zone can hold shelves too — hasShelfLayout decides (not `drawers`
     // alone), so a non-tall drawer unit (no zone left) still gets none.
@@ -3009,9 +3060,9 @@
       mesh.userData.edgesObj = ed;
     }
     shelfList.forEach(function(shf, si){
-      var board = new THREE.Mesh(new THREE.BoxGeometry(widthM - 2 * CARCASS_T - 0.001, 0.018, CD - 0.03), meta.openMat); // shelves reach the sides
-      if (shf.tray) addTrayRim(board, widthM - 2 * CARCASS_T - 0.001, CD - 0.03, frontMat || meta.openMat);
-      board.position.set(0, bodyBase + shf.mm / 1000 - 0.009, (CD - 0.03) / 2 + 0.005);
+      var board = new THREE.Mesh(new THREE.BoxGeometry(innerW - 0.001, 0.018, CD - 0.03), meta.openMat); // shelves reach the sides (the pocket's partition, on a pocket unit)
+      if (shf.tray) addTrayRim(board, innerW - 0.001, CD - 0.03, frontMat || meta.openMat);
+      board.position.set(innerX, bodyBase + shf.mm / 1000 - 0.009, (CD - 0.03) / 2 + 0.005);
       board.castShadow = true; board.receiveShadow = true;
       frame.add(board);
       if (dragShelves && !shf.fixed) makeDraggable(board, "shelf", si);
@@ -3023,14 +3074,15 @@
     if (railList.length){
       var railMat = railMatOf(meta.shelfBlock);
       railList.forEach(function(rl, ri){
-        var rod = new THREE.Mesh(new THREE.CylinderGeometry(RAIL_D_MM / 2000, RAIL_D_MM / 2000, widthM - 2 * CARCASS_T - 0.02, 16), railMat);
+        var rod = new THREE.Mesh(new THREE.CylinderGeometry(RAIL_D_MM / 2000, RAIL_D_MM / 2000, innerW - 0.02, 16), railMat);
         rod.rotation.z = Math.PI / 2;
-        rod.position.set(0, bodyBase + rl.mm / 1000, (CD - 0.03) / 2 + 0.005);
+        rod.position.set(innerX, bodyBase + rl.mm / 1000, (CD - 0.03) / 2 + 0.005);
         rod.castShadow = true;
         frame.add(rod);
         if (pickables && meta.shelfBlock) makeDraggable(rod, "rail", ri);
       });
     }
+    if (pk) addPocketBoxes(THREE, frame, pk, widthM, bodyH, bodyBase, CD, meta, pickables);
     // the fronts of this cabinet
     var fronts = [];
     if (drawers){
@@ -3054,14 +3106,14 @@
       : meta.zone === "wall" && (mvB.aventos || (mvB.smida && Array.isArray(mvB.smida.doors) && mvB.smida.doors.some(function(d){ return d && d.type === "lift"; }))) ? "lift"
       : mvB.smida && Array.isArray(mvB.smida.doors) && mvB.smida.doors.some(function(d){ return d && d.type === "pocket"; }) ? "pocket" : null;
 
-    function makeLeaf(idx, cxL, w, y0, y1, hinge, f, fi){
+    function makeLeaf(idx, cxL, w, y0, y1, hinge, f, fi, leafPk){
       var key = meta.blockId + ":" + idx;
       var g = new THREE.Group(), pivotX = f.drawer || hinge === "bottom" || hinge === "top" ? cxL : (hinge === "left" ? cxL - w / 2 : cxL + w / 2), fh = y1 - y0;
       g.position.set(pivotX, 0, 0);
       var pmeta = Object.assign({}, meta, { isPart:true, partKey:key }), meshes = [];
       // a wardrobe's drawer: dragged up/down its top edge follows the pointer (2.5 cm steps, user 2026-10-26) — see onDrawerResize
       if (f.drawer && ((wardrobeScene && meta.tall && meta.shelfBlock) || drawerDragAll)){ pmeta.drawerIdx = fi; pmeta.drawerBotY = y0; pmeta.drawerTopY = y1; pmeta.ax = geom.axis.x; pmeta.az = geom.axis.z; pmeta.bodyBaseY = bodyBase; pmeta.widthM = w; }
-      var hcfgA = meta.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[meta.handle];
+      var hcfgA = !leafPk && meta.handle && window.KPMODELS && window.KPMODELS.handles && window.KPMODELS.handles[meta.handle];
       var hstyleA = (HANDLES[meta.handle] || {}).style;
       var vertA = !!(meta.tall && !f.drawer && !meta.corner && hstyleA !== "knob");
       var freeSideA = hinge === "left" ? "right" : "left", stripA = hcfgA && hcfgA.kind === "jey" ? (hcfgA.stripMm || 27) / 1000 : 0;
@@ -3082,7 +3134,7 @@
       slab.position.set(slabCx - pivotX, slabCy, CD + FRONT_T / 2);
       slab.castShadow = true; slab.receiveShadow = true;
       g.add(slab); meshes.push(slab);
-      if (meta.handle){
+      if (meta.handle && !leafPk){ // a pocket door opens with a push (TIP-ON): no handle
         var tmp = new THREE.Group();
         var fake = { origin:{ x:cxL - w / 2, z:0 }, axis:{ x:1, z:0 }, normal:{ x:0, z:1 }, lenM:w };
         addFrontDetails(THREE, tmp, fake, 0, w, fh, y0, depthM, { mode:"skuffur", count:1 }, meta.handle, false, meta.zone === "wall" || (meta.tall && fi > 0 && !f.drawer) || (!f.drawer && (!!meta.handleBottom || y0 >= HIGH_DOOR_M)), 0.55, { vertical:vertA, freeSide:freeSideA, slab:true }, frontMat); // a door hung high (over the machines, a top box): its handle at the bottom edge (owner, 2026-10-27)
@@ -3186,7 +3238,7 @@
       var prev = PART_STATE[key];
       var maxDeg = meta.doorLimit && meta.doorLimit[hinge] != null ? meta.doorLimit[hinge] : DOOR_OPEN_DEG; // stops at a wall / corner
       if (hingeOpenRad != null) maxDeg = Math.min(maxDeg, hingeOpenRad * 180 / Math.PI); // a door with the hinge model opens to the model's own 90°
-      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : hinge === "top" ? "lift" : doorMove === "pocket" ? "pocket" : doorMove === "slide" ? "slide" : doorMove === "fold" ? "fold" : "door", hinge:hinge, z0:g.position.z, x0:g.position.x, w:w, pocketIn:Math.max(0.1, CD - 0.06), maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : (PEEK_OPEN[meta.blockId] ? 1 : 0), hinges:leafHinges };
+      var part = { key:key, group:g, kind:f.drawer ? "drawer" : hinge === "bottom" ? "flap" : hinge === "top" ? "lift" : doorMove === "pocket" ? "pocket" : doorMove === "slide" ? "slide" : doorMove === "fold" ? "fold" : "door", hinge:hinge, z0:g.position.z, x0:g.position.x, w:w, pocketIn:Math.max(0.1, CD - 0.06), maxRad:maxDeg * Math.PI / 180, slide:fixedTop ? 0 : Math.min(0.34, CD * 0.6), cur:prev ? prev.cur : 0, target:prev ? prev.target : (PEEK_OPEN[meta.blockId] ? 1 : 0), hinges:leafHinges, pk:leafPk || null, unitKey:leafPk ? meta.blockId + ":u" + leafPk.unit : null };
       PART_STATE[key] = part; parts.push(part); applyPart(part);
       frame.add(g);
     }
@@ -3338,6 +3390,15 @@
         blind.position.set(left ? hw / 2 : -hw / 2, (y0 + y1) / 2, CD + FRONT_T / 2); blind.castShadow = true;
         frame.add(blind);
       } else if (doorMove === "lift") makeLeaf(idx++, 0, widthM, y0, y1, "top", f, fi); // one lift front, however wide
+      else if (doorMove === "pocket" && pk){ // each leaf covers its share of the front, hinged on its pocket side
+        var pitch = window.KPPOCKET.DOOR_T_MM / 1000 + 0.004;
+        pk.leaves.forEach(function(lf){
+          var cxl = ((lf.x0 + lf.x1) / 2000) - widthM / 2, wl = lf.w / 1000, un = pk.units[lf.unit], n = un.leaves, pc = ((un.pocket.x0 + un.pocket.x1) / 2000) - widthM / 2;
+          var sg = lf.hinge === "left" ? 1 : -1, tx = pc + sg * (lf.order - (n - 1) / 2) * pitch;             // where its centre ends up inside the pocket
+          var pivot = lf.hinge === "left" ? cxl - wl / 2 : cxl + wl / 2, slabCx = pivot + sg * FRONT_T / 2;   // a door turned 90° stands on its hinge edge, its slab on the inner side
+          makeLeaf(idx++, cxl, wl, y0 + 0.006, y1 - 0.006, lf.hinge, f, fi, { unit:lf.unit, dx:tx - slabCx, backTo:CARCASS_T / 2 + BACK_T + 0.004 }); // 6 mm shorter top and bottom: the rail shows in the reveal
+        });
+      }
       else if (doorMove === "slide"){ // Topline: 2–4 doors side by side; the left half slides right, the right half left
         var nS = Math.max(2, Math.min(4, mvB.slideDoors || 2)), sw = widthM / nS;
         for (var si = 0; si < nS; si++) makeLeaf(idx++, -widthM / 2 + sw * (si + 0.5), sw, y0, y1, si < nS / 2 ? "left" : "right", f, fi);
@@ -6069,7 +6130,7 @@
             openMat:c.open ? frontOpenMat : openMat, open:!!c.open, hiddenMat:hiddenMat, drawerSystem:state.drawerSystem, carcassKey:state.carcass,
             warn:!!(opts.warnIds && opts.warnIds.indexOf(b.id) >= 0), ready:!!(opts.readyIds && opts.readyIds.indexOf(b.id) >= 0), doorLimit:DOOR_LIMITS[b.id] || null, shelfBlock:b, wallId:wall.id, zone:"floor", blockId:b.id, widthMm:b.widthMm, depthMm:(b.depthMm || c.d), heightMm:hM * 1000, elevMm:0, handle:c.appliance ? null : state.handle, tall:c.cls === "tall" || !!c.fridge, split:c.fridge ? 0.74 : 0, // tall units: one door unless split in Smíða (2026-10-09)
             splitFr:c.oven || c.fixedFronts ? null : splitFractions(b, hM * 1000 - (c.panel || c.appliance ? 0 : plinthMmW)), // a fridge too, once its split is changed in Smíða
-            plinth:(!c.panel || hungPanel) && !c.appliance, plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, utilityTap:!!c.sink && /^thvottahus(:|$)/.test(String(state.activeCategory || "")), tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
+            plinth:(!c.panel || hungPanel) && !c.appliance && !pocketNoToe(b), plinthMm:plinthMmW, appliance:c.appliance || null, leMans:!!c.tofrahornIds, counter:!!c.counter, sink:!!c.sink, utilityTap:!!c.sink && /^thvottahus(:|$)/.test(String(state.activeCategory || "")), tapCeilM:c.sink ? tapCeilingM(wall, offset + b.widthMm / 2) : null, oven:!!c.oven, panel:!!c.panel, plinthMat:plinthMat, stoneMat:stoneMat,
             ovenCodes:c.lowOven ? ["M"] : c.oven ? ovenCodesOf(b, state.drawerSystem) : null, fixedFronts:!!c.fixedFronts || !!c.appliance,
             burCodes:c.bur ? burCodesOf(b, state.drawerSystem) : innerFreeOf(b, c), innerFree:!c.bur && !!innerFreeOf(b, c), dishwasher:!!c.dishwasher,
             lowOven:!!c.lowOven, pickTop:!!opts.pickWorktop && !!c.counter, ovenFrontsMm:c.oven ? b.ovenFrontsMm || null : null, ovenBlock:c.oven ? b : null, ovenCat:c.oven ? c : null,
