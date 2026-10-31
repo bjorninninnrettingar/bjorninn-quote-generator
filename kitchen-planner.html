@@ -6504,41 +6504,69 @@
     if (isNaN(mm)) mm = 0;
     var MAXA = KP3D.AFELLA_MAX_MM;
     if (mm && (mm < 19 || mm > MAXA)){ toast("Áfella er 19–" + MAXA + " mm. Stærra bil þarf fyllistykki eða að skápurinn sé færður."); return false; }
-    var oldAf = JSON.stringify(wall.afella || null), oldGaps = {};
-    ["floor", "wall"].forEach(function(z){ oldGaps[z] = wall[z].map(function(b){ return b.gapMm; }); });
-    function undo(){
-      if (oldAf === "null") delete wall.afella; else wall.afella = JSON.parse(oldAf);
-      ["floor", "wall"].forEach(function(z){ wall[z].forEach(function(b, i){ if (oldGaps[z][i]) b.gapMm = oldGaps[z][i]; else delete b.gapMm; }); });
-    }
     var next = Object.assign({}, wall.afella);
     if (mm) next[side] = { mm:mm }; else delete next[side];
     if (next.start || next.end) wall.afella = next; else delete wall.afella;
-    if (JSON.stringify(wall.afella || null) === oldAf) return true;
-    var ok = true, short = 0;
-    if (mm) ["floor", "wall"].forEach(function(zone){
-      var list = wall[zone]; if (!ok || !list.length) return;
-      var clear = cornerClearance(wall, zone), sp = spansOf(wall, zone), n = list.length, st = sp.map(function(x){ return x.start; });
-      if (side === "start"){
-        if (zone === "floor" && clear > 0) return; // a corner run starts at the other wall's cabinets: no áfella there
-        var want = clear + mm, delta = want - st[0];
-        if (delta === 0 || (delta < 0 && st[0] - clear > MAXA)) return; // far from the wall: not an áfella row
-        if (delta > 0){ st[0] = want; for (var j = 1; j < n; j++) st[j] = Math.max(st[j], st[j - 1] + list[j - 1].widthMm); }
-        else for (var i = 0; i < n && (i === 0 || sp[i].start - sp[i - 1].end <= 2); i++) st[i] += delta;
-        if (st[n - 1] + list[n - 1].widthMm > runEndMm(wall, zone) + 0.5){ ok = false; short = st[n - 1] + list[n - 1].widthMm - runEndMm(wall, zone); }
-      } else {
-        var wantEnd = wall.lengthMm - mm, deltaE = wantEnd - sp[n - 1].end;
-        if (deltaE === 0 || (deltaE > 0 && wall.lengthMm - sp[n - 1].end > MAXA)) return;
-        if (deltaE < 0){ st[n - 1] = wantEnd - list[n - 1].widthMm; for (var m = n - 2; m >= 0; m--) st[m] = Math.min(st[m], st[m + 1] - list[m].widthMm); }
-        else for (var k = n - 1; k >= 0 && (k === n - 1 || sp[k + 1].start - sp[k].end <= 2); k--) st[k] += deltaE;
-        if (st[0] < runStartMm(wall, zone) - 0.5){ ok = false; short = runStartMm(wall, zone) - st[0]; }
+    var short = 0;
+    // The whole run moves with the áfella (owner, 2026-10-31): only the first gap of each row changes, the rest of the row keeps
+    // its spacing, so a tall unit and the wall units above it stay lined up. No room at the far end = as far as it goes + a word.
+    if (mm){
+      var rows = [];
+      ["floor", "wall"].forEach(function(zone){
+        var list = wall[zone]; if (!list.length) return;
+        var clear = cornerClearance(wall, zone), sp = spansOf(wall, zone), n = list.length;
+        if (side === "start" && zone === "floor" && clear > 0) return; // a corner run starts at the other wall's cabinets: no áfella there
+        var gap = side === "start" ? sp[0].start - clear : wall.lengthMm - sp[n - 1].end;
+        if (gap > MAXA) return; // far from this wall end: not an áfella row
+        var room = side === "start" ? runEndMm(wall, zone) - sp[n - 1].end : sp[0].start - runStartMm(wall, zone);
+        rows.push({ list:list, gap:gap, room:room });
+      });
+      if (rows.length){
+        var cur = Math.min.apply(null, rows.map(function(r){ return r.gap; })), d = mm - cur;
+        if (d > 0){ var slack = Math.max(0, Math.min.apply(null, rows.map(function(r){ return r.room; }))); if (d > slack){ short = d - slack; d = slack; } }
+        if (d){
+          rows.forEach(function(r){
+            var g0 = r.list[0].gapMm || 0, g1 = Math.max(0, side === "start" ? g0 + d : g0 - d);
+            if (g1) r.list[0].gapMm = g1; else delete r.list[0].gapMm;
+          });
+        }
       }
-      if (!ok) return;
-      st.forEach(function(x, ix){ var g = Math.round(x - (ix ? st[ix - 1] + list[ix - 1].widthMm : clear)); if (g > 0) list[ix].gapMm = g; else delete list[ix].gapMm; });
-    });
-    if (ok) ["floor", "wall"].forEach(function(zone){ if (ok && wall[zone].some(function(x){ return crossOverlap(wall, zone, x); })) ok = false; });
-    if (!ok){ undo(); toast(short > 0 ? "Það vantar " + Math.ceil(short) + " mm — minnkaðu skáp í röðinni um " + Math.ceil(short) + " mm og reyndu aftur. Ekkert breyttist." : "Það kemst ekki fyrir — eining í hinni röðinni eða bitinn er fyrir. Ekkert breyttist."); return false; }
+    }
+    ["floor", "wall"].forEach(function(zone){ if (wall[zone].some(function(x){ return crossOverlap(wall, zone, x); })) short = short || -1; });
     save(); refreshAfterEdit();
+    if (short > 0) toast("Það vantar " + Math.ceil(short) + " mm — röðin komst ekki alla leið. Minnkaðu skáp í röðinni eða færðu hann.");
+    else if (short < 0) toast("Eining skarast við einingu í hinni röðinni — kíktu á það.");
     return true;
+  }
+  // PRO, at the very end (like the úthliðar): the wall ends where a cabinet stands tighter than the 19 mm áfella (an old draft
+  // flush to the wall) — { wall, side } once per wall end
+  function missingAfellur(){
+    var out = [];
+    if (!PRO) return out;
+    surfaces().forEach(function(wall){
+      if (wall.open || wall.island || wall.partition) return;
+      ["start", "end"].forEach(function(side){
+        var hit = ["floor", "wall"].some(function(zone){
+          var list = wall[zone]; if (!list.length) return false;
+          var af = afella(wall, zone)[side]; if (!af) return false;
+          var sp = spansOf(wall, zone), e = side === "start" ? sp[0] : sp[sp.length - 1], c = CATALOG[e.b.type];
+          if (!c || c.panel || c.shelfStack) return false;
+          var gap = side === "start" ? e.start - cornerClearance(wall, zone) : wall.lengthMm - e.end;
+          return gap < af - 1;
+        });
+        if (hit) out.push({ wall:wall, side:side });
+      });
+    });
+    return out;
+  }
+  var afellurAskedFor = null;
+  function checkAfellurThen(go){
+    var miss = missingAfellur(), sig = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall, w.afella]; }));
+    if (!miss.length || afellurAskedFor === sig){ go(); return; }
+    askChoice("<b>Það vantar áfellur á " + miss.length + " " + plural(miss.length, "stað", "stöðum") + ".</b> Skápur stendur þéttar að vegg en 19 mm. Viltu að við bætum þeim við? Röðin færist til.",
+      "Já, bæta við", "Nei, halda áfram",
+      function(){ miss.forEach(function(m){ setAfellaMm(m.wall, m.side, 19); }); afellurAskedFor = JSON.stringify(state.walls.map(function(w){ return [w.floor, w.wall, w.afella]; })); go(); },
+      function(){ afellurAskedFor = sig; go(); });
   }
 
   // PRO: the typed-mm fields for the wall ends this cabinet stands at (rows for the edit panel / the Smíða box editor)
@@ -17468,8 +17496,10 @@
     tcb.textContent = n.label; tcb.disabled = !!n.disabled; tcb.title = n.title || "";
     if (state.step === "editor") updateStepper(); // the strip shows the same step
   }
+  var afellurAskedNow = false;
   function proNextAction(){
     if (tp.open) return;
+    if (!afellurAskedNow && missingAfellur().length){ afellurAskedNow = true; checkAfellurThen(function(){ afellurAskedNow = false; proNextAction(); }); return; }
     if (pc.open || (!proNextRoom() && proReadOnly())){ proTilbodToggle(true); return; }
     var nxt = proNextRoom();
     if (nxt){ save(); openRoom(nxt); return; }

@@ -130,7 +130,7 @@ test("missingEndPanels: an áfella (any width) at a wall end closes it — no ú
 
 test("typed mm: Enter confirms; nothing changes (and it says so) when it does not fit; PRO only", () => {
   const f = fnBody("setAfellaMm");
-  assert.ok(/undo\(\); toast\(short > 0 \? "Það vantar " \+ Math\.ceil\(short\)[\s\S]*"Það kemst ekki fyrir/.test(f));
+  assert.ok(/"Það vantar " \+ Math\.ceil\(short\)/.test(f) && !/undo\(\)/.test(f), "no undo: moves as far as it goes and warns");
   assert.ok(/mm < 19 \|\| mm > MAXA/.test(f));
   assert.ok(/ev\.key === "Enter"/.test(fnBody("wireAfellaFields")));
   assert.ok(/var f = PRO \? findBlock/.test(fnBody("afellaEndsOfBlock")), "Studio shows no field");
@@ -146,4 +146,11 @@ test("lifting a cabinet also lifts the unbound end panel standing against it (ow
   assert.ok(/CATALOG\[x\.b\.type\]\.panel/.test(f) && /far/.test(f));
   const d = fnBody("on3DDragStart");
   assert.ok(/looseEndPanelsOf\(blockId\)/.test(d));
+});
+
+test("áfella moves the whole run (only the first gap of each row changes) and PRO asks about missing áfellur at the end", () => {
+  const f = fnBody("setAfellaMm");
+  assert.ok(/rows\.forEach/.test(f) && /r\.list\[0\]\.gapMm/.test(f));
+  assert.ok(/missingAfellur\(\)/.test(fnBody("proNextAction")));
+  assert.ok(/Það vantar áfellur á/.test(fnBody("checkAfellurThen")));
 });
