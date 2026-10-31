@@ -80,3 +80,17 @@ test("beam check: a tall unit in an island under a ceiling beam is stopped (isla
   assert.equal(spans[0].obstacle.id, "ob1");
   assert.deepEqual(K.islandRowObstacleSpans(withTall, "I1a", { lo: 0, hi: 900 }, 600), []);
 });
+
+test("B1: island clearances to walls and the nearest unit, in mm (straight to a wall that faces it, so the number can be typed back)", () => {
+  // wall 1 along z = 0 (the room is 5600 × 4200); the island row spans 1500–2100 (rot 180: row A out of the centre line toward wall 1)
+  const s = room([isl([B("grunnskapur", 600), B("grunnskapur", 600), B("grunnskapur", 600)], { zMm: 1650 })]);
+  s.walls[0].floor = [B("grunnskapur", 600, { gapMm: 2000 })]; // along 2000–2600, straight across from the island (x 1900–3700)
+  const c = K.islandClearances(s, s.islands[0]);
+  const w1 = c.find((x) => x.id === "w0");
+  assert.equal(w1.perp, true);
+  assert.equal(w1.mm, 1050); // 1650 − 600 deep row
+  assert.equal(c.find((x) => x.kind === "unit").mm, 450); // the wall cabinet (600 deep) is nearer than the wall: 1050 − 600
+  assert.deepEqual(c.map((x) => x.mm), c.map((x) => x.mm).slice().sort((a, b) => a - b));
+  // moving it 100 mm toward the wall takes 100 off
+  assert.equal(K.islandClearances(s, s.islands[0], 2800, 1550).find((x) => x.id === "w0").mm, 950);
+});

@@ -1381,6 +1381,13 @@
   .isl-box{ flex:1 1 0; min-width:34px; border:1px solid var(--line); background:#fff; border-radius:7px; padding:5px 2px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; display:flex; flex-direction:row; justify-content:center; align-items:baseline; gap:5px; } /* one line: "A1 60" (2026-10-25, the panel fits) */
   .isl-box small{ font-weight:400; color:var(--ink-soft); font-size:10.5px; }
   .isl-box{ position:relative; }
+  .isl-cl{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .isl-cl .cl{ display:flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:8px; padding:4px 8px; font-size:12px; background:#fff; }
+  .isl-cl .cl b{ font-variant-numeric:tabular-nums; }
+  .isl-cl .cl input{ width:64px; font-size:12px; padding:2px 4px; border:1px solid var(--line); border-radius:5px; }
+  .isl-cl .ok, #islClearLive .ok{ border-color:#2e9e5b; color:#1d7a43; } .isl-cl .mid, #islClearLive .mid{ border-color:#d9a400; color:#8a6a00; } .isl-cl .bad, #islClearLive .bad{ border-color:#d70015; color:#b00012; }
+  #islClearLive{ position:fixed; z-index:60; left:50%; transform:translateX(-50%); bottom:84px; display:flex; gap:6px; pointer-events:none; }
+  #islClearLive .cl{ background:rgba(255,255,255,.95); border:2px solid; border-radius:999px; padding:4px 12px; font-size:13px; font-weight:600; box-shadow:0 2px 8px rgba(0,0,0,.18); }
   .isl-delbtn{ margin-top:8px; }
   .isl-x{ position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%; background:#fff; border:1px solid var(--line); font-size:10px; line-height:16px; color:var(--ink-soft); display:none; }
   .isl-box:hover .isl-x, .isl-box.on .isl-x{ display:block; }
@@ -9944,16 +9951,47 @@
   // declaration silently won at the top-level scope, so KP3D.buildScene's onIslandDragMove:onIslandDragMove
   // below was actually handed the 2D, evt-based function; it read a null islandDragState during a 3D drag and
   // returned undefined every time, so 3D island dragging had no wall/cabinet collision clamping at all).
+  // Island flow B1 (2026-10-30): the clear distance to the walls and to the nearest other unit in mm, shown while the island is
+  // dragged and in its panel. Green from 1000 mm, yellow 900–1000, red below (the 900 mm walkway warning stays as it was).
+  function islTone(mm){ return mm >= 1000 ? "ok" : mm >= 900 ? "mid" : "bad"; }
+  function islClearShort(c){ return c.kind === "wall" ? __(c.label) : __("Næsti skápur"); }
+  function islClearLive(isl, xMm, zMm){
+    var host = document.getElementById("islClearLive");
+    if (!isl){ if (host) host.remove(); return; }
+    if (!host){ host = document.createElement("div"); host.id = "islClearLive"; document.body.appendChild(host); }
+    host.innerHTML = KP3D.islandClearances(state, isl, xMm, zMm).slice(0, 3).map(function(c){
+      return '<span class="cl ' + islTone(c.mm) + '">' + islClearShort(c) + ': ' + uLen(c.mm) + '</span>';
+    }).join("");
+  }
   function clampIslandDragMove(id, dxMm, dzMm, lastDx, lastDz){
     var isl = findIsland(id); if (!isl) return null;
     var ok = function(dx, dz){ return KP3D.islandFits(state, isl, isl.xMm + dx, isl.zMm + dz); };
-    if (ok(dxMm, dzMm)) return { x:dxMm, z:dzMm };
-    if (ok(dxMm, lastDz)) return { x:dxMm, z:lastDz };
-    if (ok(lastDx, dzMm)) return { x:lastDx, z:dzMm };
-    return { x:lastDx, z:lastDz };
+    var r = ok(dxMm, dzMm) ? { x:dxMm, z:dzMm } : ok(dxMm, lastDz) ? { x:dxMm, z:lastDz } : ok(lastDx, dzMm) ? { x:lastDx, z:dzMm } : { x:lastDx, z:lastDz };
+    islClearLive(isl, isl.xMm + r.x, isl.zMm + r.z);
+    return r;
+  }
+  // typed "Bil frá vegg N": move the island straight toward / away from that wall until the gap is the typed number
+  function setIslandWallGap(isl, wallId, mm){
+    var c = KP3D.islandClearances(state, isl).find(function(x){ return x.kind === "wall" && x.id === wallId && x.perp; });
+    mm = Math.round(parseFloat(String(mm).replace(",", ".")) * (uCm() ? 10 : 1));
+    if (!c || isNaN(mm) || mm < 0 || mm > 8000){ toast(__("Sláðu inn bil á milli 0 og 8000 mm.")); return false; }
+    var x = Math.round(isl.xMm + c.nx * (mm - c.mm)), z = Math.round(isl.zMm + c.nz * (mm - c.mm));
+    if (!KP3D.islandFits(state, isl, x, z)){ toast(__("Eyjan kemst ekki þangað — hún rekst á vegg eða skáp.")); return false; }
+    isl.xMm = x; isl.zMm = z; save(); refreshAfterEdit();
+    return true;
+  }
+  function islClearPanelHTML(isl){
+    var cs = KP3D.islandClearances(state, isl);
+    return '<div class="isl-cl">' + cs.slice(0, 5).map(function(c){
+      var num = state.walls.findIndex(function(w){ return w.id === c.id; }) + 1;
+      var label = c.kind === "wall" ? __("Bil frá vegg {n}", { n:num }) : __("Næsti skápur");
+      var val = c.kind === "wall" && c.perp ? '<input type="number" data-isl-gap="' + c.id + '" value="' + (uCm() ? Math.round(c.mm) / 10 : c.mm) + '" step="' + (uCm() ? "0.1" : "1") + '" title="' + __("Sláðu inn bil og ýttu á Enter") + '">' : '<b>' + uNum(c.mm) + '</b>';
+      return '<span class="cl ' + islTone(c.mm) + '">' + label + ': ' + val + ' ' + uUnit() + '</span>';
+    }).join("") + '</div>';
   }
   function onIslandDragEnd(id, dxMm, dzMm){
     var isl = findIsland(id);
+    islClearLive(null);
     if (!isl) return;
     moveIsland(isl, dxMm, dzMm);
   }
@@ -9981,11 +10019,13 @@
     isl.zMm = d.z0 + Math.round((w.z - d.pz) * 1000 / 10) * 10;
     clampIslands();
     renderView();
+    islClearLive(isl, isl.xMm, isl.zMm);
   }
   function onIslandDragUp(){
     window.removeEventListener("pointermove", onIslandDragMove);
     var d = islandDragState;
     islandDragState = null;
+    islClearLive(null);
     if (!d) return;
     if (!d.moved){ onCabinetSelect({ blockId:d.id }); return; }
     save();
@@ -11981,7 +12021,7 @@
         '<div class="edit-field"><label>' + __("Staðsetning — dragðu gula punktinn á gólfinu, eða notaðu örvarnar") + '</label><div class="hw-count">' +
           '<button class="iconbtn" data-mv="-1,0" title="' + __("Vinstri") + '">◀</button><button class="iconbtn" data-mv="0,-1" title="' + __("Upp") + '">▲</button>' +
           '<button class="iconbtn" data-mv="0,1" title="' + __("Niður") + '">▼</button><button class="iconbtn" data-mv="1,0" title="' + __("Hægri") + '">▶</button></div>' +
-          '<p class="ov-mat" style="margin:6px 0 0;">' + __("Örvar á lyklaborði færa líka (Shift = {n})", { n:uLen(10) }) + '</p></div>' +
+          '<p class="ov-mat" style="margin:6px 0 0;">' + __("Örvar á lyklaborði færa líka (Shift = {n})", { n:uLen(10) }) + '</p>' + islClearPanelHTML(isl) + '</div>' +
         '<div class="edit-actions">' +
           '<button class="iconbtn" data-role="rot">' + __("↻ Snúa 90°") + '</button>' +
           (!isl.two ? '<button class="iconbtn' + (isl.back ? ' on' : '') + '" data-role="back">' + (isl.back ? __("✓ Bak á eyju") : __("＋ Bak á eyju")) + '</button>' : '') +
@@ -11998,6 +12038,9 @@
     });
     host.querySelectorAll("[data-mv]").forEach(function(btn){
       btn.addEventListener("click", function(){ var d = btn.dataset.mv.split(","); moveIsland(isl, 100 * parseInt(d[0], 10), 100 * parseInt(d[1], 10)); });
+    });
+    host.querySelectorAll("[data-isl-gap]").forEach(function(inp){
+      inp.addEventListener("change", function(){ if (!setIslandWallGap(isl, inp.dataset.islGap, inp.value)) renderEditPanel(); });
     });
     host.querySelector('[data-role="rot"]').addEventListener("click", function(){ isl.rot = ((isl.rot || 0) + 90) % 360; save(); refreshAfterEdit(); });
     var plinthInp = host.querySelector('[data-role="plinth"]');

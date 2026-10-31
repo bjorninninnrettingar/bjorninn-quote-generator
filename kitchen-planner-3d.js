@@ -7705,6 +7705,55 @@
     });
     return out;
   }
+  // Island flow B1 (2026-10-30): the clear distance (mm) from an island to each wall and to the nearest other unit, at a given
+  // centre (default: where it stands). A wall facing the island's side ("perp") is measured straight to the wall line — the number
+  // you can type; any other wall by its nearest point. -> [{ kind:"wall"|"unit", id, label, mm, perp, nx, nz }] nearest first.
+  function segCross(a, b, c, d){
+    function o(p, q, r){ return (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x); }
+    return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+  }
+  function quadSegDistM(q, a, b){
+    var best = Infinity, n = q.length, i;
+    for (i = 0; i < n; i++){
+      var c = q[i], d = q[(i + 1) % n];
+      if (segCross(a, b, c, d)) return 0;
+      best = Math.min(best, distToSeg(c.x, c.z, a, b), distToSeg(a.x, a.z, c, d), distToSeg(b.x, b.z, c, d));
+    }
+    return best;
+  }
+  function quadQuadDistM(p, q){
+    if (quadsOverlapM(p, q, -1e-6)) return 0;
+    var best = Infinity;
+    for (var i = 0; i < q.length; i++) best = Math.min(best, quadSegDistM(p, q[i], q[(i + 1) % q.length]));
+    return best;
+  }
+  function islandClearances(state, isl, xMm, zMm){
+    var x0 = (xMm == null ? isl.xMm : xMm) / 1000, z0 = (zMm == null ? isl.zMm : zMm) / 1000, mine = islandUnitQuads(isl, x0, z0), out = [];
+    if (!mine.length) return out;
+    var own = {}; (isl.a || []).concat(isl.b || []).forEach(function(b){ own[b.id] = 1; });
+    var corners = []; mine.forEach(function(u){ u.q.forEach(function(p){ corners.push(p); }); });
+    var gs = wallGeoms(state);
+    gs.forEach(function(g, i){
+      var w = state.walls[i]; if (!w || w.open) return;
+      var nD = Infinity, aMin = Infinity, aMax = -Infinity;
+      corners.forEach(function(p){
+        var dx = p.x - g.origin.x, dz = p.z - g.origin.z;
+        nD = Math.min(nD, dx * g.normal.x + dz * g.normal.z);
+        var a = dx * g.axis.x + dz * g.axis.z; aMin = Math.min(aMin, a); aMax = Math.max(aMax, a);
+      });
+      var perp = Math.min(aMax, g.lenM) - Math.max(aMin, 0) > 0.01 && nD >= 0, a0 = { x:g.origin.x, z:g.origin.z }, b0 = { x:g.origin.x + g.axis.x * g.lenM, z:g.origin.z + g.axis.z * g.lenM };
+      var d = perp ? nD : Math.min.apply(null, mine.map(function(u){ return quadSegDistM(u.q, a0, b0); }));
+      out.push({ kind:"wall", id:w.id, label:w.label, mm:Math.round(d * 1000), perp:perp, nx:g.normal.x, nz:g.normal.z });
+    });
+    var near = null;
+    floorRects(state).forEach(function(r){
+      if (own[r.b.id]) return;
+      var d = Math.min.apply(null, mine.map(function(u){ return quadQuadDistM(u.q, r.q); }));
+      if (!near || d < near.d) near = { d:d, b:r.b };
+    });
+    if (near) out.push({ kind:"unit", id:near.b.id, label:CATALOG[near.b.type].label, mm:Math.round(near.d * 1000), perp:false });
+    return out.sort(function(a, b){ return a.mm - b.mm; });
+  }
   // Obstacle stretches along an island ROW (mm along the row) a unit of height `probe` and this depth would run into — the island's
   // counterpart of the wall's obstacleSpans, for placing a unit in a row. Bounding box in the row's frame (a turned beam counts a little more).
   function islandRowObstacleSpans(state, surfId, probe, depthMm){
@@ -8641,7 +8690,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, afellaEndsOf: afellaEndsOf, afellaTypedMm: afellaTypedMm, AFELLA_MM: AFELLA_MM, AFELLA_MAX_MM: AFELLA_MAX_MM, AFELLA_WARN_MM: AFELLA_WARN_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, setSpacious: setSpacious, isSpacious: function(){ return SPACIOUS; }, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, islandBackSegs: islandBackSegs, islandObstacleHits: islandObstacleHits, islandRowObstacleSpans: islandRowObstacleSpans, islandUnitQuads: islandUnitQuads, quadsOverlapM: quadsOverlapM, islandHasTall: islandHasTall, tallUnitC: tallUnitC, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, setSpacious: setSpacious, isSpacious: function(){ return SPACIOUS; }, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, islandBackSegs: islandBackSegs, islandClearances: islandClearances, islandObstacleHits: islandObstacleHits, islandRowObstacleSpans: islandRowObstacleSpans, islandUnitQuads: islandUnitQuads, quadsOverlapM: quadsOverlapM, islandHasTall: islandHasTall, tallUnitC: tallUnitC, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS, WALL_TILES: WALL_TILES,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,
