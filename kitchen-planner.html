@@ -6460,6 +6460,8 @@
   // SAFETY (owner, 2026-10-30): until one AF line has been checked end to end on T-32 (Vista -> Keyra skipulag -> Sögunarlisti),
   // AF lines go out only from PRO; the customer Studio submit stays byte-identical to before. Flip to true to include them there.
   var AFELLA_LINES_IN_STUDIO_SUBMIT = false;
+  var AFELLA_WIDE = !!(PRO || AFELLA_LINES_IN_STUDIO_SUBMIT); // the áfella-by-the-gap work (any width 19-300 mm; no úthlið beside one) only where its AF line goes out too — Studio keeps the 19 mm behaviour it had (review #4, 2026-10-31)
+  KP3D.afellaNarrow = !AFELLA_WIDE;
   function afellaEnds(wall){
     if (!wall || wall.island || wall.partition) return [];
     var surfs = KP3D.surfacesOf(state), wi = state.walls.indexOf(wall);
@@ -7099,7 +7101,7 @@
         var startCovered = !wall.island && (afella(wall, zone).start > 0 || cornerClearance(wall, zone) > 0);
         var endCovered = !wall.island && afella(wall, zone).end > 0;
         var rs = runStartMm(wall, zone), re = runEndMm(wall, zone), afE = afellaEnds(wall).filter(function(x){ return x.zone === zone; });
-        function hasAf(side, b){ return afE.some(function(x){ return x.side === side && x.b === b; }); } // an áfella (any width up to 300 mm) closes the wall side — no úthlið beside it
+        function hasAf(side, b){ return AFELLA_WIDE && afE.some(function(x){ return x.side === side && x.b === b; }); } // an áfella (any width up to 300 mm) closes the wall side — no úthlið beside it
         sp.forEach(function(me, k){
           if (!bodyLike(me.b)) return;
           if (CATALOG[me.b.type].open) return; // an open unit is built in the front material all round — no úthlið (user, 2026-10-26)

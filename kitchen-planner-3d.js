@@ -6070,6 +6070,7 @@
     function addAfellur(g, wall, wi, fStarts, wStarts){
       [["floor", fStarts, cornerClearanceMm(surfaces, wi, "floor")], ["wall", wStarts, 0]].forEach(function(z){
         var ends = afellaEndsOf(surfaces, wi, z[0]);
+        if (window.KP3D && window.KP3D.afellaNarrow) ends = ends.filter(function(e){ return Math.abs(e.mm - AFELLA_MM) < 1; }); // Studio: only the 19 mm filler it always drew
         ends.forEach(function(e){
           var c = CATALOG[e.b.type];
           if (c.panel || c.shelfStack) return; // an end panel already closes it

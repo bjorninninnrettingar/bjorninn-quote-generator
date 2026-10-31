@@ -75,3 +75,12 @@ test("(3) the placement hands the island's row snapshot to Smíða's undo", () =
   assert.ok(/smIsl = PRO && wall\.island/.test(html) && /pocket:pocketNew, isl:smIsl/.test(html));
   assert.ok(/isl:o\.isl/.test(fnBody("smEnterNew")));
 });
+
+// ---- 4. Studio keeps its pre-áfella behaviour while AF lines stay off for customers
+test("(4) Studio gating: no wide áfella / 'no úthlið beside it' unless PRO or the AF lines go out in Studio too", () => {
+  assert.ok(/var AFELLA_WIDE = !!\(PRO \|\| AFELLA_LINES_IN_STUDIO_SUBMIT\)/.test(html));
+  assert.ok(/KP3D\.afellaNarrow = !AFELLA_WIDE/.test(html));
+  assert.ok(/function hasAf\(side, b\)\{ return AFELLA_WIDE && /.test(html), "missingEndPanels' hasAf is gated");
+  const d3 = fs.readFileSync(new URL("../kitchen-planner-3d.js", import.meta.url), "utf8");
+  assert.ok(/afellaNarrow\) ends = ends\.filter\(function\(e\)\{ return Math\.abs\(e\.mm - AFELLA_MM\) < 1; \}\)/.test(d3), "3D draws only the 19 mm filler in Studio");
+});
