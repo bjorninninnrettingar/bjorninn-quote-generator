@@ -6470,7 +6470,9 @@
   function afellaId(wall, e){ return "v:" + wall.id + ":" + e.side + (e.zone === "wall" ? ":wall" : ""); }
   function afKeyOf(id){
     var m = state.afKeys || (state.afKeys = {}), k = (SK_CAT || state.activeCategory || "") + "|" + id;
-    if (!m[k]){ var max = 0; Object.keys(m).forEach(function(x){ max = Math.max(max, +String(m[x]).slice(2) || 0); }); m[k] = "AF" + (max + 1); }
+    if (!m[k]){ var max = 0; Object.keys(m).forEach(function(x){ max = Math.max(max, +String(m[x]).slice(2) || 0); });
+      Object.keys(state.liSent || {}).forEach(function(x){ var n = /^AF(\d+)$/.exec(x); if (n) max = Math.max(max, +n[1]); }); // an AF already in Airtable keeps its number even if afKeys got lost
+      m[k] = "AF" + (max + 1); }
     return m[k];
   }
   function afellaWhere(wall, e){
@@ -19444,7 +19446,7 @@
     var x = smCtx(); if (!x) return;
     side.querySelectorAll("[data-sm-in]").forEach(function(inp){
       inp.addEventListener("change", function(){ if (!inp.__sent) smCommit(inp.dataset.smIn, inp.value); });
-      inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smCommit(inp.dataset.smIn, inp.value); } }); // Enter confirms what the field shows, changed or not
+      inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; setTimeout(function(){ inp.__sent = false; }, 0); smCommit(inp.dataset.smIn, inp.value); } }); // Enter confirms what the field shows, changed or not
     });
     side.querySelectorAll("[data-sm-ok]").forEach(function(el){ el.addEventListener("click", function(){
       var k = el.dataset.smOk;
@@ -19462,20 +19464,20 @@
       inp.addEventListener("blur", function(){ if (uw.smItem === k) uw.smItem = null; });
       var hgEl = inp.closest("[data-sm-hinge]");
       if (hgEl){
-        inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smHingeOk(hgEl.dataset.smHinge); } });
+        inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; setTimeout(function(){ inp.__sent = false; }, 0); smHingeOk(hgEl.dataset.smHinge); } });
         inp.addEventListener("input", function(){ var m = ((uw.smMarks || {}).lam || []).find(function(q){ return q.id === hgEl.dataset.smHinge; }), v = parseFloat(String(inp.value).replace(",", ".")); if (m && m.hinge && !isNaN(v)){ uw.smDrag = { id:m.id, abs:m.hinge.dbot + v }; drawUwDims(); } });
         inp.addEventListener("blur", function(){ if (uw && uw.smDrag && !uw.smDrag.pointer){ uw.smDrag = null; drawUwDims(); } });
         return;
       }
       var scrEl = inp.closest("[data-sm-scr]"); // a shelf screen: Enter confirms the whole screen, a typed value shows live on the drawing
       if (scrEl){
-        inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smScreenOk(+scrEl.dataset.smScr); } });
+        inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; setTimeout(function(){ inp.__sent = false; }, 0); smScreenOk(+scrEl.dataset.smScr); } });
         inp.addEventListener("input", function(){ var m = ((uw.smMarks || {}).pos || []).find(function(q){ return q.id === k.slice(i0 + 1); }), v = parseFloat(String(inp.value).replace(",", ".")); if (m && m.abs != null && !isNaN(v)){ uw.smDrag = { id:m.id, abs:v }; drawUwDims(); } });
         inp.addEventListener("blur", function(){ if (uw && uw.smDrag && !uw.smDrag.pointer){ uw.smDrag = null; drawUwDims(); } });
         return;
       }
       inp.addEventListener("change", function(){ if (!inp.__sent) smItemDone(k.slice(0, i0), k.slice(i0 + 1), inp.value); });
-      inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; smItemDone(k.slice(0, i0), k.slice(i0 + 1), inp.value); } });
+      inp.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); inp.__sent = true; setTimeout(function(){ inp.__sent = false; }, 0); smItemDone(k.slice(0, i0), k.slice(i0 + 1), inp.value); } });
     });
     side.querySelectorAll("[data-sm-hok]").forEach(function(el){ el.addEventListener("click", function(){ smHingeOk(el.dataset.smHok); }); });
     side.querySelectorAll("[data-sm-hall]").forEach(function(el){ el.addEventListener("click", function(){ smHingeAll(+el.dataset.smHall); }); });

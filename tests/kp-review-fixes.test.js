@@ -84,3 +84,32 @@ test("(4) Studio gating: no wide áfella / 'no úthlið beside it' unless PRO or
   const d3 = fs.readFileSync(new URL("../kitchen-planner-3d.js", import.meta.url), "utf8");
   assert.ok(/afellaNarrow\) ends = ends\.filter\(function\(e\)\{ return Math\.abs\(e\.mm - AFELLA_MM\) < 1; \}\)/.test(d3), "3D draws only the 19 mm filler in Studio");
 });
+
+// ---- 5. Enter on an empty Smíða field must not disable that field's later change commit
+test("(5) every Enter handler in Smíða clears __sent again, so a later change still commits", () => {
+  const sets = html.match(/inp\.__sent = true;[^\n]{0,80}/g) || [];
+  assert.ok(sets.length >= 4, "the four Enter handlers exist");
+  sets.forEach((x) => assert.ok(/setTimeout\(function\(\)\{ inp\.__sent = false; \}, 0\)/.test(x), x));
+});
+
+test("(5) behaviour: Enter on an empty field, then typing + change still commits", async () => {
+  const handlers = {}; const committed = [];
+  const inp = { dataset: { smIn: "w" }, value: "", addEventListener: (t, f) => { handlers[t] = f; } };
+  const line = html.match(/inp\.addEventListener\("change", function\(\)\{ if \(!inp\.__sent\) smCommit[^\n]*\n[^\n]*keydown[^\n]*/)[0];
+  const sb = { inp, smCommit: (k, v) => { if (v !== "") committed.push(v); }, setTimeout };
+  vm.createContext(sb); vm.runInContext(line, sb);
+  handlers.keydown({ key: "Enter", preventDefault() {} });
+  await new Promise((r) => setTimeout(r, 5));
+  inp.value = "600"; handlers.change();
+  assert.deepEqual(committed, ["600"]);
+});
+
+// ---- 7. afKeyOf never reuses an AF number that is already in Airtable
+test("(7) afKeyOf seeds its max from liSent too: no afKeys but liSent AF1 -> next is AF2", () => {
+  const sb = { SK_CAT: null, state: { activeCategory: "eldhus", liSent: { AF1: [], Sk3: [] } } };
+  sb.window = sb; vm.createContext(sb);
+  vm.runInContext(fnBody("afKeyOf") + "\nthis.afKeyOf = afKeyOf;", sb);
+  assert.equal(sb.afKeyOf("v:W1:start"), "AF2");
+  assert.equal(sb.afKeyOf("v:W1:start"), "AF2", "stable once given");
+  assert.equal(sb.afKeyOf("v:W2:end"), "AF3");
+});
