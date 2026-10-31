@@ -52,3 +52,45 @@ Everything below was fixed and tested with mocks or node tests only. Nothing has
 - Nav chip "SÖGUNARLISTI" (links to /labels): rename "MERKINGAR"?
 - `/smida` project picker; `/app` offline shell; SOP key is the shared workshop key (visible in page source).
 - Questions for Isak in docs/chatbot-gaps.md; 22 draft FAQ answers waiting for review.
+
+## Próf eftir smíði 30.–31.10 (T-32 = prufuverk, notaðu aðeins það)
+Hvert próf tekur um 5 mínútur. Merktu við og segðu mér hvað fór úrskeiðis.
+
+### Smíða (PRO), lota 2
+- [ ] Opnaðu skáp í Smíða → Staðsetning: sést „Hilla 1 af N“, myndavélin á hillunni, reiturinn með núverandi mm?
+- [ ] Ýttu á Rétt → ✓. Ýttu aftur → fer til baka. Veldu Laus: gatafjöldi og bil með tölum; Rétt án þess að snerta þær heldur tölunum.
+- [ ] Dragðu hillu/slá upp í gegnum aðra: hún fer í gegn; innan við 40 mm frá annarri → villa í Yfirliti.
+- [ ] Lamir: „Löm 1 af N“, myndavél nálægt, aðeins sú löm teiknuð; rauð löm sýnir ástæðu, „Færa í N mm“ lagar; „Allar lamir rétt“ kemur á síðustu löm hurðar.
+- [ ] Raðborun sýnir Af í bláu. Valið er blátt alls staðar. Yfirlit er í réttum litum.
+- [ ] Ný eining í PRO: fataskápur sýnir „Tilbúnar lausnir“ og „Stakir hlutir“; Áfram setur skápinn í herbergið og heldur áfram í Smíða; Til baka tekur hann út.
+- [ ] „Rýmin í þessu verki“: kort með „X / Y Klár“, „Halda áfram“ opnar rétt herbergi.
+
+### Bitar í lofti
+- [ ] Veldu bita → „Sýna loft“. Bláa rammann, punktur og fjarlægðir sjást.
+- [ ] Drag: mjúkt í 10 mm skrefum; Shift = 1 mm; smellur að vegg innan 5 cm.
+- [ ] Snúningshandfang: 5° skref, festist á 0/45/90. Sláðu 30 í „Snúningur (°)“.
+- [ ] Esc í miðju dragi skilar bitanum; Ctrl+Z; drag út úr herbergi gefur skilaboð.
+
+### Áfella (veggur)
+- [ ] PRO: sláðu 60 mm við vegg-enda; skápar færast eða skilaboð um að þetta passi ekki.
+- [ ] Vista → í Airtable Line Item `AF1` með Smíðagögn `w:60`. (Studio sendir enn engar AF-línur: flaggið `AFELLA_LINES_IN_STUDIO_SUBMIT` er slökkt.)
+- [ ] Keyra skipulag → Eyðublað „Áfella“ 60 × hæð → röð „Áfella“ í Sögunarlista → fermetrar í Pöntunarlista.
+- [ ] Segðu mér þegar þetta virkar, þá kveiki ég á Studio-sendingunni.
+
+### Vasahurð (Revego/Hawa)
+- [ ] Ný eining → Tækjaskápar → Vasahurð, breidd 90 cm: uno, texti „Vasinn tekur 100 mm af 900 mm. Innanmál: 800 mm“.
+- [ ] 95 cm: uno rautt, valið færist í duo (150 mm). 40 cm: „of mjór“.
+- [ ] Hawa → „2 hurðir, felli“: textinn nefnir pláss sem áætlun.
+- [ ] Loka/Opna hurð: lokað í sléttu án handfanga, opið í vasa. Ofanmynd sýnir vasadraug. Sökkull: Nei tekur sökkulinn.
+
+### Eyja
+- [ ] Ný eining → Eyja → Ein röð → A2 → Háir skápar → Hurðir með hillum: úthliðar á báðum endum og báðum hliðum háa skápsins.
+- [ ] 3D: bakið í þremur hlutum (lágt, 2500, lágt); borðplatan í tveimur hlutum, endinn við háa skápinn án yfirhangs.
+- [ ] Veldu eyjuna: fjarlægðir í mm í litum; sláðu 1050 í „Bil frá vegg 1“ → hún færist.
+- [ ] Biti yfir háa skápnum: „rekst á biti“ og eyjan fer ekki undir bitann.
+- [ ] „Bæta við úthliðum“ á eyju án háa skápsins; „＋ Skápur“ opnar Ný eining með öllum einingum.
+
+### Gólf og skrifstofa (í síma)
+- [ ] `/app`: öll tákn eru línutákn; `/verk-i-gangi` og verk án emoji; `/velar` og `/sop` flokkar.
+- [ ] `/smida` án verkefnis: listi með leit; veldu verkefni og venjuleg Smíða opnast.
+- [ ] Settu `/app` á heimaskjáinn, flugstilling, opnaðu aftur: skelin sést og „Ekkert net“.
