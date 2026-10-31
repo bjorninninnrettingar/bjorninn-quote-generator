@@ -1586,6 +1586,7 @@
     "{a} opnast ekki: {b} stendur fyrir framan hann í horninu (notaðu hornskáp/Töfrahorn, blindlok eða færðu skápana).": "{a} can't open: {b} stands in front of it in the corner (use a corner cabinet/magic corner, a blind panel, or move the cabinets).",
     "{u}: skúffurnar rekast á höldurnar á {w} í horninu (bil {g} mm, höldur {p} mm).": "{u}: the drawers hit the handles on {w} in the corner (gap {g} mm, handles {p} mm).",
     "{i}: {a} skarast við {b} ({n}).": "{i}: {a} overlaps {b} ({n}).",
+    "{i}: {a} rekst á {o}.": "{i}: {a} runs into {o}.",
     "Aðeins {d} mm gangur á milli {i} og {n} — mælt er með {w} mm eða meira.": "Only {d} mm walkway between {i} and {n} — {w} mm or more is recommended.",
     "Snúa til vinstri": "Turn left",
     "Ganga áfram": "Walk forward",

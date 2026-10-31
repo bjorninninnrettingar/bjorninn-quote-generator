@@ -1483,6 +1483,9 @@
       var mine = [];
       surf.forEach(function(sf, si){ if (sf.island === isl) mine = mine.concat(boxes[si]); });
       if (!mine.length) return;
+      islandObstacleHits(state, isl).forEach(function(h){ // a tall unit in the island reaches up into a beam / column
+        push(__("{i}: {a} rekst á {o}.", { i:__(isl.label), a:__(CATALOG[h.b.type].label).toLowerCase(), o:__(OBSTACLES[h.o.kind].label).toLowerCase() }), [h.b.id, h.o.id]);
+      });
       var byTarget = {}; // walkway per wall / other island: the tightest pair
       surf.forEach(function(sf, sj){
         if (sf.island === isl) return;
@@ -7658,6 +7661,66 @@
     }
     return true;
   }
+  // Island rows against obstacles (2026-10-30, owner: the beam check must not skip islands). A tall unit reaches up into a
+  // ceiling beam, so it counts like a tall unit against a wall: the row's units as world quads at a candidate centre, and the
+  // obstacles (biti, columns …) whose height range they reach.
+  function islandUnitQuads(isl, x0, z0){ // (m) -> [{ b, c, q }]
+    var f = islandFrame(isl), L = isl.lengthMm / 1000, out = [];
+    function row(list, origin, axis, normal){
+      var starts = blockStartsMm(list || [], 0), g = { origin:origin, axis:axis, normal:normal };
+      (list || []).forEach(function(b, i){ var c = CATALOG[b.type]; if (c) out.push({ b:b, c:c, q:rectCornersWorld(g, starts[i], b.widthMm, b.depthMm || c.d) }); });
+    }
+    row(isl.a, { x:x0 - f.axis.x * L / 2, z:z0 - f.axis.z * L / 2 }, f.axis, f.normal);
+    if (isl.two){ var ax = { x:-f.axis.x, z:-f.axis.z }; row(isl.b, { x:x0 + f.axis.x * L / 2, z:z0 + f.axis.z * L / 2 }, ax, normalFromAxis(ax)); }
+    return out;
+  }
+  function quadsOverlapM(a, b, eps){ // two convex quads (m, either winding) overlap by more than eps (separating-axis test)
+    function sep(P, Q){
+      for (var i = 0; i < P.length; i++){
+        var p1 = P[i], p2 = P[(i + 1) % P.length], nx = p1.z - p2.z, nz = p2.x - p1.x, len = Math.hypot(nx, nz) || 1; nx /= len; nz /= len;
+        var a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+        P.forEach(function(p){ var d = p.x * nx + p.z * nz; a0 = Math.min(a0, d); a1 = Math.max(a1, d); });
+        Q.forEach(function(p){ var d = p.x * nx + p.z * nz; b0 = Math.min(b0, d); b1 = Math.max(b1, d); });
+        if (Math.min(a1, b1) - Math.max(a0, b0) <= eps) return true;
+      }
+      return false;
+    }
+    return !sep(a, b) && !sep(b, a);
+  }
+  // the units of an island (at centre x0, z0 in m; default: where it stands) that run into an obstacle: [{ b, o }].
+  // Only TALL units: what a base unit does against a low obstacle is islandFits' own footprint test, unchanged.
+  function islandObstacleHits(state, isl, x0, z0){
+    var out = [];
+    if (!islandHasTall(isl) || !(state.obstacles || []).length) return out;
+    var roomH = state.roomHeightMm || 2600;
+    var quads = islandUnitQuads(isl, x0 == null ? isl.xMm / 1000 : x0, z0 == null ? isl.zMm / 1000 : z0).filter(function(u){ return tallUnitC(u.c); });
+    (state.obstacles || []).forEach(function(o){
+      var def = OBSTACLES[o.kind]; if (!def || !def.blocks) return;
+      var v = obstacleVSpan(state, o), oq = obstacleQuad(state, o); if (!oq) return;
+      quads.forEach(function(u){
+        var top = Math.min(u.b.heightMm || u.c.h, roomH);
+        if (Math.min(v.hi, top) - Math.max(v.lo, 0) <= 20) return;
+        if (quadsOverlapM(u.q, oq, 0.01)) out.push({ b:u.b, o:o });
+      });
+    });
+    return out;
+  }
+  // Obstacle stretches along an island ROW (mm along the row) a unit of height `probe` and this depth would run into — the island's
+  // counterpart of the wall's obstacleSpans, for placing a unit in a row. Bounding box in the row's frame (a turned beam counts a little more).
+  function islandRowObstacleSpans(state, surfId, probe, depthMm){
+    var surfs = surfacesOf(state), si = surfs.findIndex(function(w){ return w.id === surfId; });
+    if (si < 0 || !surfs[si].island || !probe) return [];
+    var g = surfaceGeoms(state)[si], out = [];
+    (state.obstacles || []).forEach(function(o){
+      var def = OBSTACLES[o.kind]; if (!def || !def.blocks) return;
+      var v = obstacleVSpan(state, o), oq = obstacleQuad(state, o); if (!oq || g == null) return;
+      if (Math.min(v.hi, probe.hi) - Math.max(v.lo, probe.lo) <= 20) return;
+      var as = oq.map(function(p){ return ((p.x - g.origin.x) * g.axis.x + (p.z - g.origin.z) * g.axis.z) * 1000; }), ns = oq.map(function(p){ return ((p.x - g.origin.x) * g.normal.x + (p.z - g.origin.z) * g.normal.z) * 1000; });
+      if (Math.min(Math.max.apply(null, ns), depthMm) - Math.max(Math.min.apply(null, ns), 0) <= 20) return;
+      out.push({ start:Math.min.apply(null, as), end:Math.max.apply(null, as), obstacle:o });
+    });
+    return out;
+  }
   // An island may not stand through a wall, a wall's cabinets or a low obstacle (user, 2026-10-11). Its footprint:
   // along its axis the length, across it row A's depth (+20 mm worktop) in front of the centre line and row B's
   // depth (or the 19 mm back panel) behind it. (xMm, zMm) = a candidate centre.
@@ -7675,7 +7738,8 @@
     var own = {}; (isl.a || []).concat(isl.b || []).forEach(function(b){ own[b.id] = 1; });
     var others = floorRects(state).filter(function(r){ return !own[r.b.id]; }).map(function(r){ return r.q; })
       .concat((state.obstacles || []).filter(function(o){ return OBSTACLES[o.kind] && OBSTACLES[o.kind].blocks && obstacleVSpan(state, o).lo < 900; }).map(function(o){ return obstacleQuad(state, o); }).filter(Boolean));
-    return !others.some(function(q){ var rq = q.slice().reverse(); return pts.some(function(p){ return inPoly(p.x, p.z, q) || inPoly(p.x, p.z, rq); }); });
+    if (others.some(function(q){ var rq = q.slice().reverse(); return pts.some(function(p){ return inPoly(p.x, p.z, q) || inPoly(p.x, p.z, rq); }); })) return false;
+    return !islandObstacleHits(state, isl, x0, z0).length; // a tall unit under a ceiling beam (no tall unit: nothing here, as before)
   }
   function nearestIslandFit(state, isl, xMm, zMm){
     if (islandFits(state, isl, xMm, zMm)) return { x:xMm, z:zMm };
@@ -8577,7 +8641,7 @@
     cornerClearanceMm: cornerClearanceMm, afellaMm: afellaMm, afellaEndsOf: afellaEndsOf, afellaTypedMm: afellaTypedMm, AFELLA_MM: AFELLA_MM, AFELLA_MAX_MM: AFELLA_MAX_MM, AFELLA_WARN_MM: AFELLA_WARN_MM,
     blockStartsMm: blockStartsMm,
     planTransform: planTransform,
-    rectCornersWorld: rectCornersWorld, setSpacious: setSpacious, isSpacious: function(){ return SPACIOUS; }, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, islandBackSegs: islandBackSegs, islandHasTall: islandHasTall, tallUnitC: tallUnitC, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
+    rectCornersWorld: rectCornersWorld, setSpacious: setSpacious, isSpacious: function(){ return SPACIOUS; }, drawerZoneMm: drawerZoneMm, TALL_DRAWER_MAX_MM: TALL_DRAWER_MAX_MM, DRAWER_TOPDOOR_MIN_MM: DRAWER_TOPDOOR_MIN_MM, drawerStackSpaceMm: drawerStackSpaceMm, doorLeaves: doorLeaves, smidaHingeSide: smidaHingeSide, islandFits: islandFits, nearestIslandFit: nearestIslandFit, islandBackSegs: islandBackSegs, islandObstacleHits: islandObstacleHits, islandRowObstacleSpans: islandRowObstacleSpans, islandUnitQuads: islandUnitQuads, quadsOverlapM: quadsOverlapM, islandHasTall: islandHasTall, tallUnitC: tallUnitC, topThickM: topThickM, OBSTACLES: OBSTACLES, obstacleVSpan: obstacleVSpan, obstacleQuad: obstacleQuad, obstacleRect: obstacleRect, obstacleCorners: obstacleCorners, handleAvailMm: handleAvailMm, tallHandleAvailMm: tallHandleAvailMm, obstacleAng: obstacleAng, setShowDims: setShowDims, setSkTags: setSkTags, showDimsOn: function(){ return SHOW_DIMS; }, DECOR: DECOR, decorKindsFor: decorKindsFor, decorFits: decorFits, nearestDecorFit: nearestDecorFit, decorFoot: decorFoot, tableOf: tableOf, DECOR_GROUPS: DECOR_GROUPS, surfaceTopAt: surfaceTopAt, decorTopAt: decorTopAt, nearestTopSpot: nearestTopSpot,
     WALL_COLORS: WALL_COLORS, WALL_TILES: WALL_TILES,
     WINDOW_DEFAULT: WINDOW_DEFAULT,
     _handleProfile: handleProfile,

@@ -117,7 +117,16 @@
       var w = surfs[r.si], af = K.afellaMm(surfs, r.si, "floor"), isl = !!(w.island || w.partition);
       r.x0 = r.sRaw; r.x1 = r.eRaw;
       r.L = "free"; r.R = "free";
-      if (isl){ r.L = r.R = w.partition ? "wall" : "free"; return; }
+      if (isl){
+        r.L = r.R = w.partition ? "wall" : "free";
+        if (w.island){ // a tall unit (or a tall úthlið) standing against the end of an island run is a wall there, not a free end (owner, 2026-10-30)
+          var iS = K.blockStartsMm(w.floor, 0), tallNb = function(b){ var c = C[b.type]; return !!c && !c.counter && (b.heightMm || c.h) > r.h + 50; };
+          var pB = r.firstI > 0 ? w.floor[r.firstI - 1] : null, nB = r.lastI < w.floor.length - 1 ? w.floor[r.lastI + 1] : null;
+          if (pB && tallNb(pB) && Math.abs(iS[r.firstI - 1] + pB.widthMm - r.sRaw) < 2) r.L = "wall";
+          if (nB && tallNb(nB) && Math.abs(iS[r.lastI + 1] - r.eRaw) < 2) r.R = "wall";
+        }
+        return;
+      }
       var prevB = r.firstI > 0 ? w.floor[r.firstI - 1] : null, nextB = r.lastI < w.floor.length - 1 ? w.floor[r.lastI + 1] : null;
       var S = K.blockStartsMm(w.floor, r.clr);
       if (af.start && Math.abs(r.sRaw - af.start) < 2){ r.x0 = 0; r.L = "wall"; }

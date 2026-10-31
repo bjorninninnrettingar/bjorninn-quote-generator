@@ -6577,6 +6577,10 @@
     return probeSpan(c.zone, t, elevMm);
   }
   function crossSpans(wall, zone, probe){
+    if (wall.island && probe && zone === "floor"){ // an island row: a tall unit may not stand under a ceiling beam (owner, 2026-10-30) — nothing else crosses an island row
+      var depth = (wall.floor || []).reduce(function(m, x){ return Math.max(m, x.depthMm || CATALOG[x.type].d); }, 600);
+      return KP3D.islandRowObstacleSpans(state, wall.id, probe, depth);
+    }
     if (wall.island || wall.partition || !probe) return [];
     var other = zone === "floor" ? "wall" : "floor";
     return spansOf(wall, other).filter(function(sp){
@@ -6642,7 +6646,8 @@
       var sp = spansOf(wall, zone, excludeId), idx = sp.length;
       for (var si = 0; si < sp.length; si++){ if (centerAlongMm < (sp[si].start + sp[si].end) / 2){ idx = si; break; } }
       var at = idx < sp.length ? sp[idx].start : (sp.length ? sp[sp.length - 1].end : 0);
-      return { offsetMm:at, index:idx, fits:true };
+      var hit = probe && crossSpans(wall, zone, probe).some(function(o){ return Math.min(o.end, at + widthMm) - Math.max(o.start, at) > 20; }); // under a beam
+      return { offsetMm:at, index:idx, fits:!hit };
     }
     var want = alignSnap(wall, zone, widthMm, Math.round((centerAlongMm - widthMm / 2) / 10) * 10, excludeId);
     var best = null;
