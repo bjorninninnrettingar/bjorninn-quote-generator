@@ -130,7 +130,7 @@ test("missingEndPanels: an áfella (any width) at a wall end closes it — no ú
 
 test("typed mm: Enter confirms; nothing changes (and it says so) when it does not fit; PRO only", () => {
   const f = fnBody("setAfellaMm");
-  assert.ok(/undo\(\); toast\("Það kemst ekki fyrir/.test(f));
+  assert.ok(/undo\(\); toast\(short > 0 \? "Það vantar " \+ Math\.ceil\(short\)[\s\S]*"Það kemst ekki fyrir/.test(f));
   assert.ok(/mm < 19 \|\| mm > MAXA/.test(f));
   assert.ok(/ev\.key === "Enter"/.test(fnBody("wireAfellaFields")));
   assert.ok(/var f = PRO \? findBlock/.test(fnBody("afellaEndsOfBlock")), "Studio shows no field");
@@ -139,4 +139,11 @@ test("typed mm: Enter confirms; nothing changes (and it says so) when it does no
 test("Studio submit stays byte-identical: AF lines only from PRO unless AFELLA_LINES_IN_STUDIO_SUBMIT is flipped", () => {
   assert.match(html, /var AFELLA_LINES_IN_STUDIO_SUBMIT = false;/);
   assert.match(fnBody("afLines"), /if \(!afellaLive\(\) \|\| \(!PRO && !AFELLA_LINES_IN_STUDIO_SUBMIT\)\) return \[\];/);
+});
+
+test("lifting a cabinet also lifts the unbound end panel standing against it (owner, 2026-10-31); a panel shared with a neighbour stays", () => {
+  const f = fnBody("looseEndPanelsOf");
+  assert.ok(/CATALOG\[x\.b\.type\]\.panel/.test(f) && /far/.test(f));
+  const d = fnBody("on3DDragStart");
+  assert.ok(/looseEndPanelsOf\(blockId\)/.test(d));
 });

@@ -6514,7 +6514,7 @@
     if (mm) next[side] = { mm:mm }; else delete next[side];
     if (next.start || next.end) wall.afella = next; else delete wall.afella;
     if (JSON.stringify(wall.afella || null) === oldAf) return true;
-    var ok = true;
+    var ok = true, short = 0;
     if (mm) ["floor", "wall"].forEach(function(zone){
       var list = wall[zone]; if (!ok || !list.length) return;
       var clear = cornerClearance(wall, zone), sp = spansOf(wall, zone), n = list.length, st = sp.map(function(x){ return x.start; });
@@ -6524,19 +6524,19 @@
         if (delta === 0 || (delta < 0 && st[0] - clear > MAXA)) return; // far from the wall: not an áfella row
         if (delta > 0){ st[0] = want; for (var j = 1; j < n; j++) st[j] = Math.max(st[j], st[j - 1] + list[j - 1].widthMm); }
         else for (var i = 0; i < n && (i === 0 || sp[i].start - sp[i - 1].end <= 2); i++) st[i] += delta;
-        if (st[n - 1] + list[n - 1].widthMm > runEndMm(wall, zone) + 0.5) ok = false;
+        if (st[n - 1] + list[n - 1].widthMm > runEndMm(wall, zone) + 0.5){ ok = false; short = st[n - 1] + list[n - 1].widthMm - runEndMm(wall, zone); }
       } else {
         var wantEnd = wall.lengthMm - mm, deltaE = wantEnd - sp[n - 1].end;
         if (deltaE === 0 || (deltaE > 0 && wall.lengthMm - sp[n - 1].end > MAXA)) return;
         if (deltaE < 0){ st[n - 1] = wantEnd - list[n - 1].widthMm; for (var m = n - 2; m >= 0; m--) st[m] = Math.min(st[m], st[m + 1] - list[m].widthMm); }
         else for (var k = n - 1; k >= 0 && (k === n - 1 || sp[k + 1].start - sp[k].end <= 2); k--) st[k] += deltaE;
-        if (st[0] < runStartMm(wall, zone) - 0.5) ok = false;
+        if (st[0] < runStartMm(wall, zone) - 0.5){ ok = false; short = runStartMm(wall, zone) - st[0]; }
       }
       if (!ok) return;
       st.forEach(function(x, ix){ var g = Math.round(x - (ix ? st[ix - 1] + list[ix - 1].widthMm : clear)); if (g > 0) list[ix].gapMm = g; else delete list[ix].gapMm; });
     });
     if (ok) ["floor", "wall"].forEach(function(zone){ if (ok && wall[zone].some(function(x){ return crossOverlap(wall, zone, x); })) ok = false; });
-    if (!ok){ undo(); toast("Það kemst ekki fyrir — færðu skápana eða minnkaðu áfelluna. Ekkert breyttist."); return false; }
+    if (!ok){ undo(); toast(short > 0 ? "Það vantar " + Math.ceil(short) + " mm — minnkaðu skáp í röðinni um " + Math.ceil(short) + " mm og reyndu aftur. Ekkert breyttist." : "Það kemst ekki fyrir — eining í hinni röðinni eða bitinn er fyrir. Ekkert breyttist."); return false; }
     save(); refreshAfterEdit();
     return true;
   }
@@ -6827,8 +6827,27 @@
     surfaces().forEach(function(w){ ["floor", "wall"].forEach(function(z){ w[z].forEach(function(p){ if (p.lockTo && p.lockTo.id === hostId && CATALOG[p.type].panel) out.push({ w:w, z:z, p:p }); }); }); });
     return out;
   }
+  // The úthliðar that stand against this cabinet at the end of a run but are not bound to it (old drafts, panels moved by hand,
+  // island / bath ones, a panel bound to the neighbour): lifted with the cabinet too, else they stay behind and block the move
+  // (owner, 2026-10-31). A panel that also closes a neighbouring cabinet is left alone.
+  function looseEndPanelsOf(hostId){
+    var out = [], f = findBlock(hostId);
+    if (!f || CATALOG[f.block.type].panel) return out;
+    var sp = spansOf(f.wall, f.zone), me = sp.find(function(x){ return x.b.id === hostId; });
+    if (!me) return out;
+    sp.forEach(function(x){
+      if (x === me || !CATALOG[x.b.type].panel || x.b.locked) return;
+      var before = Math.abs(x.end - me.start) <= 2, after = Math.abs(x.start - me.end) <= 2;
+      if (!before && !after) return;
+      var far = sp.some(function(o){ return o !== x && o !== me && !CATALOG[o.b.type].panel && (before ? Math.abs(o.end - x.start) <= 2 : Math.abs(o.start - x.end) <= 2); });
+      if (!far) out.push({ w:f.wall, z:f.zone, p:x.b });
+    });
+    return out;
+  }
   function on3DDragStart(blockId){ // the cabinet is lifted: its bound úthliðar are deleted now, not at the drop
-    var bound = boundPanelsOf(blockId); if (!bound.length) return [];
+    var bound = boundPanelsOf(blockId);
+    looseEndPanelsOf(blockId).forEach(function(x){ if (!bound.some(function(y){ return y.p === x.p; })) bound.push(x); });
+    if (!bound.length) return [];
     var ids = bound.map(function(x){ return x.p.id; });
     bound.forEach(function(x){ detachBlock(x.w, x.z, x.p.id); });
     save();
