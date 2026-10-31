@@ -113,3 +113,14 @@ test("(7) afKeyOf seeds its max from liSent too: no afKeys but liSent AF1 -> nex
   assert.equal(sb.afKeyOf("v:W1:start"), "AF2", "stable once given");
   assert.equal(sb.afKeyOf("v:W2:end"), "AF3");
 });
+
+// ---- 8. polish
+test("(8) Esc is not swallowed by the áfella mm field; the pocket module's texts go through __()", () => {
+  assert.ok(/if \(ev\.key !== "Escape"\) ev\.stopPropagation\(\)/.test(fnBody("wireAfellaFields")));
+  const pk = fs.readFileSync(new URL("../kitchen-planner-pocket.js", import.meta.url), "utf8");
+  assert.ok(!/add\("(err|warn)", "/.test(pk), "no validate() text is a bare string");
+  assert.ok(/__\("Vasinn tekur \{a\} af \{b\}/.test(pk) && /__\("vasi vinstri"\)/.test(pk));
+});
+test("(8) the Hvaða útgáfu? summary has no emoji", () => {
+  assert.ok(!/pkErr \? " ⚠"/.test(html));
+});

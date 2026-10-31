@@ -6555,7 +6555,7 @@
   }
   function wireAfellaFields(host, b, after){
     host.querySelectorAll('[data-role="afmm"],[data-pe="afmm"]').forEach(function(inp){
-      inp.addEventListener("keydown", function(ev){ ev.stopPropagation(); if (ev.key === "Enter"){ ev.preventDefault(); inp.blur(); } });
+      inp.addEventListener("keydown", function(ev){ if (ev.key !== "Escape") ev.stopPropagation(); if (ev.key === "Enter"){ ev.preventDefault(); inp.blur(); } });
       inp.addEventListener("change", function(){ var f = findBlock(b.id); if (f) setAfellaMm(f.wall, inp.dataset.side, inp.value); after(); });
     });
   }
@@ -8978,7 +8978,7 @@
       }
       if (!uw.smida && pocketUnit(b)){ // Vasahurð (2026-10-30): the version cards, after the sizes (their limits depend on them)
         var pkRes = pocketResOf(b, c), pkErr = pkRes && KPPOCKET.firstError(pkRes);
-        secHtml.push(uwSec("ver", __("Hvaða útgáfu?"), pkRes ? escapeHtmlPro(KPPOCKET.summary(pkRes)) + (pkErr ? " ⚠" : (uw.picked.ver ? " ✓" : "")) : "", pocketCardsHtml(b, c)));
+        secHtml.push(uwSec("ver", __("Hvaða útgáfu?"), pkRes ? escapeHtmlPro(KPPOCKET.summary(pkRes)) + (pkErr ? " · athuga" : (uw.picked.ver ? " ✓" : "")) : "", pocketCardsHtml(b, c)));
       }
       var hasInn = !shortWiz && !machineOnly && !!innHtml.replace(/<div class="edit-field"><\/div>/g, "").trim();
       if (uw.smida) uw.smHasInn = hasInn;
@@ -9278,7 +9278,7 @@
       restoreEditorCam();
       // the new unit can't open (a door into the neighbour, a corner in front of it): say so right here, not only in the warning list (owner, 2026-10-29)
       var openWarn = KP3D.openingIssues(state).warn.filter(function(w){ return w.ids.indexOf(b.id) >= 0; });
-      if (openWarn.length) setTimeout(function(){ toast("⚠ " + openWarn[0].msg); }, 60);
+      if (openWarn.length) setTimeout(function(){ toast(openWarn[0].msg); }, 60);
     });
   }
   // The spinning preview: a one-wall scene holding just the cabinet being configured (isolated like the
@@ -15325,7 +15325,7 @@
   // what Mæling recorded for one wall of the current room: markers for its wall elevation + a note line (Vinnuteikningar)
   function wdMeasureFor(wall){
     var M = state.measurement || {}, room = SK_CAT || state.activeCategory || "_", annos = [], notes = [];
-    [["rafmagn", MP_ELEC, { tengill:"⏚", dos:"□", rofi:"⊘" }], ["lagnir", MP_PIPE, { vatn:"≋", frarennsli:"≋", hiti:"♨", annad:"!" }]].forEach(function(sp){
+    [["rafmagn", MP_ELEC, { tengill:"⏚", dos:"□", rofi:"⊘" }], ["lagnir", MP_PIPE, { vatn:"≋", frarennsli:"≋", hiti:"≈", annad:"!" }]].forEach(function(sp){
       (M[sp[0]] || []).filter(function(p){ return p.room === room && p.wallId === wall.id; }).forEach(function(p){
         annos.push({ kind:"symbol", a:{ x:p.offsetMm, y:p.heightMm }, glyph:sp[2][p.kind] || "!", text:sp[1][p.kind] + " " + p.offsetMm + "/" + p.heightMm });
         notes.push(sp[1][p.kind] + " – " + p.offsetMm + " frá horni, " + p.heightMm + " frá gólfi");
@@ -15950,7 +15950,7 @@
       '<div class="dw-pf"><span><b>Toppstykki</b><small>hvernig toppstykkið situr</small></span><div class="hd-chips">' + KPDOORS.TOPP.map(function(t){ return dwChip("dwtopp", t, c.topp === t, t); }).join("") + '</div></div>' +
       '<h4>Járn sem /cnc fræsir</h4>' +
       (CD ? (d.kind === "karmur" ? "" : hw("hinge", "HINGES", "Lamir") + (KPDOORS.hasHandle(d) ? hw("lock", "LOCKS", "Skrá") : "")) + (d.kind === "hurd" || d.kind === "gler" ? hw("threshold", "THRESHOLDS", "Felliþröskuldur") : "") : '<p class="dw-hint">Sæki CNC-járnalista…</p>') +
-      '<p class="dw-hint" style="margin-top:8px;">Fer í Smíðagögn hurðarinnar. /cnc notar þetta þar sem reitirnir eru auðir á Eyðublaðinu og merkir það ⚠.</p>' +
+      '<p class="dw-hint" style="margin-top:8px;">Fer í Smíðagögn hurðarinnar. /cnc notar þetta þar sem reitirnir eru auðir á Eyðublaðinu og merkir það með viðvörun.</p>' +
       '</div>';
   }
   function dwProInput(t){
@@ -19599,7 +19599,7 @@
     smSetOn(fb);
     uw.smNew = { pre:o.pre, gaps:o.gaps, hadSmida:o.hadSmida, pairId:o.pairId, isl:o.isl, ack0:JSON.stringify(b.smidaAck || null), firstSec:smFirstSec(b, CATALOG[b.type]) };
     var openWarn = KP3D.openingIssues(state).warn.filter(function(w){ return w.ids.indexOf(b.id) >= 0; });
-    if (openWarn.length) setTimeout(function(){ toast("⚠ " + openWarn[0].msg); }, 60);
+    if (openWarn.length) setTimeout(function(){ toast(openWarn[0].msg); }, 60);
     renderUnitWizard();
   }
   function smUndoOk(){

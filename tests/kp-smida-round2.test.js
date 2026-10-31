@@ -24,8 +24,8 @@ test("A: the current value is IN the field (never empty + ghost), Enter confirms
   assert.ok(/data-sm-in="' \+ d\.k \+ '" value="' \+ d\.mm \+ '"/.test(fnBody("smDimSecs")));
   assert.ok(/data-sm-pin="' \+ key \+ '" value="' \+ it\.mm \+ '"/.test(fnBody("smRowsHtml")));
   const w = fnBody("smWire");
-  assert.ok(/e\.key === "Enter"\)\{ e\.preventDefault\(\); inp\.__sent = true; smCommit/.test(w));
-  assert.ok(/e\.key === "Enter"\)\{ e\.preventDefault\(\); inp\.__sent = true; smItemDone/.test(w));
+  assert.ok(/e\.key === "Enter"\)\{ e\.preventDefault\(\); inp\.__sent = true; setTimeout\(function\(\)\{ inp\.__sent = false; \}, 0\); smCommit/.test(w));
+  assert.ok(/e\.key === "Enter"\)\{ e\.preventDefault\(\); inp\.__sent = true; setTimeout\(function\(\)\{ inp\.__sent = false; \}, 0\); smItemDone/.test(w));
 });
 
 test("A: the chosen option is solid blue, never a dashed 'suggest'; Yfirlit rows use the dark panel tokens", () => {

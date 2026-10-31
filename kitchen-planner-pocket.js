@@ -4,6 +4,8 @@
 // 55 mm for one door, 110 mm for two). Everything is in mm, x from the cabinet's left edge as seen from the front.
 (function(root){
   "use strict";
+  // EN version (kitchen-planner-i18n.js): display strings go through __(); standalone (tests) it just fills {placeholders}
+  var __ = root.__ || function(s, v){ return v ? String(s).replace(/\{(\w+)\}/g, function(m, n){ return Object.prototype.hasOwnProperty.call(v, n) ? v[n] : m; }) : s; };
 
   var SYSTEMS = {
     revego:   { label:"Blum REVEGO", short:"REVEGO" },
@@ -124,27 +126,28 @@
     function add(level, text){ out.push({ level:level, text:text }); }
     if (res.sys === "revego"){
       var tot = TOTAL_EB[res.ver], single = res.units.length === 1, u0 = res.units[0], fbMax = u0.kind === "duo" ? L.duoLeafFB[1] : L.leafFB[1];
-      if (W < tot[0] - 0.5) add("err", "Skápurinn er of mjór fyrir " + res.label + " (lágmark " + tot[0] + " mm)");
-      else if (W > tot[1] + 0.5) add("err", single ? "Hurðin er of breið fyrir " + res.label + " (hámark " + fbMax + " mm)" : "Skápurinn er of breiður fyrir " + res.label + " (hámark " + tot[1] + " mm)");
-      else if (res.units.some(function(u){ var r = u.kind === "duo" ? L.duoEB : L.unoEB; return u.widthMm < r[0] - 0.5 || u.widthMm > r[1] + 0.5; })) add("err", "Breiddin skiptist ekki rétt milli hurðanna í " + res.label + " — breyttu breiddinni");
+      if (W < tot[0] - 0.5) add("err", __("Skápurinn er of mjór fyrir {sys} (lágmark {n} mm)", { sys:res.label, n:tot[0] }));
+      else if (W > tot[1] + 0.5) add("err", single ? __("Hurðin er of breið fyrir {sys} (hámark {n} mm)", { sys:res.label, n:fbMax }) : __("Skápurinn er of breiður fyrir {sys} (hámark {n} mm)", { sys:res.label, n:tot[1] }));
+      else if (res.units.some(function(u){ var r = u.kind === "duo" ? L.duoEB : L.unoEB; return u.widthMm < r[0] - 0.5 || u.widthMm > r[1] + 0.5; })) add("err", __("Breiddin skiptist ekki rétt milli hurðanna í {sys} — breyttu breiddinni", { sys:res.label }));
       var minH = res.onWorktop ? L.doorH[0] : L.bodyH[0];
-      if (H && H < minH) add("err", res.onWorktop ? "Framhliðin er of lág fyrir REVEGO (lágmark " + L.doorH[0] + " mm)" : "Skápurinn er of lágur fyrir REVEGO (lágmark " + L.bodyH[0] + " mm)");
-      else if (H && H > L.bodyH[1]) add("err", "Skápurinn er of hár fyrir REVEGO (hámark " + L.bodyH[1] + " mm)");
-      if (D && D < L.depthMin) add("err", "Skápurinn er of grunnur fyrir REVEGO (lágmark " + L.depthMin + " mm)");
+      if (H && H < minH) add("err", res.onWorktop ? __("Framhliðin er of lág fyrir REVEGO (lágmark {n} mm)", { n:L.doorH[0] }) : __("Skápurinn er of lágur fyrir REVEGO (lágmark {n} mm)", { n:L.bodyH[0] }));
+      else if (H && H > L.bodyH[1]) add("err", __("Skápurinn er of hár fyrir REVEGO (hámark {n} mm)", { n:L.bodyH[1] }));
+      if (D && D < L.depthMin) add("err", __("Skápurinn er of grunnur fyrir REVEGO (lágmark {n} mm)", { n:L.depthMin }));
     } else {
+      var sizeErr = false;
       res.leaves.forEach(function(l, i){
         var lw = l.w - GAP_MM;
-        if (i && out.some(function(o){ return /breið|mjó/.test(o.text); })) return;
-        if (lw > L.leafW[1] + 0.05) add("err", "Hurðin er of breið fyrir Concepta III (hámark " + L.leafW[1] + " mm)");
-        else if (lw < L.leafW[0] - 0.05) add("err", "Hurðin er of mjó fyrir Concepta III (lágmark " + L.leafW[0] + " mm)");
+        if (i && sizeErr) return;
+        if (lw > L.leafW[1] + 0.05) { sizeErr = true; add("err", __("Hurðin er of breið fyrir Concepta III (hámark {n} mm)", { n:L.leafW[1] })); }
+        else if (lw < L.leafW[0] - 0.05) { sizeErr = true; add("err", __("Hurðin er of mjó fyrir Concepta III (lágmark {n} mm)", { n:L.leafW[0] })); }
       });
       var hr = res.folding ? L.foldDoorH : L.doorH, nm = res.folding ? "Folding Concepta III" : "Concepta III";
-      if (H && H < hr[0]) add("err", "Hurðin er of lág fyrir " + nm + " (lágmark " + hr[0] + " mm)");
-      else if (H && H > hr[1]) add("err", "Hurðin er of há fyrir " + nm + " (hámark " + hr[1] + " mm)");
-      else if (H && H > L.baseSetMaxH) add("warn", "Hurð yfir " + L.baseSetMaxH + " mm þarf stærra sett — staðfestu við birgi");
-      if (D && D < L.depthMin) add("err", "Skápurinn er of grunnur fyrir Concepta III (lágmark " + L.depthMin + " mm)");
+      if (H && H < hr[0]) add("err", __("Hurðin er of lág fyrir {sys} (lágmark {n} mm)", { sys:nm, n:hr[0] }));
+      else if (H && H > hr[1]) add("err", __("Hurðin er of há fyrir {sys} (hámark {n} mm)", { sys:nm, n:hr[1] }));
+      else if (H && H > L.baseSetMaxH) add("warn", __("Hurð yfir {n} mm þarf stærra sett — staðfestu við birgi", { n:L.baseSetMaxH }));
+      if (D && D < L.depthMin) add("err", __("Skápurinn er of grunnur fyrir Concepta III (lágmark {n} mm)", { n:L.depthMin }));
     }
-    if (opts && opts.neighbourSwing) add("warn", "Hurð nágranna opnast yfir vasann");
+    if (opts && opts.neighbourSwing) add("warn", __("Hurð nágranna opnast yfir vasann"));
     return out;
   }
   function firstError(res){ var v = validate(res).filter(function(x){ return x.level === "err"; }); return v.length ? v[0].text : null; }
@@ -154,16 +157,16 @@
   // "Vasinn tekur 100 mm af 600 mm. Innanmál: 500 mm" (+ what the open doors need in front)
   function spaceText(res){
     var P = res.pockets, first = P[0], n = P.length;
-    var line1 = n === 1 ? "Vasinn tekur " + mm(first.x1 - first.x0) + " af " + mm(res.widthMm) + ". Innanmál: " + mm(res.innerMm)
-      : "Vasarnir taka " + P.map(function(p){ return mm(p.x1 - p.x0); }).join(" + ") + " af " + mm(res.widthMm) + ". Innanmál: " + mm(res.innerMm);
-    var est = " (áætlun — nákvæmt mál kemur úr Hawa-stillinum)", line2;
-    if (res.folding) line2 = res.protrudeMm > 0 ? "Fellihurðirnar þurfa um " + mm(res.protrudeMm) + " fyrir framan skápinn þegar þær eru opnaðar" + est : "Fellihurðirnar rúmast í vasanum þegar þær eru opnaðar" + est;
-    else line2 = res.protrudeMm > 0 ? "Opin hurð stendur um " + mm(res.protrudeMm) + " fram fyrir skápinn" : "Opin hurð rúmast í vasanum";
+    var v = { a:n === 1 ? mm(first.x1 - first.x0) : P.map(function(p){ return mm(p.x1 - p.x0); }).join(" + "), b:mm(res.widthMm), c:mm(res.innerMm), p:mm(res.protrudeMm) };
+    var line1 = n === 1 ? __("Vasinn tekur {a} af {b}. Innanmál: {c}", v) : __("Vasarnir taka {a} af {b}. Innanmál: {c}", v);
+    var est = " " + __("(áætlun — nákvæmt mál kemur úr Hawa-stillinum)"), line2;
+    if (res.folding) line2 = res.protrudeMm > 0 ? __("Fellihurðirnar þurfa um {p} fyrir framan skápinn þegar þær eru opnaðar", v) + est : __("Fellihurðirnar rúmast í vasanum þegar þær eru opnaðar") + est;
+    else line2 = res.protrudeMm > 0 ? __("Opin hurð stendur um {p} fram fyrir skápinn", v) : __("Opin hurð rúmast í vasanum");
     return [line1, line2];
   }
   // "REVEGO uno · vasi hægri · 100 mm" (chips, Yfirlit)
   function summary(res){
-    var s = res.units.length === 1 ? (res.side === "left" ? "vasi vinstri" : "vasi hægri") : "vasar báðum megin";
+    var s = res.units.length === 1 ? (res.side === "left" ? __("vasi vinstri") : __("vasi hægri")) : __("vasar báðum megin");
     return res.label + (res.sys === "concepta" ? " (Hawa)" : "") + " · " + s + " · " + res.pockets.map(function(p){ return Math.round(p.x1 - p.x0); }).join(" + ") + " mm";
   }
 

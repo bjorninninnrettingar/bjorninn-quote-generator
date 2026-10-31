@@ -7,6 +7,35 @@
   // ======================================================================
   // EN dictionary — one block per area of the planner. Keys are the exact Icelandic source strings.
   // ======================================================================
+  // ---- pocket-door rules (kitchen-planner-pocket.js) ----
+  add({
+    "Skápurinn er of mjór fyrir {sys} (lágmark {n} mm)": "The cabinet is too narrow for {sys} (minimum {n} mm)",
+    "Hurðin er of breið fyrir {sys} (hámark {n} mm)": "The door is too wide for {sys} (maximum {n} mm)",
+    "Skápurinn er of breiður fyrir {sys} (hámark {n} mm)": "The cabinet is too wide for {sys} (maximum {n} mm)",
+    "Breiddin skiptist ekki rétt milli hurðanna í {sys} — breyttu breiddinni": "The width does not divide correctly between the doors in {sys} — change the width",
+    "Framhliðin er of lág fyrir REVEGO (lágmark {n} mm)": "The front is too low for REVEGO (minimum {n} mm)",
+    "Skápurinn er of lágur fyrir REVEGO (lágmark {n} mm)": "The cabinet is too low for REVEGO (minimum {n} mm)",
+    "Skápurinn er of hár fyrir REVEGO (hámark {n} mm)": "The cabinet is too tall for REVEGO (maximum {n} mm)",
+    "Skápurinn er of grunnur fyrir REVEGO (lágmark {n} mm)": "The cabinet is too shallow for REVEGO (minimum {n} mm)",
+    "Hurðin er of breið fyrir Concepta III (hámark {n} mm)": "The door is too wide for Concepta III (maximum {n} mm)",
+    "Hurðin er of mjó fyrir Concepta III (lágmark {n} mm)": "The door is too narrow for Concepta III (minimum {n} mm)",
+    "Hurðin er of lág fyrir {sys} (lágmark {n} mm)": "The door is too low for {sys} (minimum {n} mm)",
+    "Hurðin er of há fyrir {sys} (hámark {n} mm)": "The door is too tall for {sys} (maximum {n} mm)",
+    "Hurð yfir {n} mm þarf stærra sett — staðfestu við birgi": "A door over {n} mm needs a larger set — confirm with the supplier",
+    "Skápurinn er of grunnur fyrir Concepta III (lágmark {n} mm)": "The cabinet is too shallow for Concepta III (minimum {n} mm)",
+    "Hurð nágranna opnast yfir vasann": "The neighbour's door opens over the pocket",
+    "Vasinn tekur {a} af {b}. Innanmál: {c}": "The pocket takes {a} of {b}. Inside width: {c}",
+    "Vasarnir taka {a} af {b}. Innanmál: {c}": "The pockets take {a} of {b}. Inside width: {c}",
+    "(áætlun — nákvæmt mál kemur úr Hawa-stillinum)": "(estimate — the exact size comes from the Hawa configurator)",
+    "Fellihurðirnar þurfa um {p} fyrir framan skápinn þegar þær eru opnaðar": "The folding doors need about {p} in front of the cabinet when open",
+    "Fellihurðirnar rúmast í vasanum þegar þær eru opnaðar": "The folding doors fit in the pocket when open",
+    "Opin hurð stendur um {p} fram fyrir skápinn": "An open door sticks out about {p} in front of the cabinet",
+    "Opin hurð rúmast í vasanum": "An open door fits in the pocket",
+    "vasi vinstri": "pocket left",
+    "vasi hægri": "pocket right",
+    "vasar báðum megin": "pockets on both sides"
+  });
+
   addPat(/^Veggur (\d+)$/, "Wall $1");
   addPat(/^Eyja (\d+)$/, "Island $1");
 
