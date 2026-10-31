@@ -7243,6 +7243,17 @@
     var changed = sig() !== before;
     return changed;
   }
+  // Úthliðar á eyju (2026-10-30, B2): every visible side of the island's units — both ends and the side beside a lower
+  // neighbour — gets the ordinary 19 mm úthlið (same units, same keys as on a wall: missingEndPanels + addEndPanel).
+  // -> { added, failed }; the caller saves and redraws.
+  function addIslandEndPanels(isl){
+    var added = 0, failed = 0, seq0 = blockSeq;
+    missingEndPanels().filter(function(m){ return m.wall.island === isl; }).forEach(function(m){
+      if (addEndPanel(m.wall, m.zone, m.b, m.dir)) added++; else failed++;
+    });
+    blockSeq = Math.max(seq0, blockSeq);
+    return { added:added, failed:failed };
+  }
   var panelsAskedFor = null; // the plan we already asked about (don't nag twice for the same thing)
   var panelsPending = 0; // the short pause after "Já, bæta við" — a second click meanwhile does nothing
   function checkEndPanelsThen(go){
@@ -9246,6 +9257,7 @@
       insertBlockAt(wall, c.zone, b, pl.offsetMm);
       var b2 = null; if (pairW){ b2 = newBlock(b.type); insertBlockAt(wall, c.zone, b2, pl.offsetMm + b.widthMm); }
       matchPanelToNeighbour(wall, c.zone, b, true);
+      if (PRO && wall.island && KP3D.tallUnitC(c)) addIslandEndPanels(wall.island); // a tall unit into an island: úthliðar by themselves
       landedBlockId = b.id; selectedBlockId = b.id; selectedWallId = null;
       save();
       if (PRO){ smEnterNew(wall, c.zone, b, { pre:smPre, gaps:smGaps, hadSmida:smHad, pairId:b2 && b2.id, pocket:pocketNew }); return; } // no leave / refresh: the room is rebuilt when the wizard closes
@@ -9878,6 +9890,7 @@
       if (two){ isl.b = []; fillIslandRow(isl.b, len); }
     }
     state.islands.push(isl);
+    if (PRO && rows && KP3D.islandHasTall(isl)) addIslandEndPanels(isl); // a tall unit arrived: its sides and the island's ends get their úthlið by themselves (owner, 2026-10-30)
     clampIslands();
     selectedBlockId = isl.id;
     save();
@@ -11972,6 +11985,7 @@
         '<div class="edit-actions">' +
           '<button class="iconbtn" data-role="rot">' + __("↻ Snúa 90°") + '</button>' +
           (!isl.two ? '<button class="iconbtn' + (isl.back ? ' on' : '') + '" data-role="back">' + (isl.back ? __("✓ Bak á eyju") : __("＋ Bak á eyju")) + '</button>' : '') +
+          '<button class="iconbtn" data-role="endPanels" title="' + __("Báðir endar eyjunnar og hliðin við lægri skáp fá 19 mm úthlið í framhliðaefni") + '">' + __("Bæta við úthliðum") + '</button>' +
           '<button class="iconbtn" data-role="addA">' + __("＋ Skápur") + (isl.two ? ' (' + __("röð A") + ')' : '') + '</button>' +
           (isl.two ? '<button class="iconbtn" data-role="addB">' + __("＋ Skápur") + ' (' + __("röð B") + ')</button>' : '') +
           '<button class="iconbtn del" data-role="delete">' + __("✕ Fjarlægja eyju") + '</button>' +
@@ -11993,6 +12007,12 @@
     }
     var backBtn = host.querySelector('[data-role="back"]');
     if (backBtn) backBtn.addEventListener("click", function(){ if (isl.back) delete isl.back; else isl.back = true; save(); refreshAfterEdit(); });
+    host.querySelector('[data-role="endPanels"]').addEventListener("click", function(){
+      var r = addIslandEndPanels(isl);
+      if (!r.added && !r.failed){ toast(__("Allar sýnilegar hliðar eru með úthlið.")); return; }
+      save(); refreshAfterEdit();
+      toast(r.failed ? __("Bætti við {n} {panels}", { n:r.added, panels:plural(r.added, "úthlið", "úthliðum") }) + __(" — {n} komust ekki fyrir, færðu skápana aðeins til", { n:r.failed }) : __("Úthliðunum bætt við."));
+    });
     host.querySelector('[data-role="addA"]').addEventListener("click", function(){ addBlock(surfaceById(isl.id + "a"), "grunnskapur"); });
     var addB = host.querySelector('[data-role="addB"]');
     if (addB) addB.addEventListener("click", function(){ addBlock(surfaceById(isl.id + "b"), "grunnskapur"); });
