@@ -9261,14 +9261,14 @@
         else toast(PRO ? __("Ekki nóg pláss á {wall} fyrir {name}.", { wall:KPI18N.lang === "en" ? __(wall.label).toLowerCase() : wallDat(wall), name:__(c.label).toLowerCase() }) : __("Veggurinn er fullur — Setja inn býður mjórri skáp, eða færðu annan til.")); // (owner, 2026-10-27)
         return;
       }
-      var smPre = PRO ? Object.assign({}, uw) : null, smGaps = PRO ? (wall[c.zone] || []).map(function(x){ return [x, x.gapMm]; }) : null, smHad = !!b.smida; // PRO: the same wizard goes on into Smíða — Til baka can take the cabinet out again
+      var smPre = PRO ? Object.assign({}, uw) : null, smGaps = PRO ? (wall[c.zone] || []).map(function(x){ return [x, x.gapMm]; }) : null, smHad = !!b.smida, smIsl = PRO && wall.island ? { isl:wall.island, a:JSON.stringify(wall.island.a || []), b:JSON.stringify(wall.island.b || []) } : null; // PRO: the same wizard goes on into Smíða — Til baka can take the cabinet out again
       insertBlockAt(wall, c.zone, b, pl.offsetMm);
       var b2 = null; if (pairW){ b2 = newBlock(b.type); insertBlockAt(wall, c.zone, b2, pl.offsetMm + b.widthMm); }
       matchPanelToNeighbour(wall, c.zone, b, true);
       if (PRO && wall.island && KP3D.tallUnitC(c)) addIslandEndPanels(wall.island); // a tall unit into an island: úthliðar by themselves
       landedBlockId = b.id; selectedBlockId = b.id; selectedWallId = null;
       save();
-      if (PRO){ smEnterNew(wall, c.zone, b, { pre:smPre, gaps:smGaps, hadSmida:smHad, pairId:b2 && b2.id, pocket:pocketNew }); return; } // no leave / refresh: the room is rebuilt when the wizard closes
+      if (PRO){ smEnterNew(wall, c.zone, b, { pre:smPre, gaps:smGaps, hadSmida:smHad, pairId:b2 && b2.id, pocket:pocketNew, isl:smIsl }); return; } // no leave / refresh: the room is rebuilt when the wizard closes
       leaveUnitWizard();
       refreshAfterEdit();
       restoreEditorCam();
@@ -19593,7 +19593,7 @@
     if (o.pre && o.pre.picked && o.pre.picked.w){ b.smidaAck = { mal:{ w:b.widthMm }, at:new Date().toISOString() }; save(); }
     var fb = findBlock(b.id); if (!fb) return;
     smSetOn(fb);
-    uw.smNew = { pre:o.pre, gaps:o.gaps, hadSmida:o.hadSmida, pairId:o.pairId, ack0:JSON.stringify(b.smidaAck || null), firstSec:smFirstSec(b, CATALOG[b.type]) };
+    uw.smNew = { pre:o.pre, gaps:o.gaps, hadSmida:o.hadSmida, pairId:o.pairId, isl:o.isl, ack0:JSON.stringify(b.smidaAck || null), firstSec:smFirstSec(b, CATALOG[b.type]) };
     var openWarn = KP3D.openingIssues(state).warn.filter(function(w){ return w.ids.indexOf(b.id) >= 0; });
     if (openWarn.length) setTimeout(function(){ toast("⚠ " + openWarn[0].msg); }, 60);
     renderUnitWizard();
@@ -19608,6 +19608,11 @@
     var b = fb.block;
     detachBlock(fb.wall, fb.zone, b.id);
     if (n.pairId){ var f2 = findBlock(n.pairId); if (f2) detachBlock(f2.wall, f2.zone, n.pairId); }
+    if (n.isl){ // an island: the úthliðar placed with the unit (and any panel re-matched) go too — both rows exactly as they were
+      var rows = { a:JSON.parse(n.isl.a), b:JSON.parse(n.isl.b) };
+      ["a", "b"].forEach(function(k){ var cur = n.isl.isl[k]; if (cur) cur.splice.apply(cur, [0, cur.length].concat(rows[k])); });
+      n.gaps = [];
+    }
     n.gaps.forEach(function(g){ if (g[1] == null) delete g[0].gapMm; else g[0].gapMm = g[1]; }); // the neighbours' gaps as they were
     delete b.smidaAck; if (!n.hadSmida) delete b.smida;
     landedBlockId = null; selectedBlockId = null; selectedWallId = null;

@@ -50,3 +50,28 @@ test("(2) PRO: stepHistory marks the drawing dirty and refreshes the bar (chip n
   assert.ok(bars >= 1, "the bar was refreshed");
   assert.equal(sb.state.proSavedAt, "t", "save stamps still kept");
 });
+
+// ---- 3. island: Til baka on the first Smíða screen takes the úthliðar added with the unit away again
+test("(3) smUndoNew on an island restores both rows exactly (úthliðar added during placement are removed)", () => {
+  const start = { a: [{ id: "x1", type: "grunnskapur", widthMm: 600 }], b: [] };
+  const isl = { a: JSON.parse(JSON.stringify(start.a)), b: [] };
+  const snap = { isl, a: JSON.stringify(isl.a), b: JSON.stringify(isl.b) };
+  // placement: the new tall unit + two úthliðar around it, and the neighbour got a gap
+  isl.a.push({ id: "t1", type: "hataskapur", widthMm: 600 }, { id: "u1", type: "uthlidhar", widthMm: 19 }, { id: "u2", type: "uthlidhar", widthMm: 19 });
+  isl.a[0].gapMm = 5;
+  const sb = {
+    uw: { b: { id: "t1" }, smNew: { gaps: [[isl.a[0], undefined]], pre: { id: "pre" }, hadSmida: false, isl: snap } },
+    findBlock: (id) => { const i = isl.a.findIndex((x) => x.id === id); return i < 0 ? null : { block: isl.a[i], wall: { floor: isl.a }, zone: "floor" }; },
+    detachBlock: (w, z, id) => { const i = w[z].findIndex((x) => x.id === id); if (i >= 0) w[z].splice(i, 1); },
+    landedBlockId: 1, selectedBlockId: 1, selectedWallId: 1, uwPrevKey: "x", save() {}, renderUnitWizard() {},
+  };
+  sb.window = sb; vm.createContext(sb);
+  vm.runInContext(fnBody("smUndoNew") + "\nthis.smUndoNew = smUndoNew;", sb);
+  sb.smUndoNew();
+  assert.equal(JSON.stringify(isl.a), JSON.stringify(start.a), "the island row equals the starting row");
+});
+
+test("(3) the placement hands the island's row snapshot to Smíða's undo", () => {
+  assert.ok(/smIsl = PRO && wall\.island/.test(html) && /pocket:pocketNew, isl:smIsl/.test(html));
+  assert.ok(/isl:o\.isl/.test(fnBody("smEnterNew")));
+});
