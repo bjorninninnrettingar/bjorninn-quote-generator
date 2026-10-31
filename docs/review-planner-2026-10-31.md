@@ -27,13 +27,13 @@ copy of the page in PRO mode against a **throwaway mock server** (scratchpad onl
 ### 2. CRITICAL (silent mismatch) — Afturkalla / Endurgera after Vista leaves "✓ vistað" although the drawing no longer matches Airtable — VERIFIED
 - `stepHistory` (`:3184-3202`) restores the state and the save stamps (PRO #3), but never sets the dirty flag. Reproduced: áfella typed 45 mm → Vista (chip
   "✓ vistað") → Afturkalla: drawing shows 30 mm, `:dirty` is still `null`, chip still "✓ vistað".
-- Consequences: no "● óvistað", no tab-close warning, and `proRunSkipulag` (`:20979`, `stale = proDirty() || !state.liSent`) will **run Keyra skipulag on Airtable's
+- Consequences: no "● óvistað", no tab-close warning, and `proRunSkipulag` (`:20975`, `stale = proDirty() || !state.liSent`) will **run Keyra skipulag on Airtable's
   old data** without saving first. Old behaviour was the same, but PRO #3 was meant to make undo safe, so this is the missing half.
 - Fix (<10 min): in `stepHistory`, when `PRO`, set `STORAGE_KEY + ":dirty"` and call `proBar()`. Test: undo after a mocked Vista must flip `proDirty()` to true.
 
 ### 3. MEDIUM — "Til baka" on the first Smíða screen leaves the island's new úthliðar behind — READ
 - Adding a tall unit to an island in PRO calls `addIslandEndPanels(wall.island)` right after `insertBlockAt` (`:9267`, new in island round 2) and then `smEnterNew`.
-  `smUndoNew` (`:19586-19597`) removes only the cabinet (and its pair) and restores the neighbours' gaps — the úthlið blocks added by `addIslandEndPanels`
+  `smUndoNew` (`:19599`) removes only the cabinet (and its pair) and restores the neighbours' gaps — the úthlið blocks added by `addIslandEndPanels`
   (and whatever `matchPanelToNeighbour` changed) stay. Result: orphan UH units next to nothing, with their own Sk/UH Line Items on the next Vista.
   Same for the "tall unit arrives with a whole new island" path (`:9900`) if the island is cancelled.
 - Fix (<10 min): remember the ids of blocks added during placement and detach them in `smUndoNew` (or snapshot `wall[zone]` like `addEndPanel` already does).
@@ -50,7 +50,7 @@ copy of the page in PRO mode against a **throwaway mock server** (scratchpad onl
 
 ### 5. MINOR — Enter on an empty/invalid Smíða field disables the field's later "change" commit — READ
 - `smWire` (`:19437-19438`, and the hinge/shelf variants `:19456`, `:19463`, `:19469`) sets `inp.__sent = true` on Enter and the `change` handler then
-  ignores the field **for the rest of that DOM element's life**. `smCommit` returns without re-rendering when the value is empty or NaN (`:smCommit` first lines),
+  ignores the field **for the rest of that DOM element's life**. `smCommit` (`:18982`) returns without re-rendering when the value is empty or NaN,
   so the element survives: Enter on an empty field, then typing 600 and tabbing out silently commits nothing.
 - Fix (<10 min): clear `__sent` in a `setTimeout(0)` or on `input`. Test: dispatch Enter on an empty `data-sm-in`, then set value + `change` → ack must be written.
 
@@ -67,11 +67,11 @@ copy of the page in PRO mode against a **throwaway mock server** (scratchpad onl
   (they live in the blocks), so this is consistent, just worth knowing. Fix: seed the max from `Object.keys(state.liSent)` too (<10 min).
 
 ### 8. POLISH
-- `" ⚠"` emoji in the Hvaða útgáfu? section summary (`:529` of the diff, `uwSec("ver", …)`), visible to Studio customers; Studio rule is no emoji. `tests/emoji-ui.test.js` did not catch it.
+- `" ⚠"` emoji in the Hvaða útgáfu? section summary (`kitchen-planner.html:8976`), visible to Studio customers; Studio rule is no emoji. `tests/emoji-ui.test.js` did not catch it.
 - Vasahurð texts from `kitchen-planner-pocket.js` (card labels' errors, `spaceText`, `validate`, `SYSTEMS` labels) are not wrapped in `__()`; harmless while `KP_ENGLISH` is off.
 - The island "Bil frá vegg" pills / typed gap (`:9957-9992`) show for customers too, not only PRO. If that is intended, nothing to do.
 - `wireAfellaFields` stops propagation of *every* key at the input, so Esc inside the field does not close the panel (small).
-- `refreshAfterEdit` returns early while Smíða is open (`:3406` region) and so skips `clampIslands`, `glueLockedPanels`, `syncBathPanels`, `computeWarnings`; the new flow places the unit and stays in the wizard, so those only run when it closes. If Rakel presses Vista with the wizard open the saved drawing may not have been clamped yet. Not reproduced.
+- `refreshAfterEdit` (`:11581`) returns early while Smíða is open and so skips `clampIslands`, `glueLockedPanels`, `syncBathPanels`, `computeWarnings`; the new flow places the unit and stays in the wizard, so those only run when it closes. If Rakel presses Vista with the wizard open the saved drawing may not have been clamped yet. Not reproduced.
 
 ---
 
