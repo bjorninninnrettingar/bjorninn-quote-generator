@@ -12056,9 +12056,11 @@
       save(); refreshAfterEdit();
       toast(r.failed ? __("Bætti við {n} {panels}", { n:r.added, panels:plural(r.added, "úthlið", "úthliðum") }) + __(" — {n} komust ekki fyrir, færðu skápana aðeins til", { n:r.failed }) : __("Úthliðunum bætt við."));
     });
-    host.querySelector('[data-role="addA"]').addEventListener("click", function(){ addBlock(surfaceById(isl.id + "a"), "grunnskapur"); });
+    // "＋ Skápur" opens Ný eining with every unit on offer (B3, 2026-10-30: it used to add a plain base cabinet); the unit lands in this row
+    function addToRow(rowId){ uwPreferWallId = rowId; openUnitWizard(); }
+    host.querySelector('[data-role="addA"]').addEventListener("click", function(){ addToRow(isl.id + "a"); });
     var addB = host.querySelector('[data-role="addB"]');
-    if (addB) addB.addEventListener("click", function(){ addBlock(surfaceById(isl.id + "b"), "grunnskapur"); });
+    if (addB) addB.addEventListener("click", function(){ addToRow(isl.id + "b"); });
     host.querySelector('[data-role="delete"]').addEventListener("click", function(){ removeIsland(isl); });
   }
 
