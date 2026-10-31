@@ -1061,11 +1061,15 @@
       patch["Næsta skref"] = def.step;
       patch["Næsta skref dags."] = dd.toISOString().slice(0, 10);
     }
+    // Optimistic (2026-10-31): the card moves at once, the PATCH follows. A failed write puts the old values back.
+    var prev = {};
+    Object.keys(patch).forEach(function (k) { prev[k] = f[k]; });
+    Object.assign(f, patch);
+    render(); renderNextSteps();
     return apiPatch(r.id, patch).then(function () {
-      Object.assign(f, patch);
-      load();
+      loadKpis(); loadPipelineReport();
       return true;
-    }, function () { load(); return false; }); // toast already shown by apiPatch; redraw so the card is back where it was
+    }, function () { Object.assign(f, prev); render(); renderNextSteps(); return false; }); // toast already shown by apiPatch
   }
 
   // ---- Næstu skref — every open deal with a Næsta skref dags. set, soonest/overdue first ----

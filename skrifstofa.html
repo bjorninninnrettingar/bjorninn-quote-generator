@@ -966,14 +966,17 @@
               // reason to even send a request a real drag could never have produced.
               if (!v || v.from === stage.value || !verkDragAllowed(v.from, stage.value)) return;
               if (/^Má Afhenda/.test(stage.value) && !confirm("Færa verkið í „Má afhenda“?\n\nÞetta sendir skilaboð til Skrifstofu og býr til drög að lokagreiðslu í Konto.")) return;
+              // Optimistic (2026-10-31): the card jumps to the new column at once; a refused move reloads the board.
+              var movedCard = board.querySelector('.verkCard[data-id="' + v.id + '"]');
+              if (movedCard) { var emptyEl = bodyEl.querySelector(".empty"); if (emptyEl) emptyEl.remove(); bodyEl.appendChild(movedCard); }
               fetch("/api/verk-status", {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ k: getK(), t: v.id, action: "status", from: v.from, to: stage.value }),
               }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
                 .then(function (res) {
-                  if (!res.ok) { errToast((res.d && res.d.error) || "Tókst ekki að færa."); return; }
+                  if (!res.ok) { errToast((res.d && res.d.error) || "Tókst ekki að færa."); loadVerkBoard(); return; }
                   loadVerkBoard();
-                }).catch(function () { errToast("Tókst ekki að færa — engin tenging."); });
+                }).catch(function () { errToast("Tókst ekki að færa — engin tenging."); loadVerkBoard(); });
             });
           }
           board.appendChild(col);

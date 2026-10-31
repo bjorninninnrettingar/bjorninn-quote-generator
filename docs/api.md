@@ -120,3 +120,7 @@ Same widget + endpoint as the public bot. A page adds one tag: `<script src="/ch
 - **Retrieval (top-k FAQ) NOT shipped**: Icelandic inflection makes keyword matching unreliable, there is no embedding store, and a wrong miss turns a correct answer into "veit ekki"; the cached full prompt is already only ~0.08¢ of input when warm.
 - **Fallback**: any upstream failure (402/billing, 4xx/5xx, 429, overload, network, 25 s timeout, non-JSON, unparsable/empty model output, missing key) returns **HTTP 200** `{answer, escalate, links, degraded:true}` — public: "Því miður get ég ekki svarað núna. Hafðu samband…" + `escalate:true` + the `samband` link; Studio: email text (is/en, no link); staff: "Spurðu Ísak eða Rakel". The raw upstream error is only `console.error`'d. chat-widget.js shows the same text locally on fetch failure / non-2xx / non-JSON / 35 s hang. `npm run eval:chat` treats `degraded` as an API failure and prints a token/cost total. Tests: tests/chat-fallback.test.js.
 - To simulate a failure without touching credits: run locally with `ANTHROPIC_API_KEY=bad` (Anthropic answers 401 → fallback), or unset the key.
+
+## Edge caching of catalog reads (2026-10-31)
+
+`GET /api/airtable` sends `Cache-Control: public, s-maxage=60, stale-while-revalidate=300` for Útfærslur, Vörulisti and Efnislisti (`CACHEABLE_TABLES`), keyless requests only. A catalog edit in Airtable shows up within about a minute (up to six with the stale window).

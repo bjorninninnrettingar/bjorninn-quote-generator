@@ -21,6 +21,8 @@ const AIRTABLE_BASE = "app91U15z9K704Okd";
 const STIMPLANIR_TABLE = "tblnFIO8RB6HcelXF";
 const VERKTIMAR_TABLE = "tblGu27c2fcwN2i2n";
 
+const CACHEABLE_TABLES = new Set(["tbl8HjvBwNJ41cTV0", "tblzuuRSRkeXaLWxC", "tbl8CrVWKF8CuI7HD"]);
+
 const ALLOWED_FIELDS = {
   "tbl4LMXlQjp66RFKI": [ // Tækifæri 📣 (projects)
     "Heiti tækifæris / verkefnis",
@@ -1091,6 +1093,12 @@ export default async function handler(req, res) {
     const { airtableRes, data, fields } = await fetchAirtableFiltered(url, allowedFields, token);
     if (Array.isArray(data.records)) {
       data.records = data.records.map((r) => filterFields(r, fields));
+    }
+    // Catalog lists (Útfærslur, Vörulisti, Efnislisti) change rarely: let Vercel's edge answer repeat reads for a
+    // minute (stale for five more while it refreshes) instead of asking Airtable (5 req/s per base) every time.
+    // Keyless requests only — anything fetched with ?k= / a piece token is never shared-cached.
+    if (airtableRes.status === 200 && CACHEABLE_TABLES.has(tableId) && req.query.k == null) {
+      res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
     }
     return res.status(airtableRes.status).json(data);
   }
