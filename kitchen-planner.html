@@ -14263,9 +14263,14 @@
   function wtResult(){
     if (!wtOn()) return null;
     var mv = KPWT.reconcile ? KPWT.reconcile(state, KP3D) : []; // the first cabinet of a counter run changed: its piece's sizes/cutouts/joint follow the piece
-    if (mv.length){ save(); toast("Borðplata: sérstillingar (stærð, skurðir, samskeyti) færðust á stykki " + mv.map(function(m){ return m.label; }).join(", ") + " því fyrsti skápurinn í röðinni breyttist — athugaðu málin."); }
+    if (mv.length){
+      if (SK_CAT){ WT_MOVED = WT_MOVED.concat(mv); } // inside withEachCategory the live fields are a parked room's: saving now would write ITS drawing over the room on screen (+ an undo step) — withEachCategory flushes once afterwards
+      else wtMovedNote(mv);
+    }
     return KPWT.compute(state, KP3D);
   }
+  var WT_MOVED = [];
+  function wtMovedNote(mv){ save(); toast("Borðplata: sérstillingar (stærð, skurðir, samskeyti) færðust á stykki " + mv.map(function(m){ return m.label; }).join(", ") + " því fyrsti skápurinn í röðinni breyttist — athugaðu málin."); }
   function wtRoomN(){ var q = state.categoryQueue || [], i = q.indexOf(SK_CAT || state.activeCategory); return i >= 0 ? i + 1 : 1; }
   function wtLines(){
     var r = wtResult(); if (!r) return [];
@@ -17852,6 +17857,7 @@
       SK_CAT = null; SK_SAVED_ACTIVE = null;
       ROOM_FIELDS.forEach(function(k){ state[k] = savedActive[k]; });
     }
+    if (WT_MOVED.length){ var mv = WT_MOVED; WT_MOVED = []; wtMovedNote(mv); } // worktop re-keying found while visiting rooms: save + say so once, with the real room back on state
   }
   function collectAllLineItems(){
     var rows = [];
