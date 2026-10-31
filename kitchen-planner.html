@@ -3191,11 +3191,12 @@
     if (keep.liSent) state.liSent = keep.liSent;
     if (keep.roomMats) state.roomMats = keep.roomMats;
     if (keep.afKeys) state.afKeys = Object.assign({}, state.afKeys, keep.afKeys); // AF numbers are never taken back (they may already be in Airtable)
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); if (PRO){ localStorage.setItem(STORAGE_KEY + ":dirty", "1"); localStorage.setItem(STORAGE_KEY + ":at", new Date().toISOString()); } }catch(e){} // the drawing no longer matches Airtable: "óvistað", tab-close warning, Keyra skipulag saves first
     if (selectedBlockId && !findBlock(selectedBlockId)) selectedBlockId = null;
     updateHistoryButtons();
     steppingHistory = true;
     try{ refreshAfterEdit(); } finally { steppingHistory = false; }
+    if (PRO) proBar();
   }
   // Re-derives blockSeq/wallSeq/openingSeq/islandSeq from whatever's actually in the live state —
   // used after load() and after swapping a parked category's blob into the live fields (startCategory),

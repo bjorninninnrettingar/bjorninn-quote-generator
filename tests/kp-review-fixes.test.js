@@ -33,3 +33,20 @@ test("(1) worktop re-keying inside withEachCategory: no save()/undo step while a
   assert.equal(log.filter((x) => x === "toast").length, 1, "one toast");
   assert.equal(log[log.length - 2], "save:ACTIVE", "saved after the real room was restored");
 });
+
+// ---- 2. Afturkalla / Endurgera after Vista must show "óvistað"
+test("(2) PRO: stepHistory marks the drawing dirty and refreshes the bar (chip no longer says 'vistað' after undo)", () => {
+  const store = {}; let bars = 0;
+  const sb = {
+    PRO: {}, STORAGE_KEY: "k", localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } },
+    histIdx: 1, undoStack: ['{"walls":1}', '{"walls":2}'], steppingHistory: false, selectedBlockId: null,
+    state: { proSavedAt: "t", liSent: {} }, findBlock() {}, updateHistoryButtons() {}, refreshAfterEdit() {}, proBar: () => { bars++; },
+  };
+  sb.window = sb; vm.createContext(sb);
+  vm.runInContext(fnBody("stepHistory") + "\n" + fnBody("proDirty") + "\nthis.stepHistory = stepHistory; this.proDirty = proDirty;", sb);
+  assert.equal(sb.proDirty(), false);
+  sb.stepHistory(-1);
+  assert.equal(sb.proDirty(), true, "dirty after Afturkalla");
+  assert.ok(bars >= 1, "the bar was refreshed");
+  assert.equal(sb.state.proSavedAt, "t", "save stamps still kept");
+});
