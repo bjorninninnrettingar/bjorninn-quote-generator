@@ -1,6 +1,6 @@
 # Spec: eyjar, bitar í lofti, loftun (2026-10-30)
 
-**Staða: Umferð 1 byggð 2026-10-30 (bitar, C).** Umferðir 2 og 3 ekki byrjaðar. Eldri texti: þetta var spec til að lesa og leiðrétta. Tilvísanir í skrár og línur eru aftast.
+**Staða: Umferð 1 byggð 2026-10-30 (bitar, C). Umferð 2 byggð 2026-10-31 (hár skápur í eyju, B1–B3).** Umferð 3 ekki byrjuð. Eldri texti: þetta var spec til að lesa og leiðrétta. Tilvísanir í skrár og línur eru aftast.
 Prófað á T-32 (prufuverkið) eftir hverja umferð. Skýring: PRO = Pro-hamur (Rakel), Studio = það sem viðskiptavinur sér.
 
 ## A. Hár skápur í eyju
@@ -80,6 +80,20 @@ Mælt (T-32-líkt herbergi, sjálfgefin sýn, plan í hæð bitans): áður 59 m
 8. Smelltu á auðan flöt við bitann: velur ekki bitann ranglega; myndavélin snýst ekki meðan haldið er á bitanum eða punktinum.
 
 Ekki sannreynt: raunveruleg tilfinning músar/snertiflatar (prófað með hermdum atburðum í Browser-rúðunni), Studio-flæðið sérstaklega (sami kóði, ekki opnað sem viðskiptavinur), fjarlægðarmerki í Ofanmynd (ekki gerð).
+
+### Umferð 2 byggð (2026-10-31): hár skápur í eyju (aðeins PRO) + B1–B3
+
+Skrár: `kitchen-planner-3d.js` (`islandBackSegs`, `addIslandBack`/`addIslandTallBacks`, `islandObstacleHits`, `islandRowObstacleSpans`, `islandClearances`, `islandFits` + `islandWarnings` ná til bita), `kitchen-planner-worktop.js` (eyjuendi við háan skáp = "wall"), `kitchen-planner.html` (`ISLAND_TALL_OPTS`, `addIslandEndPanels`, spjald, `islClearLive`, `setIslandWallGap`, `crossSpans`/`placeInWall` fyrir eyju), prófanir í `tests/kp-island-tall.test.js` (+ `tests/fixtures/island-baseline.json`: eyjur án hás skáps gefa nákvæmlega sömu tölur og fyrir umferðina).
+
+Valið þar sem spec var opið: (1) tveggja raða eyja: bak háa skápsins er 19 mm stykki frá toppi hinnar raðarinnar upp í hæð hans (aðeins sýnt í 3D og í Line Items-athugasemd, ekkert í Smíðagögn); (2) háir skápar fá úthliðar sjálfkrafa í PRO þegar eyja með háum skáp er sett inn eða hár skápur kemur úr Ný eining; dreginn skápur í eyju fær þær ekki sjálfkrafa (hnappurinn og "Það vantar úthliðar" við Áfram taka það); (3) biti yfir háum skáp í eyju: bitinn er mældur sem kassi í ramma raðarinnar (snúinn biti telst aðeins meira), dregin eyja stoppar nákvæmlega; (4) bil til veggs er mælt beint að vegg sem snýr að eyjunni (sá sem hægt er að slá inn), aðrir veggir að næsta punkti; (5) þröskuldar 1000/900 mm eru á bilinu að næsta skáp eða vegg, 900 mm viðvörunin óbreytt; (6) hnappurinn "Bæta við úthliðum" er líka í Studio (úthlið í eyjuendum), háu skáparnir bara í PRO.
+
+**Prófun á 5 mínútum (T-32, PRO):**
+1. Ný eining → Eyja → Ein röð. Veldu kassa A2 → "Háir skápar" → Hurðir með hillum. Setja inn eyju: eyjan kemur með 19 mm úthlið við báða enda og báðum megin við háa skápinn (A-röðin lengist um 4 × 19 mm).
+2. 3D: bakið er í þremur hlutum (lágt, 2500 mm hátt við háa skápinn, lágt). Borðplatan er í 2 hlutum; ending við háa skápinn er án yfirhangs og án kants (Borðplata í PRO: "veggur").
+3. Veldu eyjuna: "Bil frá vegg 1" o.fl. í mm (grænt ≥ 1000, gult 900–1000, rautt undir). Sláðu inn 1050 í "Bil frá vegg 1" og ýttu á Enter: eyjan færist. Dragðu gula punktinn: bilin sjást lifandi meðan dregið er.
+4. Hindranir → Biti í lofti, settu hann þvert yfir háa skápinn: viðvörun "Eyja 1: hár skápur rekst á biti í lofti"; eyjan fæst ekki dregin undir bitann með háa skápnum.
+5. "Bæta við úthliðum" á eyju án hás skáps: báðir endar fá úthlið; annar smellur: "Allar sýnilegar hliðar eru með úthlið".
+6. "＋ Skápur" á eyjuspjaldinu: Ný eining opnast með öllum einingum; veldu t.d. Búrskáp → Áfram: hann lendir í eyjunni með úthliðum. Yfirlit: engin ný villa.
 
 ## D. Loftunarhillur
 
